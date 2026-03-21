@@ -10,7 +10,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
   return (
     <div
       ref={ref}
-      className="h-[100vh] w-[100%] overflow-hidden rounded-2xl bg-white"
+      className="h-full w-full overflow-hidden rounded-[24px] bg-white sm:rounded-2xl"
     >
       <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-blue-950 to-slate-800 text-white">
         <div className="text-center">

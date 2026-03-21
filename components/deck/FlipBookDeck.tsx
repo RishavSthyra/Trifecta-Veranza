@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import HTMLFlipBook from "react-pageflip";
 import CoverPage from "@/components/deck/pages/CoverPage";
-import ProblemPage from "@/components/deck/pages/ProblemPage";
 import ClosingPage from "@/components/deck/pages/ClosingPage";
 import OverviewLeftPage from "./pages/OverviewLeftPage";
 import OverviewRightPage from "./pages/OverviewRightPage";
@@ -16,10 +15,6 @@ import UnitPlanLeftPage from "./pages/TowerA_01_left";
 import UnitPlanRightPage from "./pages/TowerA_01_right";
 import LeafOverlay from "@/components/ui/LeafOverlay"
 import { unitPlans } from "@/data/unitPlans";
-
-type FlipEvent = {
-  data: number;
-};
 
 type PageFlipInstance = {
   flipNext: (corner?: "top" | "bottom") => void;
@@ -84,7 +79,6 @@ const bgAnimation = {
 
 export default function FlipBookDeck() {
   const bookRef = useRef<FlipBookRef | null>(null);
-  const [currentPage, setCurrentPage] = useState(0);
   const [viewport, setViewport] = useState({
     width: 1400,
     height: 900,
@@ -146,18 +140,6 @@ const pages = useMemo(() => {
   ];
 }, []);
 
-  const handlePrev = () => {
-    const flipBook = bookRef.current?.pageFlip?.();
-    if (!flipBook) return;
-    flipBook.flipPrev();
-  };
-
-  const handleNext = () => {
-    const flipBook = bookRef.current?.pageFlip?.();
-    if (!flipBook) return;
-    flipBook.flipNext();
-  };
-
   const isMobile = viewport.width < 640;
   const isTablet = viewport.width >= 640 && viewport.width < 1024;
   const isSmallLaptop = viewport.width >= 1024 && viewport.width < 1280;
@@ -201,17 +183,17 @@ const pages = useMemo(() => {
 
     // Mobile: tall portrait
     return {
-      width: 420,
-      height: 760,
-      minWidth: 280,
-      maxWidth: 440,
-      minHeight: 520,
-      maxHeight: 820,
+      width: 390,
+      height: 680,
+      minWidth: 260,
+      maxWidth: 410,
+      minHeight: 500,
+      maxHeight: 720,
     };
   })();
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-neutral-100 px-2 py-2 sm:px-4">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-neutral-100 px-2 pb-3 pt-18 sm:px-4 sm:py-4 sm:pt-6">
       <motion.div
         variants={bgAnimation}
         initial="hidden"
@@ -232,7 +214,7 @@ const pages = useMemo(() => {
         variants={leftPlantAnimation}
         initial="hidden"
         animate="show"
-        className="absolute bottom-0 left-0 w-[18%] sm:w-[16%] lg:w-[20%] pointer-events-none"
+        className="pointer-events-none absolute bottom-0 left-0 hidden w-[18%] sm:block sm:w-[16%] lg:w-[20%]"
       >
         <Image
           src={PlantImage}
@@ -246,7 +228,7 @@ const pages = useMemo(() => {
         variants={hangingPlantAnimation}
         initial="hidden"
         animate="show"
-        className="absolute top-0 right-0 z-50 w-[18%] sm:w-[16%] lg:w-[20%] origin-top pointer-events-none"
+        className="pointer-events-none absolute right-0 top-0 z-50 hidden w-[18%] origin-top sm:block sm:w-[16%] lg:w-[20%]"
       >
         <Image
           src={HangingPlant}
@@ -282,7 +264,7 @@ const pages = useMemo(() => {
               swipeDistance={30}
               showPageCorners
               disableFlipByClick={false}
-              onFlip={(e: FlipEvent) => setCurrentPage(e.data)}
+              onFlip={() => {}}
               className="mx-auto"
               style={{}}
             >

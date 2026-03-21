@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { motion, type Variants } from "framer-motion";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
 
 export default function HeroSection() {
   const router = useRouter();
@@ -40,9 +42,9 @@ export default function HeroSection() {
     },
   };
 
-  const goToNextPage = () => {
+  const goToNextPage = useCallback(() => {
     router.push("/master-plan");
-  };
+  }, [router]);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -66,12 +68,12 @@ export default function HeroSection() {
     return () => {
       el.removeEventListener("wheel", handleWheel);
     };
-  }, []);
+  }, [goToNextPage]);
 
   return (
     <section
       ref={sectionRef}
-      className="relative h-screen w-full overflow-hidden bg-black text-white"
+      className="relative h-dvh w-full overflow-hidden bg-black text-white"
     >
       <div
         className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${
@@ -98,18 +100,17 @@ export default function HeroSection() {
       <div className="absolute inset-0 bg-black/5" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.45)_100%)]" />
 
-      <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-6 py-5 md:px-10">
+      <div className="hidden  absolute left-0 right-0 top-0 z-20 lg:flex items-center justify-between px-6 py-5 md:px-10">
         <button className="text-xs uppercase tracking-[0.25em] text-white/80">
-          Menu
+          <Link href={"/"}>
+            <Image
+              src={"/Logo_Trifect_Veranza.png"}
+              width={140}
+              height={100}
+              alt="Trifecta Logo"
+            />
+          </Link>
         </button>
-
-        <div className="text-center">
-          <p className="text-2xl font-serif tracking-wide">Veranza</p>
-          <p className="text-[10px] uppercase tracking-[0.35em] text-white/70">
-            by Trifecta
-          </p>
-        </div>
-
         <button className="text-xs uppercase tracking-[0.25em] text-white/80">
           Inquire
         </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   motion,
@@ -18,6 +18,7 @@ import {
   MapPin,
   Search,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 
 type Apartment = {
@@ -214,6 +215,7 @@ export default function MasterPlanLayout() {
   const [showIdleVideo, setShowIdleVideo] = useState(false);
   const [showReverseVideo, setShowReverseVideo] = useState(false);
   const [isIntroPlaying, setIsIntroPlaying] = useState(true);
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
 
   const filteredApartments = useMemo(() => {
     return apartments.filter((apartment) => {
@@ -268,7 +270,7 @@ export default function MasterPlanLayout() {
     }
   };
 
-  const leaveToHome = async () => {
+  const leaveToHome = useCallback(async () => {
     if (leavingRef.current || isIntroPlaying) return;
     leavingRef.current = true;
 
@@ -298,9 +300,15 @@ export default function MasterPlanLayout() {
     } catch {
       router.push("/");
     }
-  };
+  }, [isIntroPlaying, router]);
 
   useEffect(() => {
+    const isInsideScrollArea = (target: EventTarget | null) => {
+      return target instanceof HTMLElement
+        ? Boolean(target.closest("[data-scroll-area]"))
+        : false;
+    };
+
     const blockAllScrollLikeActions = (e: Event) => {
       if (isIntroPlaying || leavingRef.current) {
         e.preventDefault();
@@ -324,10 +332,7 @@ export default function MasterPlanLayout() {
         return;
       }
 
-      const scrollableParent = target.closest("[data-scroll-area='results']");
-      if (scrollableParent instanceof HTMLElement) {
-        if (scrollableParent.scrollTop > 0) return;
-      }
+      if (isInsideScrollArea(target)) return;
 
       if (e.deltaY < -20) {
         e.preventDefault();
@@ -355,6 +360,8 @@ export default function MasterPlanLayout() {
         return;
       }
 
+      if (isInsideScrollArea(e.target)) return;
+
       const upKeys = ["ArrowUp", "PageUp", "Home"];
       if (upKeys.includes(e.key)) {
         e.preventDefault();
@@ -363,6 +370,11 @@ export default function MasterPlanLayout() {
     };
 
     const handleTouchStart = (e: TouchEvent) => {
+      if (isInsideScrollArea(e.target)) {
+        touchStartYRef.current = null;
+        return;
+      }
+
       if (e.touches.length > 0) {
         touchStartYRef.current = e.touches[0].clientY;
       }
@@ -374,6 +386,8 @@ export default function MasterPlanLayout() {
         e.stopPropagation();
         return;
       }
+
+      if (isInsideScrollArea(e.target)) return;
 
       const startY = touchStartYRef.current;
       const currentY = e.touches[0]?.clientY;
@@ -414,12 +428,12 @@ export default function MasterPlanLayout() {
         blockAllScrollLikeActions as EventListener,
       );
     };
-  }, [isIntroPlaying]);
+  }, [isIntroPlaying, leaveToHome]);
 
   return (
     <div
       ref={rootRef}
-      className="relative min-h-screen w-full overflow-hidden bg-[#f5f7fb] text-zinc-900 dark:bg-black dark:text-white"
+      className="relative h-dvh w-full overflow-hidden bg-[#f5f7fb] text-zinc-900 [overflow-anchor:none] dark:bg-black dark:text-white"
     >
       <video
         ref={forwardVideoRef}
@@ -471,13 +485,13 @@ export default function MasterPlanLayout() {
       </div>
 
       <div
-        className={`relative z-10 min-h-screen w-full px-4 py-6 md:px-6 lg:px-8 transition-opacity duration-500 ${
+        className={`relative z-10 h-full w-full px-4 py-6 md:px-6 lg:px-8 transition-opacity duration-500 ${
           isIntroPlaying
             ? "pointer-events-none opacity-0"
             : "pointer-events-auto opacity-100"
         }`}
       >
-        <div className="grid min-h-[calc(100vh-3rem)] gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="grid h-full gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="hidden xl:block" />
 
           <AnimatePresence mode="wait">
@@ -488,260 +502,435 @@ export default function MasterPlanLayout() {
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="min-w-0 xl:col-start-2 xl:h-full"
+                className="hidden min-w-0 xl:col-start-2 xl:block xl:h-full"
               >
-                <div className="sticky top-6 ml-auto w-full max-w-[420px] space-y-6 overflow-hidden">
-                  <motion.div className="rounded-[30px] border border-white/30 bg-white/60 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-                    <div className="mb-5 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="rounded-xl bg-zinc-900 p-2 text-white dark:bg-white dark:text-black">
-                          <SlidersHorizontal className="h-4 w-4" />
-                        </div>
-                        <div>
-                          <h2 className="text-lg font-semibold">Filters</h2>
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                            Refine inventory in real time
-                          </p>
-                        </div>
-                      </div>
+                <div
+                  className="sticky top-6 ml-auto flex h-[calc(100dvh-3rem)] w-full max-w-[420px] flex-col gap-6 overflow-y-auto overscroll-contain pr-1 [overflow-anchor:none]"
+                  data-scroll-area="sidebar"
+                >
+                  <MasterPlanFiltersCard
+                    search={search}
+                    onSearchChange={setSearch}
+                    tower={tower}
+                    onTowerChange={setTower}
+                    bhk={bhk}
+                    onBhkChange={setBhk}
+                    facing={facing}
+                    onFacingChange={setFacing}
+                    status={status}
+                    onStatusChange={setStatus}
+                    minPrice={minPrice}
+                    onMinPriceChange={setMinPrice}
+                    maxPrice={maxPrice}
+                    onMaxPriceChange={setMaxPrice}
+                    minArea={minArea}
+                    onMinAreaChange={setMinArea}
+                    onReset={resetFilters}
+                  />
 
-                      <button
-                        onClick={resetFilters}
-                        className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
-                      >
-                        Reset
-                      </button>
-                    </div>
-
-                    <div className="space-y-5">
-                      <FilterBlock label="Search Unit / Tower">
-                        <div className="group flex items-center gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-3 py-3 shadow-sm transition focus-within:border-zinc-400 focus-within:bg-white dark:border-white/10 dark:bg-white/5 dark:focus-within:border-white/20 dark:focus-within:bg-white/10">
-                          <Search className="h-4 w-4 text-zinc-500 transition group-focus-within:text-zinc-800 dark:group-focus-within:text-white" />
-                          <input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="A-1203 or Tower A"
-                            className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
-                          />
-                        </div>
-                      </FilterBlock>
-
-                      <FilterBlock label="Tower">
-                        <GlassSelect
-                          value={tower}
-                          onValueChange={(value) =>
-                            setTower(value as (typeof towers)[number])
-                          }
-                          placeholder="Select tower"
-                        >
-                          {towers.map((item) => (
-                            <GlassSelectItem key={item} value={item}>
-                              {item}
-                            </GlassSelectItem>
-                          ))}
-                        </GlassSelect>
-                      </FilterBlock>
-
-                      <FilterBlock label="BHK">
-                        <GlassSelect
-                          value={bhk}
-                          onValueChange={(value) =>
-                            setBhk(value as (typeof bhkOptions)[number])
-                          }
-                          placeholder="Select BHK"
-                        >
-                          {bhkOptions.map((item) => (
-                            <GlassSelectItem key={item} value={item}>
-                              {item === "All" ? "All" : `${item} BHK`}
-                            </GlassSelectItem>
-                          ))}
-                        </GlassSelect>
-                      </FilterBlock>
-
-                      <FilterBlock label="Facing">
-                        <GlassSelect
-                          value={facing}
-                          onValueChange={(value) =>
-                            setFacing(value as (typeof facingOptions)[number])
-                          }
-                          placeholder="Select facing"
-                        >
-                          {facingOptions.map((item) => (
-                            <GlassSelectItem key={item} value={item}>
-                              {item}
-                            </GlassSelectItem>
-                          ))}
-                        </GlassSelect>
-                      </FilterBlock>
-
-                      <FilterBlock label="Status">
-                        <GlassSelect
-                          value={status}
-                          onValueChange={(value) =>
-                            setStatus(value as (typeof statusOptions)[number])
-                          }
-                          placeholder="Select status"
-                        >
-                          {statusOptions.map((item) => (
-                            <GlassSelectItem key={item} value={item}>
-                              {item}
-                            </GlassSelectItem>
-                          ))}
-                        </GlassSelect>
-                      </FilterBlock>
-
-                      <FilterBlock label={`Min Price: ₹${minPrice}L`}>
-                        <input
-                          type="range"
-                          min={0}
-                          max={200}
-                          step={5}
-                          value={minPrice}
-                          onChange={(e) => setMinPrice(Number(e.target.value))}
-                          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
-                        />
-                      </FilterBlock>
-
-                      <FilterBlock label={`Max Price: ₹${maxPrice}L`}>
-                        <input
-                          type="range"
-                          min={0}
-                          max={200}
-                          step={5}
-                          value={maxPrice}
-                          onChange={(e) => setMaxPrice(Number(e.target.value))}
-                          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
-                        />
-                      </FilterBlock>
-
-                      <FilterBlock label={`Min Area: ${minArea} sqft`}>
-                        <input
-                          type="range"
-                          min={0}
-                          max={2500}
-                          step={50}
-                          value={minArea}
-                          onChange={(e) => setMinArea(Number(e.target.value))}
-                          className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
-                        />
-                      </FilterBlock>
-                    </div>
-                  </motion.div>
-
-                  <motion.div className="rounded-[30px] border border-white/30 bg-white/75 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-                    <div className="mb-4 flex items-center justify-between">
-                      <div>
-                        <h3 className="text-base font-semibold">
-                          Matching Flats
-                        </h3>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                          Scroll through live results
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium dark:border-white/10 dark:bg-white/5">
-                        {filteredApartments.length} units
-                      </span>
-                    </div>
-
-                    <motion.div
-                      variants={staggerWrap}
-                      initial="hidden"
-                      animate="visible"
-                      className="h-[420px] overflow-y-auto pr-1 [scrollbar-gutter:stable]"
-                      data-scroll-area="results"
-                    >
-                      <div className="space-y-3">
-                        <AnimatePresence initial={false}>
-                          {filteredApartments.length > 0 ? (
-                            filteredApartments.map((apartment) => (
-                              <motion.button
-                                key={apartment.id}
-                                layout="position"
-                                variants={itemAnim}
-                                initial="hidden"
-                                animate="visible"
-                                exit="exit"
-                                whileHover={{ x: 4, scale: 1.01 }}
-                                whileTap={{ scale: 0.99 }}
-                                className="group flex w-full items-center justify-between rounded-[22px] border border-zinc-200/80 bg-gradient-to-br from-white to-zinc-50 px-4 py-3 text-left shadow-sm transition dark:border-white/10 dark:from-white/10 dark:to-white/5"
-                              >
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <p className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
-                                      {apartment.title}
-                                    </p>
-                                    <span
-                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                        apartment.status === "Available"
-                                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                                          : apartment.status === "Booked"
-                                            ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
-                                            : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-                                      }`}
-                                    >
-                                      {apartment.status}
-                                    </span>
-                                  </div>
-
-                                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                                      <Building2 className="h-3.5 w-3.5" />
-                                      {apartment.tower}
-                                    </span>
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                                      <BedDouble className="h-3.5 w-3.5" />
-                                      {apartment.bhk} BHK
-                                    </span>
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                                      <IndianRupee className="h-3.5 w-3.5" />
-                                      {apartment.priceLakhs}L
-                                    </span>
-                                  </div>
-                                </div>
-
-                                <div className="ml-4 shrink-0 text-right text-xs text-zinc-500 dark:text-zinc-400">
-                                  <div className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                                    <MapPin className="h-3.5 w-3.5" />
-                                    {apartment.facing}
-                                  </div>
-                                  <p className="mt-2 font-medium text-zinc-700 dark:text-zinc-300">
-                                    {apartment.areaSqft} sqft
-                                  </p>
-                                  <p className="mt-1 text-[11px]">
-                                    Floor {apartment.floor}
-                                  </p>
-                                </div>
-                              </motion.button>
-                            ))
-                          ) : (
-                            <motion.div
-                              key="empty"
-                              initial={{ opacity: 0, y: 18 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              exit={{ opacity: 0 }}
-                              className="flex h-[220px] items-center justify-center rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50/70 px-4 text-center dark:border-white/10 dark:bg-white/5"
-                            >
-                              <div>
-                                <p className="text-sm font-semibold">
-                                  No flats found
-                                </p>
-                                <p className="mt-1 text-xs text-zinc-500">
-                                  Try changing the filters.
-                                </p>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </motion.div>
-                  </motion.div>
+                  <MasterPlanResultsCard
+                    filteredApartments={filteredApartments}
+                  />
                 </div>
               </motion.aside>
             )}
           </AnimatePresence>
         </div>
+
+        {!isLeaving && !isIntroPlaying ? (
+          <>
+            <AnimatePresence>
+              {isMobileSheetOpen ? (
+                <motion.button
+                  type="button"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsMobileSheetOpen(false)}
+                  className="absolute inset-0 z-20 bg-black/10 backdrop-blur-[1px] xl:hidden"
+                  aria-label="Close master plan panel"
+                />
+              ) : null}
+            </AnimatePresence>
+
+            {!isMobileSheetOpen ? (
+              <button
+                type="button"
+                onClick={() => setIsMobileSheetOpen(true)}
+                className="absolute bottom-6 right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl xl:hidden"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                {filteredApartments.length} units
+              </button>
+            ) : null}
+
+            <motion.div
+              initial={false}
+              animate={
+                isMobileSheetOpen
+                  ? { y: 0, opacity: 1 }
+                  : { y: "110%", opacity: 0 }
+              }
+              transition={{ duration: 0.45, ease: smoothEase }}
+              className={`absolute inset-x-3 bottom-3 z-30 xl:hidden ${
+                isMobileSheetOpen ? "pointer-events-auto" : "pointer-events-none"
+              }`}
+            >
+              <div
+                className="flex max-h-[calc(100dvh-5.5rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:rounded-[32px]"
+                data-scroll-area="mobile-sheet"
+              >
+                <div className="flex items-center justify-between border-b border-zinc-200/80 px-4 py-3 dark:border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="h-1.5 w-12 rounded-full bg-zinc-300 dark:bg-white/20" />
+                    <div>
+                      <p className="text-sm font-semibold">Master Plan</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {filteredApartments.length} matching units
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsMobileSheetOpen(false)}
+                    className="rounded-xl border border-zinc-200 bg-white/80 p-2 text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white"
+                    aria-label="Close master plan panel"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+                  <div className="flex min-h-full flex-col gap-3 sm:gap-4">
+                  <MasterPlanFiltersCard
+                    search={search}
+                    onSearchChange={setSearch}
+                    tower={tower}
+                    onTowerChange={setTower}
+                    bhk={bhk}
+                    onBhkChange={setBhk}
+                    facing={facing}
+                    onFacingChange={setFacing}
+                    status={status}
+                    onStatusChange={setStatus}
+                    minPrice={minPrice}
+                    onMinPriceChange={setMinPrice}
+                    maxPrice={maxPrice}
+                    onMaxPriceChange={setMaxPrice}
+                    minArea={minArea}
+                    onMinAreaChange={setMinArea}
+                    onReset={resetFilters}
+                    compact
+                  />
+
+                  <MasterPlanResultsCard
+                    filteredApartments={filteredApartments}
+                    compact
+                  />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function MasterPlanFiltersCard({
+  search,
+  onSearchChange,
+  tower,
+  onTowerChange,
+  bhk,
+  onBhkChange,
+  facing,
+  onFacingChange,
+  status,
+  onStatusChange,
+  minPrice,
+  onMinPriceChange,
+  maxPrice,
+  onMaxPriceChange,
+  minArea,
+  onMinAreaChange,
+  onReset,
+  compact = false,
+}: {
+  search: string;
+  onSearchChange: (value: string) => void;
+  tower: (typeof towers)[number];
+  onTowerChange: (value: (typeof towers)[number]) => void;
+  bhk: (typeof bhkOptions)[number];
+  onBhkChange: (value: (typeof bhkOptions)[number]) => void;
+  facing: (typeof facingOptions)[number];
+  onFacingChange: (value: (typeof facingOptions)[number]) => void;
+  status: (typeof statusOptions)[number];
+  onStatusChange: (value: (typeof statusOptions)[number]) => void;
+  minPrice: number;
+  onMinPriceChange: (value: number) => void;
+  maxPrice: number;
+  onMaxPriceChange: (value: number) => void;
+  minArea: number;
+  onMinAreaChange: (value: number) => void;
+  onReset: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <motion.div
+      className={`shrink-0 rounded-[24px] border border-white/30 bg-white/60 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] sm:p-5 ${
+        compact ? "" : ""
+      }`}
+    >
+      <div className="mb-5 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="rounded-xl bg-zinc-900 p-2 text-white dark:bg-white dark:text-black">
+            <SlidersHorizontal className="h-4 w-4" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold">Filters</h2>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Refine inventory in real time
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={onReset}
+          className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+        >
+          Reset
+        </button>
+      </div>
+
+      <div className={compact ? "space-y-4" : "space-y-5"}>
+        <FilterBlock label="Search Unit / Tower">
+          <div className="group flex items-center gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-3 py-3 shadow-sm transition focus-within:border-zinc-400 focus-within:bg-white dark:border-white/10 dark:bg-white/5 dark:focus-within:border-white/20 dark:focus-within:bg-white/10">
+            <Search className="h-4 w-4 text-zinc-500 transition group-focus-within:text-zinc-800 dark:group-focus-within:text-white" />
+            <input
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
+              placeholder="A-1203 or Tower A"
+              className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+            />
+          </div>
+        </FilterBlock>
+
+        <FilterBlock label="Tower">
+          <GlassSelect
+            value={tower}
+            onValueChange={(value) => onTowerChange(value as (typeof towers)[number])}
+            placeholder="Select tower"
+          >
+            {towers.map((item) => (
+              <GlassSelectItem key={item} value={item}>
+                {item}
+              </GlassSelectItem>
+            ))}
+          </GlassSelect>
+        </FilterBlock>
+
+        <FilterBlock label="BHK">
+          <GlassSelect
+            value={bhk}
+            onValueChange={(value) =>
+              onBhkChange(value as (typeof bhkOptions)[number])
+            }
+            placeholder="Select BHK"
+          >
+            {bhkOptions.map((item) => (
+              <GlassSelectItem key={item} value={item}>
+                {item === "All" ? "All" : `${item} BHK`}
+              </GlassSelectItem>
+            ))}
+          </GlassSelect>
+        </FilterBlock>
+
+        <FilterBlock label="Facing">
+          <GlassSelect
+            value={facing}
+            onValueChange={(value) =>
+              onFacingChange(value as (typeof facingOptions)[number])
+            }
+            placeholder="Select facing"
+          >
+            {facingOptions.map((item) => (
+              <GlassSelectItem key={item} value={item}>
+                {item}
+              </GlassSelectItem>
+            ))}
+          </GlassSelect>
+        </FilterBlock>
+
+        <FilterBlock label="Status">
+          <GlassSelect
+            value={status}
+            onValueChange={(value) =>
+              onStatusChange(value as (typeof statusOptions)[number])
+            }
+            placeholder="Select status"
+          >
+            {statusOptions.map((item) => (
+              <GlassSelectItem key={item} value={item}>
+                {item}
+              </GlassSelectItem>
+            ))}
+          </GlassSelect>
+        </FilterBlock>
+
+        <FilterBlock label={`Min Price: Rs. ${minPrice}L`}>
+          <input
+            type="range"
+            min={0}
+            max={200}
+            step={5}
+            value={minPrice}
+            onChange={(e) => onMinPriceChange(Number(e.target.value))}
+            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
+          />
+        </FilterBlock>
+
+        <FilterBlock label={`Max Price: Rs. ${maxPrice}L`}>
+          <input
+            type="range"
+            min={0}
+            max={200}
+            step={5}
+            value={maxPrice}
+            onChange={(e) => onMaxPriceChange(Number(e.target.value))}
+            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
+          />
+        </FilterBlock>
+
+        <FilterBlock label={`Min Area: ${minArea} sqft`}>
+          <input
+            type="range"
+            min={0}
+            max={2500}
+            step={50}
+            value={minArea}
+            onChange={(e) => onMinAreaChange(Number(e.target.value))}
+            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
+          />
+        </FilterBlock>
+      </div>
+    </motion.div>
+  );
+}
+
+function MasterPlanResultsCard({
+  filteredApartments,
+  compact = false,
+}: {
+  filteredApartments: Apartment[];
+  compact?: boolean;
+}) {
+  return (
+    <motion.div
+      className={`flex min-h-0 flex-col rounded-[24px] border border-white/30 bg-white/75 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] ${
+        compact ? "max-h-[36dvh] flex-none" : "flex-1"
+      }`}
+    >
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold">Matching Flats</h3>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Scroll through live results
+          </p>
+        </div>
+        <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium dark:border-white/10 dark:bg-white/5">
+          {filteredApartments.length} units
+        </span>
+      </div>
+
+      <motion.div
+        variants={staggerWrap}
+        initial="hidden"
+        animate="visible"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2 [overflow-anchor:none]"
+        data-scroll-area="results"
+      >
+        <div className="space-y-3">
+          <AnimatePresence initial={false}>
+            {filteredApartments.length > 0 ? (
+              filteredApartments.map((apartment) => (
+                <motion.button
+                  key={apartment.id}
+                  layout="position"
+                  variants={itemAnim}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  className="group flex w-full items-center justify-between rounded-[22px] border border-zinc-200/50 bg-linear-to-br from-white to-zinc-50 px-4 py-3 text-left shadow-sm transition dark:border-white/10 dark:from-white/10 dark:to-white/5"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-zinc-900 dark:text-white">
+                        {apartment.title}
+                      </p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                          apartment.status === "Available"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                            : apartment.status === "Booked"
+                              ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
+                              : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                        }`}
+                      >
+                        {apartment.status}
+                      </span>
+                    </div>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
+                        <Building2 className="h-3.5 w-3.5" />
+                        {apartment.tower}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
+                        <BedDouble className="h-3.5 w-3.5" />
+                        {apartment.bhk} BHK
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
+                        <IndianRupee className="h-3.5 w-3.5" />
+                        {apartment.priceLakhs}L
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="ml-4 shrink-0 text-right text-xs text-zinc-500 dark:text-zinc-400">
+                    <div className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {apartment.facing}
+                    </div>
+                    <p className="mt-2 font-medium text-zinc-700 dark:text-zinc-300">
+                      {apartment.areaSqft} sqft
+                    </p>
+                    <p className="mt-1 text-[11px]">Floor {apartment.floor}</p>
+                  </div>
+                </motion.button>
+              ))
+            ) : (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex h-[220px] items-center justify-center rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50/70 px-4 text-center dark:border-white/10 dark:bg-white/5"
+              >
+                <div>
+                  <p className="text-sm font-semibold">No flats found</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Try changing the filters.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }
 

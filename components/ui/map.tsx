@@ -719,8 +719,12 @@ type MapControlsProps = {
   showFullscreen?: boolean;
   /** Additional CSS classes for the controls container */
   className?: string;
-  /** Callback with user coordinates when located */
-  onLocate?: (coords: { longitude: number; latitude: number }) => void;
+  /** Callback with user coordinates and browser-reported accuracy when located */
+  onLocate?: (coords: {
+    longitude: number;
+    latitude: number;
+    accuracy?: number;
+  }) => void;
 };
 
 const positionClasses = {
@@ -797,6 +801,7 @@ function MapControls({
           const coords = {
             longitude: pos.coords.longitude,
             latitude: pos.coords.latitude,
+            accuracy: pos.coords.accuracy,
           };
           map?.flyTo({
             center: [coords.longitude, coords.latitude],
@@ -809,6 +814,11 @@ function MapControls({
         (error) => {
           console.error("Error getting location:", error);
           setWaitingForLocation(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
         }
       );
     }

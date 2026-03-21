@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import poidata from "@/data/poi.json"
-import Image from "next/image";
 import { Map,
   MapMarker,
   MarkerContent,
@@ -45,6 +44,12 @@ type RouteData = {
   distance: number;
 };
 
+type UserLocation = {
+  longitude: number;
+  latitude: number;
+  accuracy?: number;
+};
+
 type PoiCategory =
   | "park"
   | "mall"
@@ -74,6 +79,9 @@ const centerPlace = {
 };
 
 const pois : Poi[] = poidata as Poi[];
+const PROVISIONAL_ROUTE_CACHE: Record<number, RouteData> = Object.fromEntries(
+  pois.map((poi) => [poi.id, buildProvisionalRoute(poi)]),
+) as Record<number, RouteData>;
 
 const geojsonData = {
   type: "FeatureCollection" as const,
@@ -174,6 +182,176 @@ function getAnimatedSegment(
 function formatDistance(meters: number) {
   if (meters < 1000) return `${Math.round(meters)} m`;
   return `${(meters / 1000).toFixed(1)} km`;
+}
+
+function parseDurationLabel(label: string) {
+  const normalized = label.toLowerCase();
+  const hoursMatch = normalized.match(/(\d+)\s*h/);
+  const minutesMatch = normalized.match(/(\d+)\s*(?:m|min)/);
+
+  const hours = hoursMatch ? Number.parseInt(hoursMatch[1], 10) : 0;
+  const minutes = minutesMatch ? Number.parseInt(minutesMatch[1], 10) : 0;
+
+  return hours * 3600 + minutes * 60;
+}
+
+function parseDistanceLabel(label: string) {
+  const normalized = label.toLowerCase();
+  const kmMatch = normalized.match(/([\d.]+)\s*km/);
+  if (kmMatch) {
+    return Number.parseFloat(kmMatch[1]) * 1000;
+  }
+
+  const meterMatch = normalized.match(/([\d.]+)\s*m/);
+  if (meterMatch) {
+    return Number.parseFloat(meterMatch[1]);
+  }
+
+  return 0;
+}
+
+function buildCurvedRouteCoordinates(
+  start: { lng: number; lat: number },
+  end: { lng: number; lat: number },
+): [number, number][] {
+  const deltaLng = end.lng - start.lng;
+  const deltaLat = end.lat - start.lat;
+  const offsetLng = -deltaLat * 0.12;
+  const offsetLat = deltaLng * 0.12;
+
+  return [
+    [start.lng, start.lat],
+    [
+      start.lng + deltaLng * 0.28 + offsetLng * 0.35,
+      start.lat + deltaLat * 0.28 + offsetLat * 0.35,
+    ],
+    [
+      start.lng + deltaLng * 0.56 + offsetLng * 0.12,
+      start.lat + deltaLat * 0.56 + offsetLat * 0.12,
+    ],
+    [
+      start.lng + deltaLng * 0.82 - offsetLng * 0.08,
+      start.lat + deltaLat * 0.82 - offsetLat * 0.08,
+    ],
+    [end.lng, end.lat],
+  ];
+}
+
+function buildProvisionalRoute(poi: Poi): RouteData {
+  return {
+    id: poi.id,
+    name: poi.name,
+    coordinates: buildCurvedRouteCoordinates(
+      { lng: centerPlace.lng, lat: centerPlace.lat },
+      { lng: poi.lng, lat: poi.lat },
+    ),
+    duration: parseDurationLabel(poi.timeLabel),
+    distance: parseDistanceLabel(poi.distanceLabel),
+  };
+}
+
+function buildUserFallbackRoute(location: UserLocation): RouteData {
+  return {
+    id: -1,
+    name: "Your Route to Trifecta Veranza",
+    coordinates: buildCurvedRouteCoordinates(
+      { lng: location.longitude, lat: location.latitude },
+      { lng: centerPlace.lng, lat: centerPlace.lat },
+    ),
+    duration: 0,
+    distance: 0,
+  };
+}
+
+function buildAccuracyPolygon(
+  longitude: number,
+  latitude: number,
+  radiusMeters: number,
+  points = 48,
+): [number, number][] {
+  const latitudeCos = Math.max(
+    Math.cos((latitude * Math.PI) / 180),
+    0.00001,
+  );
+
+  const coordinates: [number, number][] = [];
+
+  for (let index = 0; index <= points; index += 1) {
+    const angle = (index / points) * Math.PI * 2;
+    const lngOffset =
+      ((radiusMeters * Math.cos(angle)) / (111320 * latitudeCos));
+    const latOffset = (radiusMeters * Math.sin(angle)) / 111320;
+
+    coordinates.push([longitude + lngOffset, latitude + latOffset]);
+  }
+
+  return coordinates;
+}
+
+async function fetchRouteBetweenPoints({
+  from,
+  to,
+  id,
+  name,
+  timeout = 12000,
+}: {
+  from: { lng: number; lat: number };
+  to: { lng: number; lat: number };
+  id: number;
+  name: string;
+  timeout?: number;
+}): Promise<RouteData | null> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
+
+  try {
+    const response = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`,
+      {
+        signal: controller.signal,
+      },
+    );
+
+    if (!response.ok) {
+      console.warn("Route fetch failed:", name, response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const route = data?.routes?.[0];
+
+    if (!route?.geometry?.coordinates) {
+      console.warn("Invalid route:", name);
+      return null;
+    }
+
+    return {
+      id,
+      name,
+      coordinates: route.geometry.coordinates as [number, number][],
+      duration: route.duration as number,
+      distance: route.distance as number,
+    };
+  } catch (err) {
+    if ((err as Error)?.name !== "AbortError") {
+      console.warn("Route fetch error:", name, err);
+    }
+    return null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function upsertRouteById(routes: RouteData[], nextRoute: RouteData) {
+  const existingIndex = routes.findIndex((route) => route.id === nextRoute.id);
+
+  if (existingIndex === -1) {
+    return [...routes, nextRoute];
+  }
+
+  const nextRoutes = [...routes];
+  nextRoutes[existingIndex] = nextRoute;
+  return nextRoutes;
 }
 
 const categoryMeta: Record<
@@ -367,7 +545,7 @@ function MapOverlayLayers({
             "match",
             ["get", "type"],
             "commercial",
-            "#a855f7",
+            "#a855f7",  
             "landmark_zone",
             "#2563eb",
             "#64748b",
@@ -395,7 +573,7 @@ function MapOverlayLayers({
       onHoverNameChange(null);
     };
 
-    const handleMouseMove = (e: any) => {
+    const handleMouseMove = (e: { point: { x: number; y: number } }) => {
       const features = map.queryRenderedFeatures(e.point, {
         layers: interactiveLayers.filter((id) => !!map.getLayer(id)),
       });
@@ -633,19 +811,114 @@ function MapClickClearRoute({
   return null;
 }
 
+function UserLocationAccuracyLayer({
+  location,
+}: {
+  location: UserLocation;
+}) {
+  const { map, isLoaded } = useMap();
+  const accuracyRadius = Math.max(location.accuracy ?? 0, 35);
+  const polygon = useMemo(
+    () => ({
+      type: "Feature" as const,
+      properties: {},
+      geometry: {
+        type: "Polygon" as const,
+        coordinates: [
+          buildAccuracyPolygon(
+            location.longitude,
+            location.latitude,
+            accuracyRadius,
+          ),
+        ],
+      },
+    }),
+    [accuracyRadius, location.latitude, location.longitude],
+  );
+
+  useEffect(() => {
+    if (!isLoaded || !map) return;
+
+    const sourceId = "user-location-accuracy-source";
+    const fillLayerId = "user-location-accuracy-fill";
+    const outlineLayerId = "user-location-accuracy-outline";
+
+    if (!map.getSource(sourceId)) {
+      map.addSource(sourceId, {
+        type: "geojson",
+        data: polygon,
+      });
+    }
+
+    if (!map.getLayer(fillLayerId)) {
+      map.addLayer({
+        id: fillLayerId,
+        type: "fill",
+        source: sourceId,
+        paint: {
+          "fill-color": "#0f766e",
+          "fill-opacity": 0.14,
+        },
+      });
+    }
+
+    if (!map.getLayer(outlineLayerId)) {
+      map.addLayer({
+        id: outlineLayerId,
+        type: "line",
+        source: sourceId,
+        paint: {
+          "line-color": "#0f766e",
+          "line-width": 2,
+          "line-opacity": 0.3,
+        },
+      });
+    }
+
+    return () => {
+      try {
+        if (map.getLayer(outlineLayerId)) map.removeLayer(outlineLayerId);
+        if (map.getLayer(fillLayerId)) map.removeLayer(fillLayerId);
+        if (map.getSource(sourceId)) map.removeSource(sourceId);
+      } catch {
+        // ignore map style teardown races
+      }
+    };
+  }, [isLoaded, map, polygon]);
+
+  useEffect(() => {
+    if (!isLoaded || !map) return;
+
+    const source = map.getSource(
+      "user-location-accuracy-source",
+    ) as { setData?: (data: unknown) => void } | null;
+
+    source?.setData?.(polygon);
+  }, [isLoaded, map, polygon]);
+
+  return null;
+}
+
 
 export function CustomStyleExample() {
   const mapRef = useRef<MapRef>(null);
   const suppressNextMapClearRef = useRef(false);
+  const userRouteRequestRef = useRef(0);
 
   const [style, setStyle] = useState<StyleKey>("default");
-  const [routes, setRoutes] = useState<RouteData[]>([]);
+  const [routes, setRoutes] = useState<RouteData[]>(
+    () => Object.values(PROVISIONAL_ROUTE_CACHE),
+  );
   const [isLoading, setIsLoading] = useState(true);
+  const [isUserRouteLoading, setIsUserRouteLoading] = useState(false);
   const [selectedPoiId, setSelectedPoiId] = useState<number | null>(null);
   const [routeProgress, setRouteProgress] = useState(0);
   const [routePoiId, setRoutePoiId] = useState<number | null>(null);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
+  const [userRoute, setUserRoute] = useState<RouteData | null>(null);
+  const [userRouteProgress, setUserRouteProgress] = useState(0);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(true);
 
   const [selectedCategories, setSelectedCategories] = useState<PoiCategory[]>([
     "park",
@@ -702,66 +975,40 @@ useEffect(() => {
   }
 
   async function fetchRouteForPoi(poi: Poi): Promise<RouteData | null> {
-    const controller = new AbortController();
-    const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-
-    try {
-      const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${centerPlace.lng},${centerPlace.lat};${poi.lng},${poi.lat}?overview=full&geometries=geojson`,
-        {
-          signal: controller.signal,
-        }
-      );
-
-      if (!response.ok) {
-        console.warn("Route fetch failed:", poi.name, response.status);
-        return null;
-      }
-
-      const data = await response.json();
-      const route = data?.routes?.[0];
-
-      if (!route?.geometry?.coordinates) {
-        console.warn("Invalid route:", poi.name);
-        return null;
-      }
-
-      return {
-        id: poi.id,
-        name: poi.name,
-        coordinates: route.geometry.coordinates as [number, number][],
-        duration: route.duration as number,
-        distance: route.distance as number,
-      };
-    } catch (err) {
-      if ((err as Error)?.name !== "AbortError") {
-        console.warn("Route fetch error:", poi.name, err);
-      }
-      return null;
-    } finally {
-      window.clearTimeout(timeoutId);
-    }
+    return fetchRouteBetweenPoints({
+      from: { lng: centerPlace.lng, lat: centerPlace.lat },
+      to: { lng: poi.lng, lat: poi.lat },
+      id: poi.id,
+      name: poi.name,
+      timeout: REQUEST_TIMEOUT,
+    });
   }
 
   async function runQueue() {
     setIsLoading(true);
 
     const cache = loadCache();
-    const cachedResults: RouteData[] = [];
+    const initialResults: RouteData[] = [];
     const uncachedPois: Poi[] = [];
 
     for (const poi of pois) {
       const cacheKey = getRouteCacheKey(poi);
       const cached = cache[cacheKey];
       if (cached) {
-        cachedResults.push(cached);
-      } else {
-        uncachedPois.push(poi);
+        initialResults.push(cached);
+        continue;
       }
+
+      const provisionalRoute = PROVISIONAL_ROUTE_CACHE[poi.id];
+      if (provisionalRoute) {
+        initialResults.push(provisionalRoute);
+      }
+
+      uncachedPois.push(poi);
     }
 
     if (!cancelled) {
-      setRoutes(cachedResults);
+      setRoutes(initialResults);
     }
 
     if (uncachedPois.length === 0) {
@@ -799,11 +1046,7 @@ useEffect(() => {
               cache[cacheKey] = result;
               saveCache(cache);
 
-              setRoutes((prev) => {
-                const exists = prev.some((item) => item.id === result.id);
-                if (exists) return prev;
-                return [...prev, result];
-              });
+              setRoutes((prev) => upsertRouteById(prev, result));
             }
 
             activeCount -= 1;
@@ -845,14 +1088,6 @@ useEffect(() => {
     return filteredPois.filter((poi) => poi.featured);
   }, [filteredPois]);
 
-  const stats = useMemo(() => {
-    return {
-      totalPois: filteredPois.length,
-      activeCategories: selectedCategories.length,
-      routes: routes.length,
-    };
-  }, [filteredPois.length, selectedCategories.length, routes.length]);
-
   function toggleCategory(category: PoiCategory) {
     setSelectedCategories((prev) =>
       prev.includes(category)
@@ -861,14 +1096,11 @@ useEffect(() => {
     );
   }
 
-  function flyToCoordinates(lng: number, lat: number, zoom = 13.8) {
-    mapRef.current?.flyTo?.({
-      center: [lng, lat],
-      zoom,
-      duration: 1200,
-    });
-  }
   function handlePoiMarkerClick(poi: Poi) {
+    userRouteRequestRef.current += 1;
+    setUserRoute(null);
+    setUserRouteProgress(0);
+    setIsUserRouteLoading(false);
     suppressNextMapClearRef.current = true;
     setSelectedPoiId(poi.id);
 
@@ -880,9 +1112,14 @@ useEffect(() => {
   }
 
   function resetFilters() {
+    userRouteRequestRef.current += 1;
     setSelectedPoiId(null);
     setRoutePoiId(null);
     setRouteProgress(0);
+    setUserLocation(null);
+    setUserRoute(null);
+    setUserRouteProgress(0);
+    setIsUserRouteLoading(false);
     setSearch("");
     setSelectedCategories([
       "park",
@@ -910,6 +1147,10 @@ useEffect(() => {
   }, []);
 
   function handleViewRoute(poi: Poi) {
+    userRouteRequestRef.current += 1;
+    setUserRoute(null);
+    setUserRouteProgress(0);
+    setIsUserRouteLoading(false);
     suppressNextMapClearRef.current = true;
     setSelectedPoiId(poi.id);
     setRoutePoiId(poi.id);
@@ -921,6 +1162,64 @@ useEffect(() => {
       duration: 1200,
     });
   }
+
+  const handleUserLocate = useCallback(
+    async (coords: UserLocation) => {
+      const requestId = userRouteRequestRef.current + 1;
+      userRouteRequestRef.current = requestId;
+
+      suppressNextMapClearRef.current = true;
+      setSelectedPoiId(null);
+      setRoutePoiId(null);
+      setRouteProgress(0);
+      setUserLocation(coords);
+
+      const fallbackRoute = buildUserFallbackRoute(coords);
+      setUserRoute(fallbackRoute);
+      setUserRouteProgress(0);
+      setIsUserRouteLoading(true);
+
+      mapRef.current?.fitBounds(
+        [
+          [
+            Math.min(coords.longitude, centerPlace.lng),
+            Math.min(coords.latitude, centerPlace.lat),
+          ],
+          [
+            Math.max(coords.longitude, centerPlace.lng),
+            Math.max(coords.latitude, centerPlace.lat),
+          ],
+        ],
+        {
+          padding: {
+            top: 120,
+            right: 80,
+            bottom: isMobileFiltersOpen ? 340 : 140,
+            left: 80,
+          },
+          duration: 1500,
+        },
+      );
+
+      const fetchedRoute = await fetchRouteBetweenPoints({
+        from: { lng: coords.longitude, lat: coords.latitude },
+        to: { lng: centerPlace.lng, lat: centerPlace.lat },
+        id: -1,
+        name: "Your Route to Trifecta Veranza",
+      });
+
+      if (userRouteRequestRef.current !== requestId) {
+        return;
+      }
+
+      if (fetchedRoute) {
+        setUserRoute(fetchedRoute);
+      }
+
+      setIsUserRouteLoading(false);
+    },
+    [isMobileFiltersOpen],
+  );
 
   
   const selectedPoi =
@@ -965,12 +1264,48 @@ const animatedCoordinates = useMemo(() => {
   return getAnimatedSegment(activeRoute.coordinates, routeProgress, 30);
 }, [activeRoute, routeProgress]);
 
+  useEffect(() => {
+    if (!userRoute) {
+      setUserRouteProgress(0);
+      return;
+    }
+
+    let frameId = 0;
+    let start: number | null = null;
+    const duration = 2600;
+
+    const animate = (time: number) => {
+      if (start === null) start = time;
+
+      const elapsed = time - start;
+      const progress = (elapsed % duration) / duration;
+
+      setUserRouteProgress(progress);
+      frameId = requestAnimationFrame(animate);
+    };
+
+    frameId = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(frameId);
+  }, [userRoute]);
+
+  const userAnimatedCoordinates = useMemo(() => {
+    if (!userRoute) return [];
+
+    if (!Array.isArray(userRoute.coordinates)) return [];
+
+    if (userRoute.coordinates.length < 2) return [];
+
+    return getAnimatedSegment(userRoute.coordinates, userRouteProgress, 30);
+  }, [userRoute, userRouteProgress]);
+
   const activeRouteColor = selectedPoi
     ? categoryMeta[selectedPoi.category].routeColor
     : "#22d3ee";
+  const userRouteColor = "#0f766e";
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-slate-100">
+    <div className="relative h-dvh w-full overflow-hidden bg-slate-100">
       <Map
         ref={mapRef}
         center={[centerPlace.lng, centerPlace.lat]}
@@ -981,7 +1316,14 @@ const animatedCoordinates = useMemo(() => {
             : undefined
         }
       >
-        <MapControls />
+        <MapControls
+          position="bottom-right"
+          showZoom
+          showCompass
+          showLocate
+          showFullscreen
+          onLocate={handleUserLocate}
+        />
 
         <MapClickClearRoute
           onClear={clearActiveRoute}
@@ -993,6 +1335,38 @@ const animatedCoordinates = useMemo(() => {
           showCommercial={showCommercialZones}
           onHoverNameChange={setHoveredLayerName}
         />
+        {userLocation ? (
+          <UserLocationAccuracyLayer location={userLocation} />
+        ) : null}
+        {userRoute && (
+          <>
+            <MapRoute
+              id="user-route-outline"
+              coordinates={userRoute.coordinates}
+              color="#ffffff"
+              width={3}
+              opacity={0.6}
+            />
+
+            <MapRoute
+              id="user-route-base"
+              coordinates={userRoute.coordinates}
+              color={userRouteColor}
+              width={6}
+              opacity={0.18}
+            />
+          </>
+        )}
+
+        {userAnimatedCoordinates.length > 1 && (
+          <MapRoute
+            id="user-route-animated"
+            coordinates={userAnimatedCoordinates}
+            color={userRouteColor}
+            width={5}
+            opacity={1}
+          />
+        )}
         {activeRoute && (
           <>
             <MapRoute
@@ -1042,6 +1416,40 @@ const animatedCoordinates = useMemo(() => {
           </MarkerPopup>
         </MapMarker>
 
+        {userLocation ? (
+          <MapMarker
+            longitude={userLocation.longitude}
+            latitude={userLocation.latitude}
+          >
+            <MarkerContent>
+              <div className="relative flex items-center justify-center">
+                <div className="absolute size-8 animate-ping rounded-full bg-teal-500/20" />
+                <div className="absolute size-6 rounded-full bg-teal-500/20 blur-md" />
+                <div className="relative size-4 rounded-full border-2 border-white bg-teal-600 shadow-[0_0_0_6px_rgba(15,118,110,0.18)]" />
+              </div>
+            </MarkerContent>
+
+            <MarkerTooltip>Your Location</MarkerTooltip>
+
+            <MarkerPopup>
+              <div className="space-y-2">
+                <p className="font-medium text-slate-900">Your Location</p>
+                <p className="text-xs text-slate-600">
+                  {userLocation.latitude.toFixed(6)},{" "}
+                  {userLocation.longitude.toFixed(6)}
+                </p>
+                <p className="text-xs text-slate-600">
+                  Accuracy radius:{" "}
+                  {Math.round(Math.max(userLocation.accuracy ?? 0, 35))} m
+                </p>
+                <p className="text-xs text-slate-600">
+                  Route shown to Trifecta Veranza
+                </p>
+              </div>
+            </MarkerPopup>
+          </MapMarker>
+        ) : null}
+
         {filteredPois.map((poi) => (
           <PoiMarker
             key={poi.id}
@@ -1056,8 +1464,21 @@ const animatedCoordinates = useMemo(() => {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_30%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]" />
 
       <>
+        {isMobileFiltersOpen ? (
+          <button
+            type="button"
+            onClick={() => setIsMobileFiltersOpen(false)}
+            className="absolute inset-0 z-30 bg-slate-900/10 backdrop-blur-[1px] xl:hidden"
+            aria-label="Close nearby filters"
+          />
+        ) : null}
+
         {/* Mobile / Tablet open button */}
-        <div className="absolute bottom-4 right-4 z-30 md:hidden">
+        <div
+          className={`absolute bottom-4 right-4 z-30 xl:hidden ${
+            isMobileFiltersOpen ? "pointer-events-none opacity-0" : "opacity-100"
+          }`}
+        >
           <button
             type="button"
             onClick={() => setIsMobileFiltersOpen(true)}
@@ -1068,9 +1489,9 @@ const animatedCoordinates = useMemo(() => {
           </button>
         </div>
 
-        {/* Desktop / Tablet side panel */}
+        {/* Desktop side panel */}
         <div
-          className={`absolute right-4 top-4 z-20 hidden h-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] transition-all duration-500 md:block ${
+          className={`absolute right-4 top-4 z-20 hidden h-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] transition-all duration-500 xl:block ${
             isFilterOpen
               ? "w-85 lg:w-92.5 translate-x-0"
               : "w-85 lg:w-92.5 translate-x-[calc(100%+10px)]"
@@ -1081,11 +1502,11 @@ const animatedCoordinates = useMemo(() => {
             <button
               type="button"
               onClick={() => setIsFilterOpen((prev) => !prev)}
-              className={`absolute left-0 top-1/2 z-30 flex h-auto py-5  w-auto pl-3 pr-2 cursor-pointer -translate-x-[100%] 
+              className={`absolute left-0 top-1/2 z-30 flex h-auto py-5  w-auto pl-3 pr-2 cursor-pointer -translate-x-full 
               -translate-y-1/2 items-center justify-center rounded-l-full border ${isFilterOpen ? "border-white/70 bg-white/80 text-slate-700 hover:bg-black hover:shadow-2xl hover:text-slate-100" : "border-white/70 bg-neutral-900 text-slate-100 "}  backdrop-blur-xl transition hover:scale-105 `}
               aria-label={isFilterOpen ? "Close filters" : "Open filters"}
             >
-              <div className="flex flex-row gap-3 items-center gap-1">
+              <div className="flex flex-row items-center gap-1">
                 {/* <Layers className="size-4" /> */}
                 <MdKeyboardArrowLeft className="text-2xl" />
               </div>
@@ -1402,16 +1823,26 @@ const animatedCoordinates = useMemo(() => {
           </div>
         </div>
 
-        {/* Mobile bottom sheet */}
+        {/* Mobile / Tablet bottom sheet */}
         <div
-          className={`absolute inset-x-0 bottom-0 z-40 rounded-t-[30px] border border-white/60 bg-white/92 shadow-[0_-16px_40px_rgba(15,23,42,0.2)] backdrop-blur-2xl transition-transform duration-500 md:hidden ${
+          className={`absolute inset-x-3 bottom-3 z-40 rounded-[30px] border border-white/60 bg-white/92 shadow-[0_-16px_40px_rgba(15,23,42,0.2)] backdrop-blur-2xl transition-all duration-500 xl:hidden ${
             isMobileFiltersOpen
-              ? "translate-y-0"
-              : "translate-y-[calc(100%-68px)]"
+              ? "pointer-events-auto translate-y-0 opacity-100"
+              : "pointer-events-none translate-y-[calc(100%+1rem)] opacity-0"
           }`}
         >
           <div className="flex items-center justify-between border-b border-slate-200/80 px-4 py-3">
-            <div className="mx-auto h-1.5 w-14 rounded-full bg-slate-300" />
+            <div className="flex items-center gap-3">
+              <div className="h-1.5 w-14 rounded-full bg-slate-300" />
+              <div>
+                <p className="text-sm font-semibold text-slate-900">
+                  Nearby Filters
+                </p>
+                <p className="text-xs text-slate-500">
+                  Browse places from the bottom sheet
+                </p>
+              </div>
+            </div>
             <button
               type="button"
               onClick={() => setIsMobileFiltersOpen(false)}
@@ -1421,7 +1852,7 @@ const animatedCoordinates = useMemo(() => {
             </button>
           </div>
 
-          <div className="max-h-[78vh] overflow-y-auto p-4">
+          <div className="max-h-[calc(100dvh-5rem)] overflow-y-auto p-4">
             <div className="mb-4">
               <p className="text-xs uppercase tracking-[0.28em] text-slate-500">
                 Nearby Filters
@@ -1534,6 +1965,74 @@ const animatedCoordinates = useMemo(() => {
               </button>
             </div>
 
+            <div className="mb-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-800">
+                  Filtered Locations
+                </p>
+                <span className="rounded-full border border-slate-200 bg-white/80 px-2.5 py-1 text-[11px] font-medium text-slate-600">
+                  {filteredPois.length} spots
+                </span>
+              </div>
+
+              <div className="max-h-[28vh] space-y-2 overflow-y-auto pr-1">
+                {(featuredPois.length ? featuredPois : filteredPois)
+                  .slice(0, 8)
+                  .map((poi) => {
+                    const meta = categoryMeta[poi.category];
+                    const isSelected = selectedPoi?.id === poi.id;
+                    const linkedRoute = routes.find((route) => route.id === poi.id);
+
+                    return (
+                      <button
+                        key={poi.id}
+                        type="button"
+                        onClick={() => handlePoiMarkerClick(poi)}
+                        className={`w-full rounded-2xl border p-3 text-left transition-all ${
+                          isSelected
+                            ? "border-cyan-300 bg-cyan-50 shadow-sm"
+                            : "border-slate-200 bg-white/75 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <CategoryBadge
+                            category={poi.category}
+                            selected={isSelected}
+                            size="sm"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-slate-900">
+                              {poi.name}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {meta.label}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600">
+                              <span className="rounded-full bg-slate-100 px-2 py-1">
+                                {linkedRoute
+                                  ? formatDistance(linkedRoute.distance)
+                                  : poi.distanceLabel}
+                              </span>
+                              <span className="rounded-full bg-slate-100 px-2 py-1">
+                                {linkedRoute
+                                  ? formatDuration(linkedRoute.duration)
+                                  : poi.timeLabel}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+
+                {!filteredPois.length && (
+                  <div className="rounded-2xl border border-slate-200 bg-white/75 p-4 text-center text-sm text-slate-500">
+                    No places match your current filters.
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="mb-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -1578,13 +2077,15 @@ const animatedCoordinates = useMemo(() => {
         </div>
       </>
 
-      {isLoading && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/20 backdrop-blur-sm">
-          <div className="rounded-3xl border border-white/70 bg-white/85 px-5 py-4 text-slate-900 shadow-xl backdrop-blur-2xl">
+      {(isLoading || isUserRouteLoading) && (
+        <div className="pointer-events-none absolute inset-x-0 top-4 z-30 flex justify-center px-4">
+          <div className="rounded-full border border-white/70 bg-white/88 px-5 py-3 text-slate-900 shadow-xl backdrop-blur-2xl">
             <div className="flex items-center gap-3">
               <Loader2 className="size-5 animate-spin text-cyan-600" />
               <span className="text-sm text-slate-700">
-                Loading Trifecta Veranza Map...
+                {isUserRouteLoading
+                  ? "Tracing your route to Trifecta Veranza..."
+                  : "Loading Trifecta Veranza Map..."}
               </span>
             </div>
           </div>

@@ -228,7 +228,8 @@ function useChartVisibilityRefresh<T extends HTMLElement>() {
 }
 
 const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
-  ({ number }, ref) => {
+  ({ number: _number }, ref) => {
+    void _number;
     const [activeView, setActiveView] = useState<ChartKey>("lifestyle");
     const chartData = useMemo(() => chartViews[activeView], [activeView]);
     const { ref: chartWrapRef, chartKey, ready } =
@@ -237,33 +238,33 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
     return (
       <div
         ref={ref}
-        className="h-full w-full overflow-hidden rounded-2xl bg-[#f6f1e8]"
+        className="h-full w-full overflow-y-auto rounded-[24px] bg-[#f6f1e8] md:overflow-hidden md:rounded-2xl"
       >
         <motion.div
           variants={container}
           initial="hidden"
           animate="show"
-          className="relative flex h-full min-h-0 flex-col px-4 py-4 sm:px-5 sm:py-5 md:px-6 md:py-6 xl:px-8 xl:py-8"
+          className="relative flex min-h-full flex-col px-4 py-4 sm:px-5 sm:py-5 md:h-full md:min-h-0 md:px-6 md:py-6 xl:px-8 xl:py-8"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.75),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(216,201,178,0.18),transparent_28%)]" />
 
-          <div className="relative z-10 grid h-full min-h-0 grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] gap-3 sm:gap-4 xl:gap-4">
+          <div className="relative z-10 grid min-h-full grid-rows-[auto_auto_auto_auto_auto] gap-3 sm:gap-4 md:h-full md:min-h-0 md:grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] xl:gap-4">
             <motion.div
               variants={fadeUp}
               className="flex items-start justify-between gap-3 sm:gap-4"
             >
-              <div className="max-w-[82%] md:max-w-[76%] xl:max-w-[72%]">
+              <div className="max-w-full md:max-w-[76%] xl:max-w-[72%]">
                 <p className="mb-1.5 text-[9px] uppercase tracking-[0.28em] text-neutral-500 sm:mb-2 sm:text-[10px] sm:tracking-[0.34em] xl:tracking-[0.38em]">
                   Project Overview
                 </p>
 
-                <h2 className="max-w-[520px] text-[1.8rem] font-semibold leading-[1.02] tracking-[-0.04em] text-neutral-900 sm:text-[2rem] md:text-[2.15rem] xl:text-[2.45rem]">
+                <h2 className="max-w-[520px] text-[1.55rem] font-semibold leading-[0.98] tracking-[-0.04em] text-neutral-900 sm:text-[2rem] md:text-[2.15rem] xl:text-[2.45rem]">
                   Open to sky,
                   <br />
                   rooted in green.
                 </h2>
 
-                <p className="mt-2 max-w-[500px] text-[12px] leading-5 text-neutral-600 sm:mt-3 sm:text-[13px] sm:leading-6 md:text-sm xl:text-sm">
+                <p className="mt-2 max-w-[500px] text-[11px] leading-5 text-neutral-600 sm:mt-3 sm:text-[13px] sm:leading-6 md:text-sm xl:text-sm">
                   A premium skyrise address designed around openness,
                   landscape, elevation, and a richer everyday living
                   experience.
@@ -281,7 +282,7 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
 
             <motion.div
               variants={fadeUp}
-              className="grid grid-cols-2 gap-2.5 sm:gap-3 md:gap-3 xl:gap-4"
+              className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-3 xl:gap-4"
             >
               {statCards.map((item) => (
                 <motion.div
@@ -289,17 +290,17 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                   variants={statReveal}
                   whileHover={{ y: -4, scale: 1.01 }}
                   transition={{ duration: 0.25 }}
-                  className="group rounded-[1.1rem] border border-[#ded6ca] bg-white/70 p-3 shadow-[0_8px_30px_rgba(0,0,0,0.04)] backdrop-blur-sm sm:rounded-[1.2rem] sm:p-3.5 xl:rounded-[1.4rem] xl:p-4"
+                  className="group rounded-[1rem] border border-[#ded6ca] bg-white/70 p-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] backdrop-blur-sm sm:rounded-[1.2rem] sm:p-3.5 xl:rounded-[1.4rem] xl:p-4"
                 >
-                  <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full border border-[#e6dfd4] bg-[#f8f4ee] text-neutral-700 transition-transform duration-300 group-hover:scale-110 sm:mb-4 sm:h-8 sm:w-8 xl:mb-5 xl:h-9 xl:w-9">
+                  <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-full border border-[#e6dfd4] bg-[#f8f4ee] text-neutral-700 transition-transform duration-300 group-hover:scale-110 sm:mb-4 sm:h-8 sm:w-8 xl:mb-5 xl:h-9 xl:w-9">
                     {item.icon}
                   </div>
 
-                  <div className="text-[1.2rem] font-semibold leading-none tracking-[-0.05em] text-neutral-900 sm:text-[1.35rem] md:text-[1.45rem] xl:text-[1.75rem]">
+                  <div className="text-[1.05rem] font-semibold leading-none tracking-[-0.05em] text-neutral-900 sm:text-[1.35rem] md:text-[1.45rem] xl:text-[1.75rem]">
                     {item.title}
                   </div>
 
-                  <p className="mt-1.5 max-w-[180px] text-[11px] leading-4 text-neutral-500 sm:mt-2 sm:text-[11px] sm:leading-5 xl:text-xs">
+                  <p className="mt-1 max-w-[180px] text-[10px] leading-4 text-neutral-500 sm:mt-2 sm:text-[11px] sm:leading-5 xl:text-xs">
                     {item.subtitle}
                   </p>
                 </motion.div>
@@ -362,10 +363,10 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                 </p>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.35rem] border border-[#ddd4c8] bg-white/75 p-3 shadow-[0_15px_45px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:rounded-[1.5rem] sm:p-3.5 xl:rounded-[1.8rem] xl:p-4">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.2rem] border border-[#ddd4c8] bg-white/75 p-2.5 shadow-[0_15px_45px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:rounded-[1.5rem] sm:p-3.5 xl:rounded-[1.8rem] xl:p-4">
                 <div
                   ref={chartWrapRef}
-                  className="h-full w-full min-h-[200px] min-w-0 sm:min-h-[240px] md:min-h-[260px] xl:min-h-0"
+                  className="h-full w-full min-h-[220px] min-w-0 sm:min-h-[240px] md:min-h-[260px] xl:min-h-0"
                 >
                   {ready && (
                     <ResponsiveContainer

@@ -96,11 +96,12 @@ const shadowReveal = {
   },
 };
 
-const CoverPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
+const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) => {
+  void _number;
   return (
     <div
       ref={ref}
-      className="relative h-[100vh] w-[100%] overflow-hidden rounded-[30px] bg-[#f6f1e8] shadow-[0_25px_80px_rgba(0,0,0,0.18)]"
+      className="relative h-full w-full overflow-hidden rounded-[24px] bg-[#f6f1e8] shadow-[0_25px_80px_rgba(0,0,0,0.18)] sm:rounded-[30px]"
     >
       <div className="absolute inset-0 bg-gradient-to-br from-[#f8f5ef] via-[#f2ebdf] to-[#e9dfcf]" />
       <div className="absolute inset-y-0 right-0 w-[42%] bg-gradient-to-l from-[#d9c7ab]/40 to-transparent" />
@@ -111,9 +112,9 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="relative z-10 flex h-full flex-col justify-between px-8 pb-8 pt-10 sm:px-10 sm:pb-10 sm:pt-12"
+        className="relative z-10 flex h-full flex-col justify-between px-5 pb-5 pt-20 sm:px-10 sm:pb-10 sm:pt-12"
       >
-        <div className="max-w-[72%]">
+        <div className="max-w-[68%] sm:max-w-[72%]">
           <motion.p
             variants={textReveal}
             className="mb-4 text-[11px] uppercase tracking-[0.5em] text-neutral-700 sm:text-xs"
@@ -123,14 +124,14 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
 
           <motion.h1
             variants={textReveal}
-            className="max-w-[420px] text-4xl font-semibold leading-[1.02] tracking-tight text-neutral-900 sm:text-5xl"
+            className="max-w-[420px] text-[2.65rem] font-semibold leading-[0.98] tracking-tight text-neutral-900 sm:text-5xl"
           >
             The New Standard of Refined Urban Living
           </motion.h1>
 
           <motion.p
             variants={textReveal}
-            className="mt-5 max-w-[360px] text-sm leading-7 text-neutral-700 sm:mt-6 sm:text-base"
+            className="mt-4 max-w-[320px] text-[13px] leading-6 text-neutral-700 sm:mt-6 sm:max-w-[360px] sm:text-base"
           >
             A premium residential experience crafted with timeless architecture,
             elegant interiors, and elevated lifestyle spaces.
@@ -157,7 +158,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
         variants={imageReveal}
         initial="hidden"
         animate="show"
-        className="absolute bottom-0 right-0 z-[5] w-[68%]"
+        className="absolute bottom-0 right-0 z-[5] w-[74%] sm:w-[68%]"
       >
         <div className="relative">
           <motion.div

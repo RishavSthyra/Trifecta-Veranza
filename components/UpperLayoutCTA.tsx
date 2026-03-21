@@ -24,13 +24,13 @@ export default function UpperLayoutCTA() {
   const buttons: CtaButtonType[] = [
     {
       name: "Contact Us",
-      link: "/contact",
+      link: "tel:+91-808 800 4411",
       isHighlight: true,
       icon: <FiPhone className="h-4 w-4" />,
     },
     {
       name: "Brochure",
-      link: "/brochure",
+      link: "/Veranza Floorplan_ E-Brochure_V3_02-03-26 (2).pdf",
       isHighlight: false,
       icon: <FiDownload className="h-4 w-4" />,
     },
@@ -49,7 +49,7 @@ export default function UpperLayoutCTA() {
   ];
 
   return (
-    <div className="pointer-events-none absolute top-0 left-1/2 z-50 -translate-x-1/2">
+    <div className="pointer-events-none absolute left-1/2 top-3 z-50 -translate-x-1/2 md:top-0">
       <motion.div
         layout
         transition={spring}
@@ -58,14 +58,14 @@ export default function UpperLayoutCTA() {
         <motion.div
           layout
           transition={spring}
-          className="relative overflow-visible rounded-b-[75px] border border-white/20 bg-black px-16 py-4 shadow-[0_20px_50px_rgba(0,0,0,0.7)] backdrop-blur-xl"
+          className="relative overflow-visible rounded-full border border-white/20 bg-black px-4 py-3 shadow-[0_20px_90px_rgba(0,0,0,0.8)] backdrop-blur-xl md:rounded-t-[75px] md:px-16 md:py-4"
         >
           {/* Right Wave */}
           <svg
             width="130"
             height="58"
             viewBox="0 0 130 58"
-            className="absolute -right-[113px] -top-1"
+            className="absolute -right-[113px] -top-1 hidden md:block"
           >
             <path
               d="M0,58 L0,0 L130,0 A130,58 0 0,0 0,58 Z"
@@ -78,7 +78,7 @@ export default function UpperLayoutCTA() {
             width="130"
             height="58"
             viewBox="0 0 130 58"
-            className="absolute -left-[113px]  -top-1"
+            className="absolute -left-[113px]  -top-1 hidden md:block"
           >
             <path
               d="M130,58 L130,0 L0,0 A130,58 0 0,1 130,58 Z"
@@ -102,18 +102,18 @@ export default function UpperLayoutCTA() {
                     <motion.div
                       layout
                       transition={spring}
-                      className={`inline-flex items-center justify-center overflow-hidden rounded-xl border text-xs font-medium ${
+                      className={`inline-flex items-center justify-center overflow-hidden rounded-xl border text-xs font-medium md:text-xs ${
                         button.isHighlight
                           ? "bg-white text-zinc-900 shadow-md"
                           : "border-white/10 bg-white/10 text-white"
                       }`}
                       animate={{
-                        paddingLeft: isHovered ? 16 : 12,
-                        paddingRight: isHovered ? 16 : 12,
+                        paddingLeft: isHovered ? 16 : 10,
+                        paddingRight: isHovered ? 16 : 10,
                       }}
                     >
                       <motion.span
-                        className="flex h-10 w-4 items-center justify-center"
+                        className="flex h-9 w-4 items-center justify-center md:h-10"
                         animate={{ scale: isHovered ? 1.08 : 1 }}
                         transition={spring}
                       >

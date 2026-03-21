@@ -33,7 +33,7 @@ export default function TowerSelect() {
   };
 
   return (
-    <div className="relative min-h-screen w-full overflow-hidden bg-[#f5f7fb] text-zinc-900 dark:bg-black dark:text-white">
+    <div className="relative min-h-dvh w-full overflow-hidden bg-[#f5f7fb] text-zinc-900 dark:bg-black dark:text-white">
       <Image
         src="/plan image.webp"
         alt="Master plan"

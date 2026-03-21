@@ -139,3 +139,8 @@
     @apply font-sans;
   }
 }
+
+
+.maplibregl-ctrl-bottom-left, .maplibregl-ctrl-bottom-right, .maplibregl-ctrl-top-left, .maplibregl-ctrl-top-right {
+    display: none;
+}

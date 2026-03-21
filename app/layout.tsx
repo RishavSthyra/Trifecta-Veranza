@@ -31,16 +31,6 @@ const dockItems = [
     href: "/project-overview",
   },
   {
-    title: "Projects",
-    icon: <Briefcase className="h-full w-full text-neutral-100" />,
-    href: "/projects",
-  },
-  {
-    title: "Blog",
-    icon: <FileText className="h-full w-full text-neutral-100" />,
-    href: "/blog",
-  },
-  {
     title: "Master Plan",
     icon: <PiMapPinAreaFill className="h-full w-full text-neutral-100" />,
     href: "/master-plan",

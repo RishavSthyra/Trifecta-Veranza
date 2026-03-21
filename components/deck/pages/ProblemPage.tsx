@@ -10,7 +10,7 @@ const ProblemPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
   return (
     <div
       ref={ref}
-      className="h-[100vh] w-[100%] overflow-hidden rounded-2xl bg-white"
+      className="h-full w-full overflow-hidden rounded-[24px] bg-white sm:rounded-2xl"
     >
       <div className="flex h-full w-full flex-col justify-center bg-[#f8f8f8] px-16 text-neutral-900">
         <p className="mb-4 text-sm uppercase tracking-[0.3em] text-neutral-500">

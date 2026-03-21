@@ -22,11 +22,12 @@ const imageReveal = {
   },
 };
 
-const OverviewLeftPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
+const OverviewLeftPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) => {
+  void _number;
   return (
     <div
       ref={ref}
-      className="h-[100vh] w-[100%] overflow-hidden rounded-2xl bg-white"
+      className="h-full w-full overflow-hidden rounded-[24px] bg-white sm:rounded-2xl"
     >
       <motion.div
         variants={imageReveal}
