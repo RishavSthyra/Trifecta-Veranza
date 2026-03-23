@@ -12,6 +12,7 @@ import MasterPlanArrowMarkers from "./MasterPlanArrowMarkers";
 import { masterPlanArrowPoints } from "@/data/masterPlanArrowPoints";
 import GlassSelect, { GlassSelectItem } from "./ui/GlassSelect";
 import {
+  ArrowLeft,
   BedDouble,
   Building2,
   IndianRupee,
@@ -20,125 +21,12 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import TowerSelect from "./TowerSelect";
+import type { InventoryApartment, TowerType } from "@/types/inventory";
 
-type Apartment = {
-  id: number;
-  title: string;
-  tower: string;
-  bhk: number;
-  priceLakhs: number;
-  areaSqft: number;
-  floor: number;
-  facing: "North" | "South" | "East" | "West";
-  status: "Available" | "Booked" | "Reserved";
-};
-
-const apartments: Apartment[] = [
-  {
-    id: 1,
-    title: "A-1203",
-    tower: "Tower A",
-    bhk: 2,
-    priceLakhs: 78,
-    areaSqft: 1180,
-    floor: 12,
-    facing: "East",
-    status: "Available",
-  },
-  {
-    id: 2,
-    title: "A-1501",
-    tower: "Tower A",
-    bhk: 3,
-    priceLakhs: 110,
-    areaSqft: 1560,
-    floor: 15,
-    facing: "North",
-    status: "Reserved",
-  },
-  {
-    id: 3,
-    title: "B-702",
-    tower: "Tower B",
-    bhk: 1,
-    priceLakhs: 52,
-    areaSqft: 760,
-    floor: 7,
-    facing: "West",
-    status: "Available",
-  },
-  {
-    id: 4,
-    title: "B-1404",
-    tower: "Tower B",
-    bhk: 2,
-    priceLakhs: 82,
-    areaSqft: 1210,
-    floor: 14,
-    facing: "South",
-    status: "Booked",
-  },
-  {
-    id: 5,
-    title: "C-903",
-    tower: "Tower C",
-    bhk: 3,
-    priceLakhs: 125,
-    areaSqft: 1685,
-    floor: 9,
-    facing: "East",
-    status: "Available",
-  },
-  {
-    id: 6,
-    title: "C-1802",
-    tower: "Tower C",
-    bhk: 4,
-    priceLakhs: 185,
-    areaSqft: 2240,
-    floor: 18,
-    facing: "North",
-    status: "Available",
-  },
-  {
-    id: 7,
-    title: "A-904",
-    tower: "Tower A",
-    bhk: 2,
-    priceLakhs: 74,
-    areaSqft: 1115,
-    floor: 9,
-    facing: "South",
-    status: "Available",
-  },
-  {
-    id: 8,
-    title: "B-1602",
-    tower: "Tower B",
-    bhk: 3,
-    priceLakhs: 132,
-    areaSqft: 1710,
-    floor: 16,
-    facing: "East",
-    status: "Reserved",
-  },
-  {
-    id: 9,
-    title: "C-504",
-    tower: "Tower C",
-    bhk: 2,
-    priceLakhs: 86,
-    areaSqft: 1245,
-    floor: 5,
-    facing: "West",
-    status: "Booked",
-  },
-];
-
-const towers = ["All", "Tower A", "Tower B", "Tower C"] as const;
 const facingOptions = ["All", "North", "South", "East", "West"] as const;
-const statusOptions = ["All", "Available", "Booked", "Reserved"] as const;
-const bhkOptions = ["All", "1", "2", "3", "4"] as const;
+const statusOptions = ["All", "Available", "Reserved", "Sold"] as const;
+const bhkOptions = ["All", "2", "3"] as const;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
@@ -192,7 +80,13 @@ const itemAnim: Variants = {
   },
 };
 
-export default function MasterPlanLayout() {
+type MasterPlanLayoutProps = {
+  initialApartments?: InventoryApartment[];
+};
+
+export default function MasterPlanLayout({
+  initialApartments = [],
+}: MasterPlanLayoutProps) {
   const router = useRouter();
 
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -203,7 +97,14 @@ export default function MasterPlanLayout() {
   const touchStartYRef = useRef<number | null>(null);
 
   const [search, setSearch] = useState("");
-  const [tower, setTower] = useState<(typeof towers)[number]>("All");
+  const [selectedTower, setSelectedTower] = useState<TowerType | null>(null);
+  const [apartments, setApartments] = useState<InventoryApartment[]>(
+    initialApartments,
+  );
+  const [isInventoryLoading, setIsInventoryLoading] = useState(
+    initialApartments.length === 0,
+  );
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [bhk, setBhk] = useState<(typeof bhkOptions)[number]>("All");
   const [facing, setFacing] = useState<(typeof facingOptions)[number]>("All");
   const [status, setStatus] = useState<(typeof statusOptions)[number]>("All");
@@ -217,13 +118,82 @@ export default function MasterPlanLayout() {
   const [isIntroPlaying, setIsIntroPlaying] = useState(true);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
 
-  const filteredApartments = useMemo(() => {
-    return apartments.filter((apartment) => {
-      const matchesSearch =
-        apartment.title.toLowerCase().includes(search.toLowerCase()) ||
-        apartment.tower.toLowerCase().includes(search.toLowerCase());
+  useEffect(() => {
+    let isMounted = true;
+    let activeController: AbortController | null = null;
 
-      const matchesTower = tower === "All" || apartment.tower === tower;
+    const loadInventory = async (showLoadingState: boolean) => {
+      if (showLoadingState && isMounted) {
+        setIsInventoryLoading(true);
+      }
+
+      activeController?.abort();
+      const controller = new AbortController();
+      activeController = controller;
+
+      try {
+        const response = await fetch("/api/inventory", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const result = (await response.json()) as {
+          apartments?: InventoryApartment[];
+          message?: string;
+        };
+
+        if (!response.ok || !result.apartments) {
+          throw new Error(result.message || "Failed to fetch inventory.");
+        }
+
+        if (!isMounted) {
+          return;
+        }
+
+        setApartments(result.apartments);
+        setInventoryError(null);
+      } catch (error) {
+        if (controller.signal.aborted || !isMounted) {
+          return;
+        }
+
+        setInventoryError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load inventory from the database.",
+        );
+      } finally {
+        if (showLoadingState && isMounted) {
+          setIsInventoryLoading(false);
+        }
+      }
+    };
+
+    if (initialApartments.length === 0) {
+      void loadInventory(true);
+    }
+
+    const refreshInterval = window.setInterval(() => {
+      void loadInventory(false);
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      activeController?.abort();
+      window.clearInterval(refreshInterval);
+    };
+  }, [initialApartments.length]);
+
+  const filteredApartments = useMemo(() => {
+    if (!selectedTower) {
+      return [];
+    }
+
+    return apartments.filter((apartment) => {
+      const matchesSearch = apartment.title
+        .toLowerCase()
+        .includes(search.toLowerCase());
+
+      const matchesTower = apartment.tower === selectedTower;
       const matchesBhk = bhk === "All" || apartment.bhk === Number(bhk);
       const matchesFacing = facing === "All" || apartment.facing === facing;
       const matchesStatus = status === "All" || apartment.status === status;
@@ -241,17 +211,37 @@ export default function MasterPlanLayout() {
         matchesArea
       );
     });
-  }, [search, tower, bhk, facing, status, minPrice, maxPrice, minArea]);
+  }, [
+    apartments,
+    search,
+    selectedTower,
+    bhk,
+    facing,
+    status,
+    minPrice,
+    maxPrice,
+    minArea,
+  ]);
 
   const resetFilters = () => {
     setSearch("");
-    setTower("All");
     setBhk("All");
     setFacing("All");
     setStatus("All");
     setMinPrice(0);
     setMaxPrice(200);
     setMinArea(0);
+  };
+
+  const handleTowerSelect = (tower: TowerType) => {
+    setSelectedTower(tower);
+    setIsMobileSheetOpen(true);
+  };
+
+  const handleBackToTowerSelect = () => {
+    resetFilters();
+    setSelectedTower(null);
+    setIsMobileSheetOpen(true);
   };
 
   const handleForwardEnded = async () => {
@@ -491,7 +481,13 @@ export default function MasterPlanLayout() {
             : "pointer-events-auto opacity-100"
         }`}
       >
-        <div className="grid h-full gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div
+          className={`grid h-full gap-6 ${
+            selectedTower
+              ? "xl:grid-cols-[minmax(0,1fr)_420px]"
+              : "xl:grid-cols-[minmax(0,1fr)_540px]"
+          }`}
+        >
           <div className="hidden xl:block" />
 
           <AnimatePresence mode="wait">
@@ -505,32 +501,46 @@ export default function MasterPlanLayout() {
                 className="hidden min-w-0 xl:col-start-2 xl:block xl:h-full"
               >
                 <div
-                  className="sticky top-6 ml-auto flex h-[calc(100dvh-3rem)] w-full max-w-[420px] flex-col gap-6 overflow-y-auto overscroll-contain pr-1 [overflow-anchor:none]"
+                  className={`sticky top-6 ml-auto flex h-[calc(100dvh-3rem)] w-full flex-col gap-6 overflow-y-auto overscroll-contain pr-1 [overflow-anchor:none] ${
+                    selectedTower ? "max-w-[420px]" : "max-w-[540px]"
+                  }`}
                   data-scroll-area="sidebar"
                 >
-                  <MasterPlanFiltersCard
-                    search={search}
-                    onSearchChange={setSearch}
-                    tower={tower}
-                    onTowerChange={setTower}
-                    bhk={bhk}
-                    onBhkChange={setBhk}
-                    facing={facing}
-                    onFacingChange={setFacing}
-                    status={status}
-                    onStatusChange={setStatus}
-                    minPrice={minPrice}
-                    onMinPriceChange={setMinPrice}
-                    maxPrice={maxPrice}
-                    onMaxPriceChange={setMaxPrice}
-                    minArea={minArea}
-                    onMinAreaChange={setMinArea}
-                    onReset={resetFilters}
-                  />
+                  {selectedTower ? (
+                    <>
+                      <MasterPlanFiltersCard
+                        search={search}
+                        onSearchChange={setSearch}
+                        selectedTower={selectedTower}
+                        bhk={bhk}
+                        onBhkChange={setBhk}
+                        facing={facing}
+                        onFacingChange={setFacing}
+                        status={status}
+                        onStatusChange={setStatus}
+                        minPrice={minPrice}
+                        onMinPriceChange={setMinPrice}
+                        maxPrice={maxPrice}
+                        onMaxPriceChange={setMaxPrice}
+                        minArea={minArea}
+                        onMinAreaChange={setMinArea}
+                        onReset={resetFilters}
+                        onBack={handleBackToTowerSelect}
+                      />
 
-                  <MasterPlanResultsCard
-                    filteredApartments={filteredApartments}
-                  />
+                      <MasterPlanResultsCard
+                        filteredApartments={filteredApartments}
+                        isInventoryLoading={isInventoryLoading}
+                        inventoryError={inventoryError}
+                      />
+                    </>
+                  ) : (
+                    <TowerSelect
+                      embedded
+                      selectedTower={selectedTower}
+                      onSelectTower={handleTowerSelect}
+                    />
+                  )}
                 </div>
               </motion.aside>
             )}
@@ -540,7 +550,7 @@ export default function MasterPlanLayout() {
         {!isLeaving && !isIntroPlaying ? (
           <>
             <AnimatePresence>
-              {isMobileSheetOpen ? (
+              {selectedTower && isMobileSheetOpen ? (
                 <motion.button
                   type="button"
                   initial={{ opacity: 0 }}
@@ -553,7 +563,7 @@ export default function MasterPlanLayout() {
               ) : null}
             </AnimatePresence>
 
-            {!isMobileSheetOpen ? (
+            {!isMobileSheetOpen && selectedTower ? (
               <button
                 type="button"
                 onClick={() => setIsMobileSheetOpen(true)}
@@ -584,50 +594,68 @@ export default function MasterPlanLayout() {
                   <div className="flex items-center gap-3">
                     <div className="h-1.5 w-12 rounded-full bg-zinc-300 dark:bg-white/20" />
                     <div>
-                      <p className="text-sm font-semibold">Master Plan</p>
+                      <p className="text-sm font-semibold">
+                        {selectedTower ? "Master Plan" : "Choose Tower"}
+                      </p>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                        {filteredApartments.length} matching units
+                        {selectedTower
+                          ? `${filteredApartments.length} matching units`
+                          : "Select a tower to open filters"}
                       </p>
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsMobileSheetOpen(false)}
-                    className="rounded-xl border border-zinc-200 bg-white/80 p-2 text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white"
-                    aria-label="Close master plan panel"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  {selectedTower ? (
+                    <button
+                      type="button"
+                      onClick={() => setIsMobileSheetOpen(false)}
+                      className="rounded-xl border border-zinc-200 bg-white/80 p-2 text-zinc-500 transition hover:bg-zinc-50 hover:text-zinc-900 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10 dark:hover:text-white"
+                      aria-label="Close master plan panel"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
                 </div>
 
                 <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
                   <div className="flex min-h-full flex-col gap-3 sm:gap-4">
-                  <MasterPlanFiltersCard
-                    search={search}
-                    onSearchChange={setSearch}
-                    tower={tower}
-                    onTowerChange={setTower}
-                    bhk={bhk}
-                    onBhkChange={setBhk}
-                    facing={facing}
-                    onFacingChange={setFacing}
-                    status={status}
-                    onStatusChange={setStatus}
-                    minPrice={minPrice}
-                    onMinPriceChange={setMinPrice}
-                    maxPrice={maxPrice}
-                    onMaxPriceChange={setMaxPrice}
-                    minArea={minArea}
-                    onMinAreaChange={setMinArea}
-                    onReset={resetFilters}
-                    compact
-                  />
+                    {selectedTower ? (
+                      <>
+                        <MasterPlanFiltersCard
+                          search={search}
+                          onSearchChange={setSearch}
+                          selectedTower={selectedTower}
+                          bhk={bhk}
+                          onBhkChange={setBhk}
+                          facing={facing}
+                          onFacingChange={setFacing}
+                          status={status}
+                          onStatusChange={setStatus}
+                          minPrice={minPrice}
+                          onMinPriceChange={setMinPrice}
+                          maxPrice={maxPrice}
+                          onMaxPriceChange={setMaxPrice}
+                          minArea={minArea}
+                          onMinAreaChange={setMinArea}
+                          onReset={resetFilters}
+                          onBack={handleBackToTowerSelect}
+                          compact
+                        />
 
-                  <MasterPlanResultsCard
-                    filteredApartments={filteredApartments}
-                    compact
-                  />
+                        <MasterPlanResultsCard
+                          filteredApartments={filteredApartments}
+                          isInventoryLoading={isInventoryLoading}
+                          inventoryError={inventoryError}
+                          compact
+                        />
+                      </>
+                    ) : (
+                      <TowerSelect
+                        embedded
+                        selectedTower={selectedTower}
+                        onSelectTower={handleTowerSelect}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
@@ -642,8 +670,7 @@ export default function MasterPlanLayout() {
 function MasterPlanFiltersCard({
   search,
   onSearchChange,
-  tower,
-  onTowerChange,
+  selectedTower,
   bhk,
   onBhkChange,
   facing,
@@ -657,12 +684,12 @@ function MasterPlanFiltersCard({
   minArea,
   onMinAreaChange,
   onReset,
+  onBack,
   compact = false,
 }: {
   search: string;
   onSearchChange: (value: string) => void;
-  tower: (typeof towers)[number];
-  onTowerChange: (value: (typeof towers)[number]) => void;
+  selectedTower: TowerType;
   bhk: (typeof bhkOptions)[number];
   onBhkChange: (value: (typeof bhkOptions)[number]) => void;
   facing: (typeof facingOptions)[number];
@@ -676,6 +703,7 @@ function MasterPlanFiltersCard({
   minArea: number;
   onMinAreaChange: (value: number) => void;
   onReset: () => void;
+  onBack: () => void;
   compact?: boolean;
 }) {
   return (
@@ -697,39 +725,44 @@ function MasterPlanFiltersCard({
           </div>
         </div>
 
-        <button
-          onClick={onReset}
-          className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
-        >
-          Reset
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1 rounded-full border bg-transparent px-3 py-1.5 text-xs font-medium text-black cursor-pointer transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back
+          </button>
+
+          <button
+            type="button"
+            onClick={onReset}
+            className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 cursor-pointer text-xs font-medium text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       <div className={compact ? "space-y-4" : "space-y-5"}>
-        <FilterBlock label="Search Unit / Tower">
+        <FilterBlock label="Selected Tower">
+          <div className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700 dark:bg-white/5 dark:text-zinc-200">
+            <Building2 className="h-4 w-4" />
+            {selectedTower}
+          </div>
+        </FilterBlock>
+
+        <FilterBlock label="Search Unit">
           <div className="group flex items-center gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-3 py-3 shadow-sm transition focus-within:border-zinc-400 focus-within:bg-white dark:border-white/10 dark:bg-white/5 dark:focus-within:border-white/20 dark:focus-within:bg-white/10">
             <Search className="h-4 w-4 text-zinc-500 transition group-focus-within:text-zinc-800 dark:group-focus-within:text-white" />
             <input
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
-              placeholder="A-1203 or Tower A"
+              placeholder="Search unit number"
               className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
             />
           </div>
-        </FilterBlock>
-
-        <FilterBlock label="Tower">
-          <GlassSelect
-            value={tower}
-            onValueChange={(value) => onTowerChange(value as (typeof towers)[number])}
-            placeholder="Select tower"
-          >
-            {towers.map((item) => (
-              <GlassSelectItem key={item} value={item}>
-                {item}
-              </GlassSelectItem>
-            ))}
-          </GlassSelect>
         </FilterBlock>
 
         <FilterBlock label="BHK">
@@ -822,9 +855,13 @@ function MasterPlanFiltersCard({
 
 function MasterPlanResultsCard({
   filteredApartments,
+  isInventoryLoading,
+  inventoryError,
   compact = false,
 }: {
-  filteredApartments: Apartment[];
+  filteredApartments: InventoryApartment[];
+  isInventoryLoading: boolean;
+  inventoryError: string | null;
   compact?: boolean;
 }) {
   return (
@@ -837,7 +874,7 @@ function MasterPlanResultsCard({
         <div>
           <h3 className="text-base font-semibold">Matching Flats</h3>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Scroll through live results
+            Live inventory from MongoDB
           </p>
         </div>
         <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium dark:border-white/10 dark:bg-white/5">
@@ -854,7 +891,37 @@ function MasterPlanResultsCard({
       >
         <div className="space-y-3">
           <AnimatePresence initial={false}>
-            {filteredApartments.length > 0 ? (
+            {isInventoryLoading ? (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex h-[220px] items-center justify-center rounded-[22px] border border-dashed border-zinc-300 bg-zinc-50/70 px-4 text-center dark:border-white/10 dark:bg-white/5"
+              >
+                <div>
+                  <p className="text-sm font-semibold">Loading flats</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Pulling the latest tower inventory.
+                  </p>
+                </div>
+              </motion.div>
+            ) : inventoryError ? (
+              <motion.div
+                key="error"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className="flex h-[220px] items-center justify-center rounded-[22px] border border-dashed border-rose-200 bg-rose-50/80 px-4 text-center"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-rose-700">
+                    Inventory could not be loaded
+                  </p>
+                  <p className="mt-1 text-xs text-rose-600">{inventoryError}</p>
+                </div>
+              </motion.div>
+            ) : filteredApartments.length > 0 ? (
               filteredApartments.map((apartment) => (
                 <motion.button
                   key={apartment.id}
@@ -874,7 +941,7 @@ function MasterPlanResultsCard({
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                           apartment.status === "Available"
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                            : apartment.status === "Booked"
+                            : apartment.status === "Sold"
                               ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
                               : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
                         }`}
@@ -907,7 +974,9 @@ function MasterPlanResultsCard({
                     <p className="mt-2 font-medium text-zinc-700 dark:text-zinc-300">
                       {apartment.areaSqft} sqft
                     </p>
-                    <p className="mt-1 text-[11px]">Floor {apartment.floor}</p>
+                    <p className="mt-1 text-[11px]">
+                      Floor {apartment.floorLabel}
+                    </p>
                   </div>
                 </motion.button>
               ))

@@ -2,47 +2,55 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { FiPhone, FiDownload, FiDollarSign, FiGrid } from "react-icons/fi";
 
 interface CtaButtonType {
   name: string;
-  link: string;
+  link?: string;
+  action: "link" | "quote-modal";
   isHighlight: boolean;
   icon: React.ReactNode;
 }
 
-const spring = {
+type UpperLayoutCTAProps = {
+  onQuoteClick: () => void;
+};
+
+const spring: Transition = {
   type: "spring",
   stiffness: 280,
   damping: 24,
 };
 
-export default function UpperLayoutCTA() {
+export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
   const [hovered, setHovered] = useState<string | null>(null);
 
   const buttons: CtaButtonType[] = [
     {
       name: "Contact Us",
       link: "tel:+91-808 800 4411",
+      action: "link",
       isHighlight: true,
       icon: <FiPhone className="h-4 w-4" />,
     },
     {
       name: "Brochure",
       link: "/Veranza Floorplan_ E-Brochure_V3_02-03-26 (2).pdf",
+      action: "link",
       isHighlight: false,
       icon: <FiDownload className="h-4 w-4" />,
     },
     {
       name: "Get A Quote",
-      link: "/quote",
+      action: "quote-modal",
       isHighlight: false,
       icon: <FiDollarSign className="h-4 w-4" />,
     },
     {
       name: "Floor Plan",
       link: "/floor-plan",
+      action: "link",
       isHighlight: false,
       icon: <FiGrid className="h-4 w-4" />,
     },
@@ -98,10 +106,50 @@ export default function UpperLayoutCTA() {
                   onHoverEnd={() => setHovered(null)}
                   transition={spring}
                 >
-                  <Link href={button.link}>
-                    <motion.div
+                  {button.action === "link" && button.link ? (
+                    <Link href={button.link}>
+                      <motion.div
+                        layout
+                        transition={spring}
+                        className={`inline-flex items-center justify-center overflow-hidden rounded-xl border text-xs font-medium md:text-xs ${
+                          button.isHighlight
+                            ? "bg-white text-zinc-900 shadow-md"
+                            : "border-white/10 bg-white/10 text-white"
+                        }`}
+                        animate={{
+                          paddingLeft: isHovered ? 16 : 10,
+                          paddingRight: isHovered ? 16 : 10,
+                        }}
+                      >
+                        <motion.span
+                          className="flex h-9 w-4 items-center justify-center md:h-10"
+                          animate={{ scale: isHovered ? 1.08 : 1 }}
+                          transition={spring}
+                        >
+                          {button.icon}
+                        </motion.span>
+
+                        <AnimatePresence initial={false}>
+                          {isHovered && (
+                            <motion.span
+                              initial={{ width: 0, opacity: 0, x: -8 }}
+                              animate={{ width: "auto", opacity: 1, x: 0 }}
+                              exit={{ width: 0, opacity: 0, x: -8 }}
+                              transition={{ duration: 0.22, ease: "easeOut" }}
+                              className="overflow-hidden whitespace-nowrap pl-2"
+                            >
+                              {button.name}
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                    </Link>
+                  ) : (
+                    <motion.button
+                      type="button"
                       layout
                       transition={spring}
+                      onClick={onQuoteClick}
                       className={`inline-flex items-center justify-center overflow-hidden rounded-xl border text-xs font-medium md:text-xs ${
                         button.isHighlight
                           ? "bg-white text-zinc-900 shadow-md"
@@ -133,8 +181,8 @@ export default function UpperLayoutCTA() {
                           </motion.span>
                         )}
                       </AnimatePresence>
-                    </motion.div>
-                  </Link>
+                    </motion.button>
+                  )}
                 </motion.div>
               );
             })}
