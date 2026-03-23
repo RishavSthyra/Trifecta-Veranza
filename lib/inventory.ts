@@ -122,7 +122,7 @@ export function mapInventoryDocToAdminRow(
 
 export async function getInventoryApartments() {
   const connection = await connectToDatabase();
-  const inventoryDocs = await connection.connection.db
+  const inventoryDocs = await connection.connection.db!
     .collection("inventory")
     .find({})
     .toArray();
@@ -145,7 +145,7 @@ export async function getInventoryApartments() {
 
 export async function getInventoryAdminRows() {
   const connection = await connectToDatabase();
-  const inventoryDocs = await connection.connection.db
+  const inventoryDocs = await connection.connection.db!
     .collection("inventory")
     .find({})
     .toArray();

@@ -1,23 +1,10 @@
 import nodemailer from "nodemailer";
 import { NextResponse } from "next/server";
+import { contactPayloadSchema, type ContactPayload } from "@/lib/contact-schema";
 import { connectToDatabase } from "@/lib/mongodb";
 import ContactSubmission from "@/models/ContactSubmission";
 
 export const runtime = "nodejs";
-
-type ContactPayload = {
-  fullName?: string;
-  email?: string;
-  phone?: string;
-  apartmentType?: string;
-  budget?: string;
-  purchaseGoal?: string;
-  moveInTimeline?: string;
-  preferredContactTime?: string;
-  siteVisitDate?: string;
-  message?: string;
-  consent?: boolean;
-};
 
 function escapeHtml(value: string) {
   return value
@@ -39,30 +26,6 @@ function getMissingEnvVars() {
   return requiredVars.filter((key) => !process.env[key]);
 }
 
-function validatePayload(payload: ContactPayload) {
-  const requiredFields: Array<keyof ContactPayload> = [
-    "fullName",
-    "email",
-    "phone",
-    "apartmentType",
-    "budget",
-  ];
-
-  for (const field of requiredFields) {
-    const value = payload[field];
-
-    if (typeof value !== "string" || !value.trim()) {
-      return `Missing required field: ${field}`;
-    }
-  }
-
-  if (payload.consent !== true) {
-    return "Consent is required before submitting the form.";
-  }
-
-  return null;
-}
-
 export async function POST(request: Request) {
   try {
     const missingEnvVars = getMissingEnvVars();
@@ -76,12 +39,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const payload = (await request.json()) as ContactPayload;
-    const validationError = validatePayload(payload);
+    const rawPayload = (await request.json()) as ContactPayload;
+    const parsedPayload = contactPayloadSchema.safeParse(rawPayload);
 
-    if (validationError) {
-      return NextResponse.json({ message: validationError }, { status: 400 });
+    if (!parsedPayload.success) {
+      const firstIssue = parsedPayload.error.issues[0];
+      return NextResponse.json(
+        {
+          message: firstIssue?.message || "Please review the submitted fields.",
+          errors: parsedPayload.error.flatten().fieldErrors,
+        },
+        { status: 400 },
+      );
     }
+
+    const payload = parsedPayload.data;
 
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,

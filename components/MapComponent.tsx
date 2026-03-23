@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import poidata from "@/data/poi.json"
 import { Map,
   MapMarker,
@@ -82,78 +82,6 @@ const pois : Poi[] = poidata as Poi[];
 const PROVISIONAL_ROUTE_CACHE: Record<number, RouteData> = Object.fromEntries(
   pois.map((poi) => [poi.id, buildProvisionalRoute(poi)]),
 ) as Record<number, RouteData>;
-
-const geojsonData = {
-  type: "FeatureCollection" as const,
-  // features: [
-  //   {
-  //     type: "Feature" as const,
-  //     properties: { name: "Project Green Belt", type: "park" },
-  //     geometry: {
-  //       type: "Polygon" as const,
-  //       coordinates: [
-  //         [
-  //           [77.7487, 12.8647],
-  //           [77.7514, 12.8658],
-  //           [77.7532, 12.8649],
-  //           [77.7521, 12.8628],
-  //           [77.7494, 12.8629],
-  //           [77.7487, 12.8647],
-  //         ],
-  //       ],
-  //     },
-  //   },
-  //   {
-  //     type: "Feature" as const,
-  //     properties: { name: "Lakefront Open Park", type: "park" },
-  //     geometry: {
-  //       type: "Polygon" as const,
-  //       coordinates: [
-  //         [
-  //           [77.7584, 12.8637],
-  //           [77.7604, 12.8645],
-  //           [77.7612, 12.8628],
-  //           [77.7596, 12.8617],
-  //           [77.7579, 12.8624],
-  //           [77.7584, 12.8637],
-  //         ],
-  //       ],
-  //     },
-  //   },
-  //   {
-  //     type: "Feature" as const,
-  //     properties: { name: "Retail Growth Corridor", type: "commercial" },
-  //     geometry: {
-  //       type: "Polygon" as const,
-  //       coordinates: [
-  //         [
-  //           [77.7547, 12.8652],
-  //           [77.7579, 12.8654],
-  //           [77.7584, 12.8634],
-  //           [77.7551, 12.8631],
-  //           [77.7547, 12.8652],
-  //         ],
-  //       ],
-  //     },
-  //   },
-  //   {
-  //     type: "Feature" as const,
-  //     properties: { name: "Civic Landmark Belt", type: "landmark_zone" },
-  //     geometry: {
-  //       type: "Polygon" as const,
-  //       coordinates: [
-  //         [
-  //           [77.7461, 12.8604],
-  //           [77.7488, 12.8609],
-  //           [77.7493, 12.8588],
-  //           [77.7469, 12.8581],
-  //           [77.7461, 12.8604],
-  //         ],
-  //       ],
-  //     },
-  //   },
-  // ],
-};
 
 function formatDuration(seconds: number) {
   const mins = Math.round(seconds / 60);
@@ -455,192 +383,6 @@ const categoryMeta: Record<
   },
 };
 
-type MapOverlayLayerProps = {
-  showParks: boolean;
-  showCommercial: boolean;
-  onHoverNameChange: (name: string | null) => void;
-};
-
-function MapOverlayLayers({
-  showParks,
-  showCommercial,
-  onHoverNameChange,
-}: MapOverlayLayerProps) {
-  const { map, isLoaded } = useMap();
-
-  const ensureLayers = useCallback(() => {
-    if (!map) return;
-
-    if (!map.getSource("area-intelligence")) {
-      map.addSource("area-intelligence", {
-        type: "geojson",
-        data: geojsonData,
-      });
-    }
-
-    if (!map.getLayer("parks-fill")) {
-      map.addLayer({
-        id: "parks-fill",
-        type: "fill",
-        source: "area-intelligence",
-        filter: ["==", ["get", "type"], "park"],
-        paint: {
-          "fill-color": "#4ade80",
-          "fill-opacity": 0.24,
-        },
-      });
-    }
-
-    if (!map.getLayer("parks-outline")) {
-      map.addLayer({
-        id: "parks-outline",
-        type: "line",
-        source: "area-intelligence",
-        filter: ["==", ["get", "type"], "park"],
-        paint: {
-          "line-color": "#16a34a",
-          "line-width": 2,
-          "line-opacity": 0.9,
-        },
-      });
-    }
-
-    if (!map.getLayer("commercial-fill")) {
-      map.addLayer({
-        id: "commercial-fill",
-        type: "fill",
-        source: "area-intelligence",
-        filter: [
-          "any",
-          ["==", ["get", "type"], "commercial"],
-          ["==", ["get", "type"], "landmark_zone"],
-        ],
-        paint: {
-          "fill-color": [
-            "match",
-            ["get", "type"],
-            "commercial",
-            "#c084fc",
-            "landmark_zone",
-            "#60a5fa",
-            "#cbd5e1",
-          ],
-          "fill-opacity": 0.14,
-        },
-      });
-    }
-
-    if (!map.getLayer("commercial-outline")) {
-      map.addLayer({
-        id: "commercial-outline",
-        type: "line",
-        source: "area-intelligence",
-        filter: [
-          "any",
-          ["==", ["get", "type"], "commercial"],
-          ["==", ["get", "type"], "landmark_zone"],
-        ],
-        paint: {
-          "line-color": [
-            "match",
-            ["get", "type"],
-            "commercial",
-            "#a855f7",  
-            "landmark_zone",
-            "#2563eb",
-            "#64748b",
-          ],
-          "line-width": 2,
-          "line-opacity": 0.9,
-        },
-      });
-    }
-  }, [map]);
-
-  useEffect(() => {
-    if (!map || !isLoaded) return;
-
-    ensureLayers();
-
-    const interactiveLayers = ["parks-fill", "commercial-fill"];
-
-    const handleMouseEnter = () => {
-      map.getCanvas().style.cursor = "pointer";
-    };
-
-    const handleMouseLeave = () => {
-      map.getCanvas().style.cursor = "";
-      onHoverNameChange(null);
-    };
-
-    const handleMouseMove = (e: { point: { x: number; y: number } }) => {
-      const features = map.queryRenderedFeatures(e.point, {
-        layers: interactiveLayers.filter((id) => !!map.getLayer(id)),
-      });
-
-      if (features.length > 0) {
-        onHoverNameChange(features[0]?.properties?.name ?? null);
-      } else {
-        onHoverNameChange(null);
-      }
-    };
-
-    interactiveLayers.forEach((layerId) => {
-      if (map.getLayer(layerId)) {
-        map.on("mouseenter", layerId, handleMouseEnter);
-        map.on("mouseleave", layerId, handleMouseLeave);
-        map.on("mousemove", layerId, handleMouseMove);
-      }
-    });
-
-    return () => {
-      interactiveLayers.forEach((layerId) => {
-        if (map.getLayer(layerId)) {
-          map.off("mouseenter", layerId, handleMouseEnter);
-          map.off("mouseleave", layerId, handleMouseLeave);
-          map.off("mousemove", layerId, handleMouseMove);
-        }
-      });
-    };
-  }, [map, isLoaded, ensureLayers, onHoverNameChange]);
-
-  useEffect(() => {
-    if (!map || !isLoaded) return;
-
-    if (map.getLayer("parks-fill")) {
-      map.setLayoutProperty(
-        "parks-fill",
-        "visibility",
-        showParks ? "visible" : "none",
-      );
-    }
-    if (map.getLayer("parks-outline")) {
-      map.setLayoutProperty(
-        "parks-outline",
-        "visibility",
-        showParks ? "visible" : "none",
-      );
-    }
-
-    if (map.getLayer("commercial-fill")) {
-      map.setLayoutProperty(
-        "commercial-fill",
-        "visibility",
-        showCommercial ? "visible" : "none",
-      );
-    }
-    if (map.getLayer("commercial-outline")) {
-      map.setLayoutProperty(
-        "commercial-outline",
-        "visibility",
-        showCommercial ? "visible" : "none",
-      );
-    }
-  }, [map, isLoaded, showParks, showCommercial]);
-
-  return null;
-}
-
 function CategoryBadge({
   category,
   selected = false,
@@ -931,10 +673,6 @@ export function CustomStyleExample() {
   ]);
 
   const [search, setSearch] = useState("");
-  const [showParkZones, setShowParkZones] = useState(true);
-  const [showCommercialZones, setShowCommercialZones] = useState(true);
-  const [hoveredLayerName, setHoveredLayerName] = useState<string | null>(null);
-
   const selectedStyle = styles[style];
   const is3D = style === "openstreetmap3d";
 
@@ -1130,9 +868,6 @@ useEffect(() => {
       "landmark",
       "IT Company",
     ]);
-    setShowParkZones(true);
-    setShowCommercialZones(true);
-
     mapRef.current?.flyTo?.({
       center: [centerPlace.lng, centerPlace.lat],
       zoom: 15,
@@ -1140,11 +875,11 @@ useEffect(() => {
     });
   }
 
-  const clearActiveRoute = useCallback(() => {
+  const clearActiveRoute = () => {
     setRoutePoiId(null);
     setRouteProgress(0);
     setSelectedPoiId(null);
-  }, []);
+  };
 
   function handleViewRoute(poi: Poi) {
     userRouteRequestRef.current += 1;
@@ -1163,8 +898,7 @@ useEffect(() => {
     });
   }
 
-  const handleUserLocate = useCallback(
-    async (coords: UserLocation) => {
+  const handleUserLocate = async (coords: UserLocation) => {
       const requestId = userRouteRequestRef.current + 1;
       userRouteRequestRef.current = requestId;
 
@@ -1217,9 +951,7 @@ useEffect(() => {
       }
 
       setIsUserRouteLoading(false);
-    },
-    [isMobileFiltersOpen],
-  );
+    };
 
   
   const selectedPoi =
@@ -1330,11 +1062,6 @@ const animatedCoordinates = useMemo(() => {
           suppressRef={suppressNextMapClearRef}
         />
 
-        <MapOverlayLayers
-          showParks={showParkZones}
-          showCommercial={showCommercialZones}
-          onHoverNameChange={setHoveredLayerName}
-        />
         {userLocation ? (
           <UserLocationAccuracyLayer location={userLocation} />
         ) : null}
@@ -1594,84 +1321,6 @@ const animatedCoordinates = useMemo(() => {
                 </div>
               </div>
 
-              <div className="border-b border-slate-200/80 p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <Layers className="size-4 text-slate-700" />
-                  <p className="text-sm font-medium text-slate-800">
-                    GeoJSON Layers
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowParkZones((prev) => !prev)}
-                    className={`flex items-center justify-between rounded-2xl border px-3 py-3 transition ${
-                      showParkZones
-                        ? "border-emerald-300 bg-emerald-50"
-                        : "border-slate-200 bg-white/70"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-xl bg-white/70 p-2">
-                        <Trees className="size-4 text-emerald-600" />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm font-medium text-slate-900">
-                          Park Zones
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          Custom mapped green areas
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        showParkZones ? "bg-emerald-500" : "bg-slate-300"
-                      }`}
-                    />
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowCommercialZones((prev) => !prev)}
-                    className={`flex items-center justify-between rounded-2xl border px-3 py-3 transition ${
-                      showCommercialZones
-                        ? "border-violet-300 bg-violet-50"
-                        : "border-slate-200 bg-white/70"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="rounded-xl bg-white/70 p-2">
-                        <Building2 className="size-4 text-violet-600" />
-                      </div>
-                      <div className="text-left">
-                        <p className="text-sm font-medium text-slate-900">
-                          Commercial / Landmark Zones
-                        </p>
-                        <p className="text-xs text-slate-500">
-                          Retail and civic highlighted zones
-                        </p>
-                      </div>
-                    </div>
-                    <div
-                      className={`h-2.5 w-2.5 rounded-full ${
-                        showCommercialZones ? "bg-violet-500" : "bg-slate-300"
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {hoveredLayerName && (
-                  <div className="mt-3 rounded-2xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-700">
-                    Hovered layer:{" "}
-                    <span className="font-semibold text-slate-900">
-                      {hoveredLayerName}
-                    </span>
-                  </div>
-                )}
-              </div>
-
               <div className="flex-1 overflow-hidden p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <p className="text-sm font-medium text-slate-800">
@@ -1917,52 +1566,6 @@ const animatedCoordinates = useMemo(() => {
                   },
                 )}
               </div>
-            </div>
-
-            <div className="mb-4 grid gap-2">
-              <button
-                type="button"
-                onClick={() => setShowParkZones((prev) => !prev)}
-                className={`flex items-center justify-between rounded-2xl border px-3 py-3 transition ${
-                  showParkZones
-                    ? "border-emerald-300 bg-emerald-50"
-                    : "border-slate-200 bg-white/70"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Trees className="size-4 text-emerald-600" />
-                  <span className="text-sm font-medium text-slate-900">
-                    Park Zones
-                  </span>
-                </div>
-                <div
-                  className={`h-2.5 w-2.5 rounded-full ${
-                    showParkZones ? "bg-emerald-500" : "bg-slate-300"
-                  }`}
-                />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowCommercialZones((prev) => !prev)}
-                className={`flex items-center justify-between rounded-2xl border px-3 py-3 transition ${
-                  showCommercialZones
-                    ? "border-violet-300 bg-violet-50"
-                    : "border-slate-200 bg-white/70"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Building2 className="size-4 text-violet-600" />
-                  <span className="text-sm font-medium text-slate-900">
-                    Commercial / Landmark Zones
-                  </span>
-                </div>
-                <div
-                  className={`h-2.5 w-2.5 rounded-full ${
-                    showCommercialZones ? "bg-violet-500" : "bg-slate-300"
-                  }`}
-                />
-              </button>
             </div>
 
             <div className="mb-4">
