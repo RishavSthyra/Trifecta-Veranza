@@ -6,6 +6,17 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 
+type IdleCapableWindow = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (
+      callback: IdleRequestCallback,
+      options?: IdleRequestOptions,
+    ) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
+type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
+
 export default function HeroSection() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -54,27 +65,33 @@ export default function HeroSection() {
   useEffect(() => {
     if (!videoReady) return;
 
-    let timeoutId: number | null = null;
+    let timeoutId: TimeoutHandle | null = null;
     let idleId: number | null = null;
+    const idleWindow = window as IdleCapableWindow;
 
     const warmMasterPlan = () => {
       router.prefetch("/master-plan");
       setShouldWarmMasterPlan(true);
     };
 
-    if ("requestIdleCallback" in window) {
-      idleId = window.requestIdleCallback(warmMasterPlan, { timeout: 1200 });
+    if (typeof idleWindow.requestIdleCallback === "function") {
+      idleId = idleWindow.requestIdleCallback(warmMasterPlan, {
+        timeout: 1200,
+      });
     } else {
-      timeoutId = window.setTimeout(warmMasterPlan, 400);
+      timeoutId = globalThis.setTimeout(warmMasterPlan, 400);
     }
 
     return () => {
-      if (idleId !== null && "cancelIdleCallback" in window) {
-        window.cancelIdleCallback(idleId);
+      if (
+        idleId !== null &&
+        typeof idleWindow.cancelIdleCallback === "function"
+      ) {
+        idleWindow.cancelIdleCallback(idleId);
       }
 
       if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
+        globalThis.clearTimeout(timeoutId);
       }
     };
   }, [router, videoReady]);

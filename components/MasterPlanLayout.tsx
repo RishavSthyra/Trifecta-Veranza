@@ -30,6 +30,17 @@ const bhkOptions = ["All", "2", "3"] as const;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
+type IdleCapableWindow = Window &
+  typeof globalThis & {
+    requestIdleCallback?: (
+      callback: IdleRequestCallback,
+      options?: IdleRequestOptions,
+    ) => number;
+    cancelIdleCallback?: (handle: number) => void;
+  };
+
+type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
+
 const panelVariants: Variants = {
   hidden: {
     opacity: 0,
@@ -186,26 +197,32 @@ export default function MasterPlanLayout({
   }, [initialApartments.length]);
 
   useEffect(() => {
-    let timeoutId: number | null = null;
+    let timeoutId: TimeoutHandle | null = null;
     let idleId: number | null = null;
+    const idleWindow = window as IdleCapableWindow;
 
     const warmIdleLoop = () => {
       setShouldLoadIdleVideo(true);
     };
 
-    if ("requestIdleCallback" in window) {
-      idleId = window.requestIdleCallback(warmIdleLoop, { timeout: 1000 });
+    if (typeof idleWindow.requestIdleCallback === "function") {
+      idleId = idleWindow.requestIdleCallback(warmIdleLoop, {
+        timeout: 1000,
+      });
     } else {
-      timeoutId = window.setTimeout(warmIdleLoop, 250);
+      timeoutId = globalThis.setTimeout(warmIdleLoop, 250);
     }
 
     return () => {
-      if (idleId !== null && "cancelIdleCallback" in window) {
-        window.cancelIdleCallback(idleId);
+      if (
+        idleId !== null &&
+        typeof idleWindow.cancelIdleCallback === "function"
+      ) {
+        idleWindow.cancelIdleCallback(idleId);
       }
 
       if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
+        globalThis.clearTimeout(timeoutId);
       }
     };
   }, []);
