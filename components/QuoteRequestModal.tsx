@@ -487,7 +487,7 @@ export default function QuoteRequestModal({
 
               <div data-quote-item className="absolute inset-0 opacity-90">
                 <Image
-                  src="/Road night view.webp"
+                  src="/Road night view.avif"
                   alt="Form Left Image - Trifecta"
                   fill
                   className="object-cover object-right"

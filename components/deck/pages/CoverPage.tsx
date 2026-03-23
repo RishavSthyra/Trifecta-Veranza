@@ -3,7 +3,7 @@
 import React, { forwardRef } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import coverimg from "@/assets/vertical-shot-white-building-clear-sky.png";
+import coverimg from "@/assets/vertical-shot-white-building-clear-sky.avif";
 
 type Props = {
   number?: number;

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, type Variants, type Easing } from "framer-motion";
 import Image, { type StaticImageData } from "next/image";
 import { CheckCircle2 } from "lucide-react";
-import towerimg from "@/assets/Tower.jpg.jpeg";
+import towerimg from "@/assets/Tower.avif";
 import type { TowerType } from "@/types/inventory";
 
 export type { TowerType } from "@/types/inventory";
