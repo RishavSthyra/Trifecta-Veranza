@@ -13,6 +13,7 @@ export default function HeroSection() {
   const scrollLockRef = useRef(false);
 
   const [videoReady, setVideoReady] = useState(false);
+  const [shouldWarmMasterPlan, setShouldWarmMasterPlan] = useState(false);
 
   const line1 = "Open to Sky,";
   const line2 = "Rooted in Green";
@@ -45,6 +46,38 @@ export default function HeroSection() {
   const goToNextPage = useCallback(() => {
     router.push("/master-plan");
   }, [router]);
+
+  useEffect(() => {
+    router.prefetch("/master-plan");
+  }, [router]);
+
+  useEffect(() => {
+    if (!videoReady) return;
+
+    let timeoutId: number | null = null;
+    let idleId: number | null = null;
+
+    const warmMasterPlan = () => {
+      router.prefetch("/master-plan");
+      setShouldWarmMasterPlan(true);
+    };
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(warmMasterPlan, { timeout: 1200 });
+    } else {
+      timeoutId = window.setTimeout(warmMasterPlan, 400);
+    }
+
+    return () => {
+      if (idleId !== null && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [router, videoReady]);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -96,6 +129,18 @@ export default function HeroSection() {
       >
         <source src="HERO_BG_2.mp4" type="video/mp4" />
       </video>
+
+      {shouldWarmMasterPlan ? (
+        <video
+          className="hidden"
+          muted
+          playsInline
+          preload="auto"
+          aria-hidden="true"
+        >
+          <source src="/master_plan_video.webm" type="video/webm" />
+        </video>
+      ) : null}
 
       <div className="absolute inset-0 bg-black/5" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.45)_100%)]" />

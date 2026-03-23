@@ -117,6 +117,8 @@ export default function MasterPlanLayout({
   const [showReverseVideo, setShowReverseVideo] = useState(false);
   const [isIntroPlaying, setIsIntroPlaying] = useState(true);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
+  const [isForwardVideoReady, setIsForwardVideoReady] = useState(false);
+  const [shouldLoadIdleVideo, setShouldLoadIdleVideo] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -183,6 +185,36 @@ export default function MasterPlanLayout({
     };
   }, [initialApartments.length]);
 
+  useEffect(() => {
+    let timeoutId: number | null = null;
+    let idleId: number | null = null;
+
+    const warmIdleLoop = () => {
+      setShouldLoadIdleVideo(true);
+    };
+
+    if ("requestIdleCallback" in window) {
+      idleId = window.requestIdleCallback(warmIdleLoop, { timeout: 1000 });
+    } else {
+      timeoutId = window.setTimeout(warmIdleLoop, 250);
+    }
+
+    return () => {
+      if (idleId !== null && "cancelIdleCallback" in window) {
+        window.cancelIdleCallback(idleId);
+      }
+
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!shouldLoadIdleVideo) return;
+    idleVideoRef.current?.load();
+  }, [shouldLoadIdleVideo]);
+
   const filteredApartments = useMemo(() => {
     if (!selectedTower) {
       return [];
@@ -247,6 +279,7 @@ export default function MasterPlanLayout({
   const handleForwardEnded = async () => {
     setIsIntroPlaying(false);
     setShowIdleVideo(true);
+    setShouldLoadIdleVideo(true);
 
     const idleVideo = idleVideoRef.current;
     if (!idleVideo) return;
@@ -431,7 +464,9 @@ export default function MasterPlanLayout({
         muted
         playsInline
         preload="auto"
+        poster="/plan%20image.webp"
         src="/master_plan_video.webm"
+        onLoadedData={() => setIsForwardVideoReady(true)}
         onEnded={handleForwardEnded}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           showIdleVideo || showReverseVideo ? "opacity-0" : "opacity-100"
@@ -443,8 +478,8 @@ export default function MasterPlanLayout({
         muted
         loop
         playsInline
-        preload="auto"
-        src="/master_plan_idle_loop.webm"
+        preload={shouldLoadIdleVideo ? "auto" : "none"}
+        src={shouldLoadIdleVideo ? "/master_plan_idle_loop.webm" : undefined}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           showIdleVideo && !showReverseVideo
             ? "opacity-100"
@@ -456,12 +491,19 @@ export default function MasterPlanLayout({
         ref={reverseVideoRef}
         muted
         playsInline
-        preload="auto"
+        preload="metadata"
         src="/master_plan_video_reverse.webm"
         onEnded={() => router.push("/")}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
           showReverseVideo ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
+      />
+
+      <div
+        className={`pointer-events-none absolute inset-0 bg-cover bg-center transition-opacity duration-500 ${
+          isForwardVideoReady ? "opacity-0" : "opacity-100"
+        }`}
+        style={{ backgroundImage: "url('/plan%20image.webp')" }}
       />
 
       {!isIntroPlaying && !isLeaving ? (
