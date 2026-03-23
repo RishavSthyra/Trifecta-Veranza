@@ -24,7 +24,6 @@ export default function HeroSection() {
   const scrollLockRef = useRef(false);
 
   const [videoReady, setVideoReady] = useState(false);
-  const [shouldWarmMasterPlan, setShouldWarmMasterPlan] = useState(false);
 
   const line1 = "Open to Sky,";
   const line2 = "Rooted in Green";
@@ -71,7 +70,6 @@ export default function HeroSection() {
 
     const warmMasterPlan = () => {
       router.prefetch("/master-plan");
-      setShouldWarmMasterPlan(true);
     };
 
     if (typeof idleWindow.requestIdleCallback === "function") {
@@ -146,18 +144,6 @@ export default function HeroSection() {
       >
         <source src="HERO_BG_2.mp4" type="video/mp4" />
       </video>
-
-      {shouldWarmMasterPlan ? (
-        <video
-          className="hidden"
-          muted
-          playsInline
-          preload="auto"
-          aria-hidden="true"
-        >
-          <source src="/master_plan_video.webm" type="video/webm" />
-        </video>
-      ) : null}
 
       <div className="absolute inset-0 bg-black/5" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.45)_100%)]" />
