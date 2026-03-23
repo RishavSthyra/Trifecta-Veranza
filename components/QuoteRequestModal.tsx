@@ -761,7 +761,7 @@ export default function QuoteRequestModal({
                                         className={cn(
                                           "rounded-[20px] border bg-white/3 px-4 py-4",
                                           fieldErrors.consent
-                                            ? "border-rose-400/30"
+                                            ? "border-rose-400/30" 
                                             : "border-white/10",
                                         )}
                                       >
@@ -783,7 +783,7 @@ export default function QuoteRequestModal({
                                             Permission to contact you
                                           </span>
                                           <span className="mt-1 block text-[12px] leading-6 text-white/58">
-                                            I agree to be contacted about inventory,
+                                            I agree to be contacted about apartments,
                                             pricing, and site visits.
                                           </span>
                                         </span>
