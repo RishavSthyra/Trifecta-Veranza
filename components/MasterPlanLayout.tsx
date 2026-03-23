@@ -128,7 +128,6 @@ export default function MasterPlanLayout({
   const [showReverseVideo, setShowReverseVideo] = useState(false);
   const [isIntroPlaying, setIsIntroPlaying] = useState(true);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
-  const [isForwardVideoReady, setIsForwardVideoReady] = useState(false);
   const [shouldLoadIdleVideo, setShouldLoadIdleVideo] = useState(false);
 
   useEffect(() => {
@@ -481,9 +480,7 @@ export default function MasterPlanLayout({
         muted
         playsInline
         preload="auto"
-        poster="/plan%20image.webp"
         src="/master_plan_video.webm"
-        onLoadedData={() => setIsForwardVideoReady(true)}
         onEnded={handleForwardEnded}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           showIdleVideo || showReverseVideo ? "opacity-0" : "opacity-100"
@@ -516,12 +513,22 @@ export default function MasterPlanLayout({
         }`}
       />
 
-      <div
-        className={`pointer-events-none absolute inset-0 bg-cover bg-center transition-opacity duration-500 ${
-          isForwardVideoReady ? "opacity-0" : "opacity-100"
-        }`}
-        style={{ backgroundImage: "url('/plan%20image.webp')" }}
-      />
+      {isIntroPlaying ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] bg-gradient-to-t from-black/55 via-black/20 to-transparent px-6 pb-10 pt-24 text-white md:px-10 md:pb-14">
+          <div className="max-w-3xl">
+            <p className="text-[11px] uppercase tracking-[0.4em] text-white/70 md:text-xs">
+              Trifecta Veranza
+            </p>
+            <h1 className="mt-3 text-3xl font-light uppercase tracking-[0.14em] md:text-5xl">
+              Master Plan
+            </h1>
+            <p className="mt-3 max-w-2xl text-sm text-white/80 md:text-base">
+              A live site-wide view of the towers, landscape and circulation,
+              loading as the interactive inventory experience warms up.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       {!isIntroPlaying && !isLeaving ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />

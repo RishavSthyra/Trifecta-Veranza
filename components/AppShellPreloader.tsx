@@ -24,7 +24,6 @@ const routeTargets = ["/", "/project-overview", "/master-plan", "/area-map"];
 
 const mediaAssets = [
   "/FALLBACK.png",
-  "/plan%20image.webp",
   "/HERO_BG_2.mp4",
   "/master_plan_video.webm",
   "/master_plan_idle_loop.webm",
@@ -35,7 +34,6 @@ function getPrioritizedAssets(pathname: string) {
   if (pathname === "/") {
     return [
       "/FALLBACK.png",
-      "/plan%20image.webp",
       "/master_plan_video.webm",
       "/master_plan_idle_loop.webm",
       "/master_plan_video_reverse.webm",
@@ -45,7 +43,6 @@ function getPrioritizedAssets(pathname: string) {
 
   if (pathname === "/master-plan") {
     return [
-      "/plan%20image.webp",
       "/master_plan_idle_loop.webm",
       "/master_plan_video_reverse.webm",
       "/HERO_BG_2.mp4",
