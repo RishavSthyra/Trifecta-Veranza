@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import CloudinaryHlsVideo from "@/components/CloudinaryHlsVideo";
+import { showRouteTransitionOverlay } from "@/lib/route-transition-overlay";
 
 type IdleCapableWindow = Window &
   typeof globalThis & {
@@ -17,7 +18,7 @@ type IdleCapableWindow = Window &
   };
 
 type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
-const MASTER_PLAN_NAVIGATION_DELAY_MS = 120;
+const MASTER_PLAN_NAVIGATION_DELAY_MS = 48;
 
 export default function HeroSection() {
   const router = useRouter();
@@ -99,6 +100,7 @@ export default function HeroSection() {
 
     scrollLockRef.current = true;
     setIsTransitioningToMasterPlan(true);
+    showRouteTransitionOverlay("/FALLBACK.png");
     router.prefetch("/master-plan");
     masterPlanWarmVideoRef.current?.load();
 

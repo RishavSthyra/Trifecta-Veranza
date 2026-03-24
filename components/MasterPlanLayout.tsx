@@ -11,6 +11,7 @@ import {
 import MasterPlanArrowMarkers from "./MasterPlanArrowMarkers";
 import CloudinaryHlsVideo from "./CloudinaryHlsVideo";
 import { masterPlanArrowPoints } from "@/data/masterPlanArrowPoints";
+import { hideRouteTransitionOverlay } from "@/lib/route-transition-overlay";
 import GlassSelect, { GlassSelectItem } from "./ui/GlassSelect";
 import {
   ArrowLeft,
@@ -190,6 +191,27 @@ export default function MasterPlanLayout({
     if (!shouldLoadIdleVideo) return;
     idleVideoRef.current?.load();
   }, [shouldLoadIdleVideo]);
+
+  useEffect(() => {
+    let firstFrameRequestId: number | null = null;
+    let secondFrameRequestId: number | null = null;
+
+    firstFrameRequestId = window.requestAnimationFrame(() => {
+      secondFrameRequestId = window.requestAnimationFrame(() => {
+        hideRouteTransitionOverlay();
+      });
+    });
+
+    return () => {
+      if (firstFrameRequestId !== null) {
+        window.cancelAnimationFrame(firstFrameRequestId);
+      }
+
+      if (secondFrameRequestId !== null) {
+        window.cancelAnimationFrame(secondFrameRequestId);
+      }
+    };
+  }, []);
 
   const filteredApartments = useMemo(() => {
     if (!selectedTower) {

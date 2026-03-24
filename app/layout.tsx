@@ -3,6 +3,7 @@ import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import RouteChrome from "@/components/RouteChrome";
+import RouteTransitionOverlay from "@/components/RouteTransitionOverlay";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -24,6 +25,7 @@ export default function RootLayout({
       <body className="custom-scrollbar min-h-dvh w-full bg-zinc-50 text-zinc-900 antialiased dark:bg-black dark:text-white">
         <div className="relative min-h-dvh w-full overflow-x-hidden">
           <RouteChrome />
+          <RouteTransitionOverlay />
 
           <main className="min-h-dvh w-full">
             {children}
