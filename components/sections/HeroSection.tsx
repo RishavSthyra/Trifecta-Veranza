@@ -5,6 +5,7 @@ import { motion, type Variants } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import CloudinaryHlsVideo from "@/components/CloudinaryHlsVideo";
 
 type IdleCapableWindow = Window &
   typeof globalThis & {
@@ -182,8 +183,9 @@ export default function HeroSection() {
         style={{ backgroundImage: "url('/FALLBACK.png')" }}
       />
 
-      <video
+      <CloudinaryHlsVideo
         ref={videoRef}
+        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328995/HERO_BG_2_jz6mka.mp4"
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
           videoReady ? "opacity-100" : "opacity-0"
         }`}
@@ -193,20 +195,17 @@ export default function HeroSection() {
         playsInline
         preload="metadata"
         onCanPlay={() => setVideoReady(true)}
-      >
-        <source src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328995/HERO_BG_2_jz6mka.mp4" type="video/mp4" />
-      </video>
+      />
 
-      <video
+      <CloudinaryHlsVideo
         ref={masterPlanWarmVideoRef}
+        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328580/master_plan_video_aof5a5.webm"
         muted
         playsInline
         preload="auto"
         aria-hidden="true"
         className="pointer-events-none absolute h-0 w-0 opacity-0"
-      >
-        <source src="/master_plan_video.webm" type="video/webm" />
-      </video>
+      />
 
       <motion.div
         animate={{ opacity: isTransitioningToMasterPlan ? 0.24 : 0.05 }}

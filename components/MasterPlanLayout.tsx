@@ -9,6 +9,7 @@ import {
   type Easing,
 } from "framer-motion";
 import MasterPlanArrowMarkers from "./MasterPlanArrowMarkers";
+import CloudinaryHlsVideo from "./CloudinaryHlsVideo";
 import { masterPlanArrowPoints } from "@/data/masterPlanArrowPoints";
 import GlassSelect, { GlassSelectItem } from "./ui/GlassSelect";
 import {
@@ -474,13 +475,13 @@ export default function MasterPlanLayout({
         style={{ backgroundImage: "url('/FALLBACK.png')" }}
       />
 
-      <video
+      <CloudinaryHlsVideo
         ref={forwardVideoRef}
+        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328580/master_plan_video_aof5a5.webm"
         muted
         playsInline
         poster="/FALLBACK.png"
         preload="auto"
-        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328580/master_plan_video_aof5a5.webm"
         onLoadedData={() => {
           void handleForwardLoadedData();
         }}
@@ -507,19 +508,19 @@ export default function MasterPlanLayout({
         }`}
       />
 
-      <video
+      <CloudinaryHlsVideo
         ref={reverseVideoRef}
+        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774329012/master_plan_video_reverse_ydmfy3.webm"
         muted
         playsInline
         preload="none"
-        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774329012/master_plan_video_reverse_ydmfy3.webm"
         onEnded={() => router.push("/")}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
           showReverseVideo ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       />
 
-      {isIntroPlaying ? (
+      {/* {isIntroPlaying ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] bg-gradient-to-t from-black/55 via-black/20 to-transparent px-6 pb-10 pt-24 text-white md:px-10 md:pb-14">
           <div className="max-w-3xl">
             <p className="text-[11px] uppercase tracking-[0.4em] text-white/70 md:text-xs">
@@ -534,7 +535,7 @@ export default function MasterPlanLayout({
             </p>
           </div>
         </div>
-      ) : null}
+      ) : null} */}
 
       {!isIntroPlaying && !isLeaving ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
