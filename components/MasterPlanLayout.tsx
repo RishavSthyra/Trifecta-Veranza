@@ -512,7 +512,7 @@ export default function MasterPlanLayout({
         muted
         playsInline
         preload="none"
-        src="/master_plan_video_reverse.webm"
+        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774329012/master_plan_video_reverse_ydmfy3.webm"
         onEnded={() => router.push("/")}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
           showReverseVideo ? "opacity-100" : "pointer-events-none opacity-0"

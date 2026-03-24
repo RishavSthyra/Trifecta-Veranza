@@ -194,7 +194,7 @@ export default function HeroSection() {
         preload="metadata"
         onCanPlay={() => setVideoReady(true)}
       >
-        <source src="HERO_BG_2.mp4" type="video/mp4" />
+        <source src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328995/HERO_BG_2_jz6mka.mp4" type="video/mp4" />
       </video>
 
       <video
