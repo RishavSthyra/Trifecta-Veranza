@@ -472,7 +472,7 @@ export default function MasterPlanLayout({
   return (
     <div
       ref={rootRef}
-      className="relative h-dvh w-full overflow-hidden bg-[#f5f7fb] text-zinc-900 [overflow-anchor:none] dark:bg-black dark:text-white"
+      className="relative h-dvh w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
     >
       <video
         ref={forwardVideoRef}

@@ -22,8 +22,11 @@ export default function HeroSection() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const scrollLockRef = useRef(false);
+  const navigationTimeoutRef = useRef<TimeoutHandle | null>(null);
 
   const [videoReady, setVideoReady] = useState(false);
+  const [isTransitioningToMasterPlan, setIsTransitioningToMasterPlan] =
+    useState(false);
 
   const line1 = "Open to Sky,";
   const line2 = "Rooted in Green";
@@ -53,9 +56,52 @@ export default function HeroSection() {
     },
   };
 
+  const contentWrap: Variants = {
+    show: {
+      transition: {
+        staggerChildren: 0.08,
+      },
+    },
+    exit: {
+      transition: {
+        staggerChildren: 0.09,
+        staggerDirection: -1,
+      },
+    },
+  };
+
+  const contentItem: Variants = {
+    show: {
+      opacity: 1,
+      y: 0,
+      filter: "blur(0px)",
+      transition: {
+        duration: 0.55,
+        ease: [0.22, 1, 0.36, 1] as const,
+      },
+    },
+    exit: {
+      opacity: 0,
+      y: -56,
+      filter: "blur(14px)",
+      transition: {
+        duration: 0.75,
+        ease: [0.4, 0, 0.2, 1] as const,
+      },
+    },
+  };
+
   const goToNextPage = useCallback(() => {
-    router.push("/master-plan");
-  }, [router]);
+    if (scrollLockRef.current || isTransitioningToMasterPlan) return;
+
+    scrollLockRef.current = true;
+    setIsTransitioningToMasterPlan(true);
+    router.prefetch("/master-plan");
+
+    navigationTimeoutRef.current = globalThis.setTimeout(() => {
+      router.push("/master-plan");
+    }, 1050);
+  }, [isTransitioningToMasterPlan, router]);
 
   useEffect(() => {
     router.prefetch("/master-plan");
@@ -102,13 +148,8 @@ export default function HeroSection() {
       if (e.deltaY <= 20) return;
       if (scrollLockRef.current) return;
 
-      scrollLockRef.current = true;
       e.preventDefault();
       goToNextPage();
-
-      window.setTimeout(() => {
-        scrollLockRef.current = false;
-      }, 1200);
     };
 
     el.addEventListener("wheel", handleWheel, { passive: false });
@@ -117,6 +158,14 @@ export default function HeroSection() {
       el.removeEventListener("wheel", handleWheel);
     };
   }, [goToNextPage]);
+
+  useEffect(() => {
+    return () => {
+      if (navigationTimeoutRef.current !== null) {
+        globalThis.clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <section
@@ -145,8 +194,18 @@ export default function HeroSection() {
         <source src="HERO_BG_2.mp4" type="video/mp4" />
       </video>
 
-      <div className="absolute inset-0 bg-black/5" />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.45)_100%)]" />
+      <motion.div
+        animate={{ opacity: isTransitioningToMasterPlan ? 0.24 : 0.05 }}
+        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        className="absolute inset-0 bg-black"
+      />
+      <motion.div
+        animate={{
+          opacity: isTransitioningToMasterPlan ? 1 : 0.7,
+        }}
+        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.45)_100%)]"
+      />
 
       <div className="hidden  absolute left-0 right-0 top-0 z-20 lg:flex items-center justify-between px-6 py-5 md:px-10">
         <button className="text-xs uppercase tracking-[0.25em] text-white/80">
@@ -165,18 +224,27 @@ export default function HeroSection() {
       </div>
 
       <div className="relative z-10 flex h-full items-center justify-center px-6">
-        <div className="max-w-5xl text-center">
-          <p className="mb-4 text-[11px] uppercase tracking-[0.4em] text-white/70 md:text-xs">
-            Trifecta Veranza
-          </p>
-
-          <motion.h1
-            variants={container}
-            initial="hidden"
-            animate="show"
-            className="text-4xl font-light uppercase tracking-[0.08em] md:text-7xl md:leading-[0.95]"
+        <motion.div
+          variants={contentWrap}
+          initial="show"
+          animate={isTransitioningToMasterPlan ? "exit" : "show"}
+          className="max-w-5xl text-center"
+        >
+          <motion.p
+            variants={contentItem}
+            className="mb-4 text-[11px] uppercase tracking-[0.4em] text-white/70 md:text-xs"
           >
-            <div className="flex flex-wrap justify-center overflow-hidden">
+            Trifecta Veranza
+          </motion.p>
+
+          <motion.div variants={contentItem}>
+            <motion.h1
+              variants={container}
+              initial="hidden"
+              animate={isTransitioningToMasterPlan ? "hidden" : "show"}
+              className="text-4xl font-light uppercase tracking-[0.08em] md:text-7xl md:leading-[0.95]"
+            >
+              <div className="flex flex-wrap justify-center overflow-hidden">
               {line1.split("").map((char, i) => (
                 <motion.span
                   key={`l1-${i}`}
@@ -186,9 +254,9 @@ export default function HeroSection() {
                   {char === " " ? "\u00A0" : char}
                 </motion.span>
               ))}
-            </div>
+              </div>
 
-            <div className="flex flex-wrap justify-center overflow-hidden">
+              <div className="flex flex-wrap justify-center overflow-hidden">
               {line2.split("").map((char, i) => (
                 <motion.span
                   key={`l2-${i}`}
@@ -198,24 +266,32 @@ export default function HeroSection() {
                   {char === " " ? "\u00A0" : char}
                 </motion.span>
               ))}
-            </div>
-          </motion.h1>
+              </div>
+            </motion.h1>
+          </motion.div>
 
-          <p className="mx-auto mt-6 max-w-2xl text-sm text-white/80 md:text-base">
+          <motion.p
+            variants={contentItem}
+            className="mx-auto mt-6 max-w-2xl text-sm text-white/80 md:text-base"
+          >
             Expansive skyrise residences set across 6+ acres with 2 iconic
             towers, rising G+36 floors and offering 444 exclusive homes designed
             for elevated living.
-          </p>
+          </motion.p>
 
-          <div className="mt-8 flex flex-col items-center gap-4 md:flex-row md:justify-center">
+          <motion.div
+            variants={contentItem}
+            className="mt-8 flex flex-col items-center gap-4 md:flex-row md:justify-center"
+          >
             <button
               onClick={goToNextPage}
-              className="cursor-pointer border border-white/40 bg-white/10 px-7 py-3 text-xs uppercase tracking-[0.25em] backdrop-blur-sm transition hover:bg-white hover:text-black"
+              disabled={isTransitioningToMasterPlan}
+              className="cursor-pointer border border-white/40 bg-white/10 px-7 py-3 text-xs uppercase tracking-[0.25em] backdrop-blur-sm transition hover:bg-white hover:text-black disabled:cursor-default disabled:opacity-60"
             >
               Explore Masterplan
             </button>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       </div>
     </section>
   );
