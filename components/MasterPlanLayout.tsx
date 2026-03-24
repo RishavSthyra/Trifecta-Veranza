@@ -468,7 +468,7 @@ export default function MasterPlanLayout({
       className="relative h-dvh w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
     >
       <div
-        className={`absolute inset-0 transition-opacity duration-300 ${
+        className={`absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-300 ${
           isForwardVideoReady ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
         style={{ backgroundImage: "url('/FALLBACK.png')" }}
@@ -480,7 +480,7 @@ export default function MasterPlanLayout({
         playsInline
         poster="/FALLBACK.png"
         preload="auto"
-        src="/master_plan_video.webm"
+        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328580/master_plan_video_aof5a5.webm"
         onLoadedData={() => {
           void handleForwardLoadedData();
         }}
