@@ -117,6 +117,7 @@ export default function MasterPlanLayout({
   const [showReverseVideo, setShowReverseVideo] = useState(false);
   const [isIntroPlaying, setIsIntroPlaying] = useState(true);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
+  const [isForwardVideoReady, setIsForwardVideoReady] = useState(false);
   const [shouldLoadIdleVideo, setShouldLoadIdleVideo] = useState(false);
 
   useEffect(() => {
@@ -264,6 +265,20 @@ export default function MasterPlanLayout({
       await idleVideo.play();
     } catch {
       // autoplay usually works because it's muted, but fail silently if needed
+    }
+  };
+
+  const handleForwardLoadedData = async () => {
+    const forwardVideo = forwardVideoRef.current;
+    if (!forwardVideo || isForwardVideoReady) return;
+
+    forwardVideo.currentTime = 0;
+    setIsForwardVideoReady(true);
+
+    try {
+      await forwardVideo.play();
+    } catch {
+      // muted inline playback should succeed, but keep the first frame visible if not
     }
   };
 
@@ -452,18 +467,29 @@ export default function MasterPlanLayout({
       ref={rootRef}
       className="relative h-dvh w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
     >
+      <div
+        className={`absolute inset-0 transition-opacity duration-300 ${
+          isForwardVideoReady ? "pointer-events-none opacity-0" : "opacity-100"
+        }`}
+        style={{ backgroundImage: "url('/FALLBACK.png')" }}
+      />
+
       <video
         ref={forwardVideoRef}
-        autoPlay
         muted
         playsInline
         poster="/FALLBACK.png"
         preload="auto"
         src="/master_plan_video.webm"
+        onLoadedData={() => {
+          void handleForwardLoadedData();
+        }}
         onEnded={handleForwardEnded}
         onTimeUpdate={handleForwardTimeUpdate}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-          showIdleVideo || showReverseVideo ? "opacity-0" : "opacity-100"
+          !isForwardVideoReady || showIdleVideo || showReverseVideo
+            ? "opacity-0"
+            : "opacity-100"
         }`}
       />
 

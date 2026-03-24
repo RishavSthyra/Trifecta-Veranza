@@ -20,6 +20,7 @@ type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
 export default function HeroSection() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const masterPlanWarmVideoRef = useRef<HTMLVideoElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const scrollLockRef = useRef(false);
   const navigationTimeoutRef = useRef<TimeoutHandle | null>(null);
@@ -97,6 +98,7 @@ export default function HeroSection() {
     scrollLockRef.current = true;
     setIsTransitioningToMasterPlan(true);
     router.prefetch("/master-plan");
+    masterPlanWarmVideoRef.current?.load();
 
     navigationTimeoutRef.current = globalThis.setTimeout(() => {
       router.push("/master-plan");
@@ -116,6 +118,7 @@ export default function HeroSection() {
 
     const warmMasterPlan = () => {
       router.prefetch("/master-plan");
+      masterPlanWarmVideoRef.current?.load();
     };
 
     if (typeof idleWindow.requestIdleCallback === "function") {
@@ -192,6 +195,17 @@ export default function HeroSection() {
         onCanPlay={() => setVideoReady(true)}
       >
         <source src="HERO_BG_2.mp4" type="video/mp4" />
+      </video>
+
+      <video
+        ref={masterPlanWarmVideoRef}
+        muted
+        playsInline
+        preload="auto"
+        aria-hidden="true"
+        className="pointer-events-none absolute h-0 w-0 opacity-0"
+      >
+        <source src="/master_plan_video.webm" type="video/webm" />
       </video>
 
       <motion.div
