@@ -17,6 +17,7 @@ type IdleCapableWindow = Window &
   };
 
 type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
+const MASTER_PLAN_NAVIGATION_DELAY_MS = 120;
 
 export default function HeroSection() {
   const router = useRouter();
@@ -103,7 +104,7 @@ export default function HeroSection() {
 
     navigationTimeoutRef.current = globalThis.setTimeout(() => {
       router.push("/master-plan");
-    }, 1050);
+    }, MASTER_PLAN_NAVIGATION_DELAY_MS);
   }, [isTransitioningToMasterPlan, router]);
 
   useEffect(() => {
@@ -183,9 +184,8 @@ export default function HeroSection() {
         style={{ backgroundImage: "url('/FALLBACK.png')" }}
       />
 
-      <CloudinaryHlsVideo
+      <video
         ref={videoRef}
-        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328995/HERO_BG_2_jz6mka.mp4"
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
           videoReady ? "opacity-100" : "opacity-0"
         }`}
@@ -195,7 +195,12 @@ export default function HeroSection() {
         playsInline
         preload="metadata"
         onCanPlay={() => setVideoReady(true)}
-      />
+      >
+        <source
+          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328995/HERO_BG_2_jz6mka.mp4"
+          type="video/mp4"
+        />
+      </video>
 
       <CloudinaryHlsVideo
         ref={masterPlanWarmVideoRef}
