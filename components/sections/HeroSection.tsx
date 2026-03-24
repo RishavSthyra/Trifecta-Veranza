@@ -5,8 +5,6 @@ import { motion, type Variants } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import CloudinaryHlsVideo from "@/components/CloudinaryHlsVideo";
-import { showRouteTransitionOverlay } from "@/lib/route-transition-overlay";
 
 type IdleCapableWindow = Window &
   typeof globalThis & {
@@ -18,19 +16,20 @@ type IdleCapableWindow = Window &
   };
 
 type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
-const MASTER_PLAN_NAVIGATION_DELAY_MS = 48;
 
 export default function HeroSection() {
   const router = useRouter();
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const masterPlanWarmVideoRef = useRef<HTMLVideoElement | null>(null);
+  const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+  const entryVideoRef = useRef<HTMLVideoElement | null>(null);
+  const idleWarmVideoRef = useRef<HTMLVideoElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const scrollLockRef = useRef(false);
-  const navigationTimeoutRef = useRef<TimeoutHandle | null>(null);
 
   const [videoReady, setVideoReady] = useState(false);
+  const [entryVideoReady, setEntryVideoReady] = useState(false);
   const [isTransitioningToMasterPlan, setIsTransitioningToMasterPlan] =
     useState(false);
+  const [isEntryVideoVisible, setIsEntryVideoVisible] = useState(false);
 
   const line1 = "Open to Sky,";
   const line2 = "Rooted in Green";
@@ -95,19 +94,36 @@ export default function HeroSection() {
     },
   };
 
+  const startEntryVideo = useCallback(async () => {
+    const heroVideo = heroVideoRef.current;
+    const entryVideo = entryVideoRef.current;
+
+    if (!entryVideo) return;
+
+    heroVideo?.pause();
+    entryVideo.pause();
+    entryVideo.currentTime = 0;
+    setIsEntryVideoVisible(true);
+
+    try {
+      await entryVideo.play();
+    } catch {
+      router.push("/master-plan");
+    }
+  }, [router]);
+
   const goToNextPage = useCallback(() => {
     if (scrollLockRef.current || isTransitioningToMasterPlan) return;
 
     scrollLockRef.current = true;
     setIsTransitioningToMasterPlan(true);
-    showRouteTransitionOverlay("/FALLBACK.png");
     router.prefetch("/master-plan");
-    masterPlanWarmVideoRef.current?.load();
-
-    navigationTimeoutRef.current = globalThis.setTimeout(() => {
-      router.push("/master-plan");
-    }, MASTER_PLAN_NAVIGATION_DELAY_MS);
-  }, [isTransitioningToMasterPlan, router]);
+    entryVideoRef.current?.load();
+    idleWarmVideoRef.current?.load();
+    if (entryVideoReady) {
+      void startEntryVideo();
+    }
+  }, [entryVideoReady, isTransitioningToMasterPlan, router, startEntryVideo]);
 
   useEffect(() => {
     router.prefetch("/master-plan");
@@ -122,7 +138,8 @@ export default function HeroSection() {
 
     const warmMasterPlan = () => {
       router.prefetch("/master-plan");
-      masterPlanWarmVideoRef.current?.load();
+      entryVideoRef.current?.load();
+      idleWarmVideoRef.current?.load();
     };
 
     if (typeof idleWindow.requestIdleCallback === "function") {
@@ -166,14 +183,6 @@ export default function HeroSection() {
     };
   }, [goToNextPage]);
 
-  useEffect(() => {
-    return () => {
-      if (navigationTimeoutRef.current !== null) {
-        globalThis.clearTimeout(navigationTimeoutRef.current);
-      }
-    };
-  }, []);
-
   return (
     <section
       ref={sectionRef}
@@ -187,9 +196,9 @@ export default function HeroSection() {
       />
 
       <video
-        ref={videoRef}
+        ref={heroVideoRef}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-          videoReady ? "opacity-100" : "opacity-0"
+          videoReady && !isEntryVideoVisible ? "opacity-100" : "opacity-0"
         }`}
         autoPlay
         muted
@@ -204,24 +213,48 @@ export default function HeroSection() {
         />
       </video>
 
-      <CloudinaryHlsVideo
-        ref={masterPlanWarmVideoRef}
-        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328580/master_plan_video_aof5a5.webm"
+      <video
+        ref={entryVideoRef}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+          isEntryVideoVisible ? "opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        muted
+        playsInline
+        preload="auto"
+        onLoadedData={() => {
+          setEntryVideoReady(true);
+
+          if (scrollLockRef.current && !isEntryVideoVisible) {
+            void startEntryVideo();
+          }
+        }}
+        onEnded={() => router.push("/master-plan")}
+      >
+        <source
+          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328580/master_plan_video_aof5a5.webm"
+          type="video/webm"
+        />
+      </video>
+
+      <video
+        ref={idleWarmVideoRef}
         muted
         playsInline
         preload="auto"
         aria-hidden="true"
         className="pointer-events-none absolute h-0 w-0 opacity-0"
-      />
+      >
+        <source src="/master_plan_idle_loop.webm" type="video/webm" />
+      </video>
 
       <motion.div
-        animate={{ opacity: isTransitioningToMasterPlan ? 0.24 : 0.05 }}
+        animate={{ opacity: isTransitioningToMasterPlan ? 0.18 : 0.05 }}
         transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         className="absolute inset-0 bg-black"
       />
       <motion.div
         animate={{
-          opacity: isTransitioningToMasterPlan ? 1 : 0.7,
+          opacity: isTransitioningToMasterPlan ? 0.15 : 0.7,
         }}
         transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.45)_100%)]"

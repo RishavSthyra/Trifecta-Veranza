@@ -15,6 +15,7 @@ type CloudinaryHlsVideoProps = Omit<
 > & {
   src: string;
   fallbackSrc?: string;
+  preferHighQualityStart?: boolean;
 };
 
 function setRef(ref: Ref<HTMLVideoElement> | undefined, node: HTMLVideoElement | null) {
@@ -43,9 +44,35 @@ function toCloudinaryHlsUrl(src: string) {
   return `${withoutExtension}.m3u8${query ? `?${query}` : ""}`;
 }
 
+function getPreferredStartLevel(hls: Hls, video: HTMLVideoElement) {
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+  const targetWidth =
+    Math.max(video.clientWidth, window.innerWidth || 0) * pixelRatio;
+  const targetHeight =
+    Math.max(video.clientHeight, window.innerHeight || 0) * pixelRatio;
+
+  let fallbackLevel = -1;
+
+  for (let index = 0; index < hls.levels.length; index += 1) {
+    const level = hls.levels[index];
+    if (!level) continue;
+
+    fallbackLevel = index;
+
+    const matchesWidth = level.width >= targetWidth * 0.9;
+    const matchesHeight = level.height >= targetHeight * 0.9;
+
+    if (matchesWidth || matchesHeight) {
+      return index;
+    }
+  }
+
+  return fallbackLevel;
+}
+
 const CloudinaryHlsVideo = forwardRef<HTMLVideoElement, CloudinaryHlsVideoProps>(
   function CloudinaryHlsVideo(
-    { src, fallbackSrc, ...videoProps },
+    { src, fallbackSrc, preferHighQualityStart = false, ...videoProps },
     forwardedRef,
   ) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -82,6 +109,31 @@ const CloudinaryHlsVideo = forwardRef<HTMLVideoElement, CloudinaryHlsVideoProps>
 
       const hls = new Hls({
         enableWorker: true,
+        capLevelToPlayerSize: true,
+        maxDevicePixelRatio: 2,
+        abrEwmaDefaultEstimate: preferHighQualityStart ? 12_000_000 : 2_000_000,
+        abrEwmaDefaultEstimateMax: preferHighQualityStart
+          ? 20_000_000
+          : 8_000_000,
+      });
+
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        if (!preferHighQualityStart) {
+          return;
+        }
+
+        const preferredStartLevel = getPreferredStartLevel(hls, video);
+        if (preferredStartLevel < 0) {
+          return;
+        }
+
+        hls.startLevel = preferredStartLevel;
+        hls.nextLoadLevel = preferredStartLevel;
+        hls.nextAutoLevel = preferredStartLevel;
+        hls.bandwidthEstimate = Math.max(
+          hls.levels[preferredStartLevel]?.bitrate ?? 0,
+          hls.abrEwmaDefaultEstimate,
+        );
       });
 
       hls.loadSource(hlsSrc);
@@ -97,7 +149,7 @@ const CloudinaryHlsVideo = forwardRef<HTMLVideoElement, CloudinaryHlsVideoProps>
       return () => {
         hls.destroy();
       };
-    }, [fallbackSrc, src]);
+    }, [fallbackSrc, preferHighQualityStart, src]);
 
     return (
       <video

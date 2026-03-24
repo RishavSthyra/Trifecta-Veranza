@@ -9,9 +9,7 @@ import {
   type Easing,
 } from "framer-motion";
 import MasterPlanArrowMarkers from "./MasterPlanArrowMarkers";
-import CloudinaryHlsVideo from "./CloudinaryHlsVideo";
 import { masterPlanArrowPoints } from "@/data/masterPlanArrowPoints";
-import { hideRouteTransitionOverlay } from "@/lib/route-transition-overlay";
 import GlassSelect, { GlassSelectItem } from "./ui/GlassSelect";
 import {
   ArrowLeft,
@@ -92,7 +90,6 @@ export default function MasterPlanLayout({
   const router = useRouter();
 
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const forwardVideoRef = useRef<HTMLVideoElement | null>(null);
   const idleVideoRef = useRef<HTMLVideoElement | null>(null);
   const reverseVideoRef = useRef<HTMLVideoElement | null>(null);
   const leavingRef = useRef(false);
@@ -115,12 +112,9 @@ export default function MasterPlanLayout({
   const [minArea, setMinArea] = useState(0);
 
   const [isLeaving, setIsLeaving] = useState(false);
-  const [showIdleVideo, setShowIdleVideo] = useState(false);
+  const [showIdleVideo, setShowIdleVideo] = useState(true);
   const [showReverseVideo, setShowReverseVideo] = useState(false);
-  const [isIntroPlaying, setIsIntroPlaying] = useState(true);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
-  const [isForwardVideoReady, setIsForwardVideoReady] = useState(false);
-  const [shouldLoadIdleVideo, setShouldLoadIdleVideo] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -187,32 +181,6 @@ export default function MasterPlanLayout({
     };
   }, [initialApartments.length]);
 
-  useEffect(() => {
-    if (!shouldLoadIdleVideo) return;
-    idleVideoRef.current?.load();
-  }, [shouldLoadIdleVideo]);
-
-  useEffect(() => {
-    let firstFrameRequestId: number | null = null;
-    let secondFrameRequestId: number | null = null;
-
-    firstFrameRequestId = window.requestAnimationFrame(() => {
-      secondFrameRequestId = window.requestAnimationFrame(() => {
-        hideRouteTransitionOverlay();
-      });
-    });
-
-    return () => {
-      if (firstFrameRequestId !== null) {
-        window.cancelAnimationFrame(firstFrameRequestId);
-      }
-
-      if (secondFrameRequestId !== null) {
-        window.cancelAnimationFrame(secondFrameRequestId);
-      }
-    };
-  }, []);
-
   const filteredApartments = useMemo(() => {
     if (!selectedTower) {
       return [];
@@ -274,68 +242,24 @@ export default function MasterPlanLayout({
     setIsMobileSheetOpen(true);
   };
 
-  const handleForwardEnded = async () => {
-    setIsIntroPlaying(false);
-    setShowIdleVideo(true);
-    setShouldLoadIdleVideo(true);
-
+  const handleIdleVideoReady = async () => {
     const idleVideo = idleVideoRef.current;
     if (!idleVideo) return;
-
-    idleVideo.currentTime = 0;
 
     try {
       await idleVideo.play();
     } catch {
-      // autoplay usually works because it's muted, but fail silently if needed
-    }
-  };
-
-  const handleForwardLoadedData = async () => {
-    const forwardVideo = forwardVideoRef.current;
-    if (!forwardVideo || isForwardVideoReady) return;
-
-    forwardVideo.currentTime = 0;
-    setIsForwardVideoReady(true);
-
-    try {
-      await forwardVideo.play();
-    } catch {
-      // muted inline playback should succeed, but keep the first frame visible if not
-    }
-  };
-
-  const handleForwardTimeUpdate = () => {
-    if (shouldLoadIdleVideo) return;
-
-    const forwardVideo = forwardVideoRef.current;
-    if (!forwardVideo) return;
-
-    if (!Number.isFinite(forwardVideo.duration) || forwardVideo.duration <= 0) {
-      return;
-    }
-
-    const remainingSeconds = forwardVideo.duration - forwardVideo.currentTime;
-    const isNearEnd =
-      remainingSeconds <= 2.5 ||
-      forwardVideo.currentTime / forwardVideo.duration >= 0.75;
-
-    if (isNearEnd) {
-      setShouldLoadIdleVideo(true);
+      // muted autoplay should usually work, but keep the fallback visible if it doesn't
     }
   };
 
   const leaveToHome = useCallback(async () => {
-    if (leavingRef.current || isIntroPlaying) return;
+    if (leavingRef.current) return;
     leavingRef.current = true;
 
     setIsLeaving(true);
     setShowReverseVideo(true);
     setShowIdleVideo(false);
-
-    if (forwardVideoRef.current) {
-      forwardVideoRef.current.pause();
-    }
 
     if (idleVideoRef.current) {
       idleVideoRef.current.pause();
@@ -355,7 +279,7 @@ export default function MasterPlanLayout({
     } catch {
       router.push("/");
     }
-  }, [isIntroPlaying, router]);
+  }, [router]);
 
   useEffect(() => {
     const isInsideScrollArea = (target: EventTarget | null) => {
@@ -365,7 +289,7 @@ export default function MasterPlanLayout({
     };
 
     const blockAllScrollLikeActions = (e: Event) => {
-      if (isIntroPlaying || leavingRef.current) {
+      if (leavingRef.current) {
         e.preventDefault();
         e.stopPropagation();
       }
@@ -374,12 +298,6 @@ export default function MasterPlanLayout({
     const handleWheel = (e: WheelEvent) => {
       const target = e.target as HTMLElement | null;
       if (!target) return;
-
-      if (isIntroPlaying) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
 
       if (leavingRef.current) {
         e.preventDefault();
@@ -397,16 +315,8 @@ export default function MasterPlanLayout({
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (isIntroPlaying || leavingRef.current) {
-        const blockedKeys = [
-          "ArrowUp",
-          "ArrowDown",
-          "PageUp",
-          "PageDown",
-          "Home",
-          "End",
-          " ",
-        ];
+      if (leavingRef.current) {
+        const blockedKeys = ["ArrowUp", "PageUp", "Home", " "];
 
         if (blockedKeys.includes(e.key)) {
           e.preventDefault();
@@ -436,7 +346,7 @@ export default function MasterPlanLayout({
     };
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (isIntroPlaying || leavingRef.current) {
+      if (leavingRef.current) {
         e.preventDefault();
         e.stopPropagation();
         return;
@@ -483,46 +393,24 @@ export default function MasterPlanLayout({
         blockAllScrollLikeActions as EventListener,
       );
     };
-  }, [isIntroPlaying, leaveToHome]);
+  }, [leaveToHome]);
 
   return (
     <div
       ref={rootRef}
       className="relative h-dvh w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
     >
-      <div
-        className={`absolute inset-0 bg-cover bg-center bg-no-repeat transition-opacity duration-300 ${
-          isForwardVideoReady ? "pointer-events-none opacity-0" : "opacity-100"
-        }`}
-        style={{ backgroundImage: "url('/FALLBACK.png')" }}
-      />
-
-      <CloudinaryHlsVideo
-        ref={forwardVideoRef}
-        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328580/master_plan_video_aof5a5.webm"
-        muted
-        playsInline
-        poster="/FALLBACK.png"
-        preload="auto"
-        onLoadedData={() => {
-          void handleForwardLoadedData();
-        }}
-        onEnded={handleForwardEnded}
-        onTimeUpdate={handleForwardTimeUpdate}
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-          !isForwardVideoReady || showIdleVideo || showReverseVideo
-            ? "opacity-0"
-            : "opacity-100"
-        }`}
-      />
-
       <video
         ref={idleVideoRef}
+        autoPlay
         muted
         loop
         playsInline
-        preload={shouldLoadIdleVideo ? "auto" : "none"}
-        src={shouldLoadIdleVideo ? "/master_plan_idle_loop.webm" : undefined}
+        preload="auto"
+        src="/master_plan_idle_loop.webm"
+        onCanPlay={() => {
+          void handleIdleVideoReady();
+        }}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           showIdleVideo && !showReverseVideo
             ? "opacity-100"
@@ -530,9 +418,8 @@ export default function MasterPlanLayout({
         }`}
       />
 
-      <CloudinaryHlsVideo
+      <video
         ref={reverseVideoRef}
-        src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774329012/master_plan_video_reverse_ydmfy3.webm"
         muted
         playsInline
         preload="none"
@@ -540,26 +427,14 @@ export default function MasterPlanLayout({
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
           showReverseVideo ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
-      />
+      >
+        <source
+          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774329012/master_plan_video_reverse_ydmfy3.webm"
+          type="video/webm"
+        />
+      </video>
 
-      {/* {isIntroPlaying ? (
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[5] bg-gradient-to-t from-black/55 via-black/20 to-transparent px-6 pb-10 pt-24 text-white md:px-10 md:pb-14">
-          <div className="max-w-3xl">
-            <p className="text-[11px] uppercase tracking-[0.4em] text-white/70 md:text-xs">
-              Trifecta Veranza
-            </p>
-            <h1 className="mt-3 text-3xl font-light uppercase tracking-[0.14em] md:text-5xl">
-              Master Plan
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm text-white/80 md:text-base">
-              A live site-wide view of the towers, landscape and circulation,
-              loading as the interactive inventory experience warms up.
-            </p>
-          </div>
-        </div>
-      ) : null} */}
-
-      {!isIntroPlaying && !isLeaving ? (
+      {!isLeaving ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
       ) : null}
 
@@ -570,11 +445,7 @@ export default function MasterPlanLayout({
       </div>
 
       <div
-        className={`relative z-10 h-full w-full px-4 py-6 md:px-6 lg:px-8 transition-opacity duration-500 ${
-          isIntroPlaying
-            ? "pointer-events-none opacity-0"
-            : "pointer-events-auto opacity-100"
-        }`}
+        className="relative z-10 h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8"
       >
         <div
           className={`grid h-full gap-6 ${
@@ -586,7 +457,7 @@ export default function MasterPlanLayout({
           <div className="hidden xl:block" />
 
           <AnimatePresence mode="wait">
-            {!isLeaving && !isIntroPlaying && (
+            {!isLeaving && (
               <motion.aside
                 key="sidebar"
                 variants={panelVariants}
@@ -642,7 +513,7 @@ export default function MasterPlanLayout({
           </AnimatePresence>
         </div>
 
-        {!isLeaving && !isIntroPlaying ? (
+        {!isLeaving ? (
           <>
             <AnimatePresence>
               {selectedTower && isMobileSheetOpen ? (
