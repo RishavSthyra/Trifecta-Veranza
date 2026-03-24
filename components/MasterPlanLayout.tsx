@@ -30,17 +30,6 @@ const bhkOptions = ["All", "2", "3"] as const;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
-type IdleCapableWindow = Window &
-  typeof globalThis & {
-    requestIdleCallback?: (
-      callback: IdleRequestCallback,
-      options?: IdleRequestOptions,
-    ) => number;
-    cancelIdleCallback?: (handle: number) => void;
-  };
-
-type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
-
 const panelVariants: Variants = {
   hidden: {
     opacity: 0,
@@ -196,37 +185,6 @@ export default function MasterPlanLayout({
   }, [initialApartments.length]);
 
   useEffect(() => {
-    let timeoutId: TimeoutHandle | null = null;
-    let idleId: number | null = null;
-    const idleWindow = window as IdleCapableWindow;
-
-    const warmIdleLoop = () => {
-      setShouldLoadIdleVideo(true);
-    };
-
-    if (typeof idleWindow.requestIdleCallback === "function") {
-      idleId = idleWindow.requestIdleCallback(warmIdleLoop, {
-        timeout: 1000,
-      });
-    } else {
-      timeoutId = globalThis.setTimeout(warmIdleLoop, 250);
-    }
-
-    return () => {
-      if (
-        idleId !== null &&
-        typeof idleWindow.cancelIdleCallback === "function"
-      ) {
-        idleWindow.cancelIdleCallback(idleId);
-      }
-
-      if (timeoutId !== null) {
-        globalThis.clearTimeout(timeoutId);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
     if (!shouldLoadIdleVideo) return;
     idleVideoRef.current?.load();
   }, [shouldLoadIdleVideo]);
@@ -306,6 +264,26 @@ export default function MasterPlanLayout({
       await idleVideo.play();
     } catch {
       // autoplay usually works because it's muted, but fail silently if needed
+    }
+  };
+
+  const handleForwardTimeUpdate = () => {
+    if (shouldLoadIdleVideo) return;
+
+    const forwardVideo = forwardVideoRef.current;
+    if (!forwardVideo) return;
+
+    if (!Number.isFinite(forwardVideo.duration) || forwardVideo.duration <= 0) {
+      return;
+    }
+
+    const remainingSeconds = forwardVideo.duration - forwardVideo.currentTime;
+    const isNearEnd =
+      remainingSeconds <= 2.5 ||
+      forwardVideo.currentTime / forwardVideo.duration >= 0.75;
+
+    if (isNearEnd) {
+      setShouldLoadIdleVideo(true);
     }
   };
 
@@ -479,9 +457,11 @@ export default function MasterPlanLayout({
         autoPlay
         muted
         playsInline
+        poster="/FALLBACK.png"
         preload="auto"
         src="/master_plan_video.webm"
         onEnded={handleForwardEnded}
+        onTimeUpdate={handleForwardTimeUpdate}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           showIdleVideo || showReverseVideo ? "opacity-0" : "opacity-100"
         }`}
@@ -505,7 +485,7 @@ export default function MasterPlanLayout({
         ref={reverseVideoRef}
         muted
         playsInline
-        preload="metadata"
+        preload="none"
         src="/master_plan_video_reverse.webm"
         onEnded={() => router.push("/")}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${

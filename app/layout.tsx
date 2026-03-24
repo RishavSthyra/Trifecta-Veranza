@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
-import AppShellPreloader from "@/components/AppShellPreloader";
 import RouteChrome from "@/components/RouteChrome";
 
 const geist = Geist({
@@ -24,7 +23,6 @@ export default function RootLayout({
     <html lang="en" className={cn("h-full", "font-sans", geist.variable)}>
       <body className="custom-scrollbar min-h-dvh w-full bg-zinc-50 text-zinc-900 antialiased dark:bg-black dark:text-white">
         <div className="relative min-h-dvh w-full overflow-x-hidden">
-          <AppShellPreloader />
           <RouteChrome />
 
           <main className="min-h-dvh w-full">

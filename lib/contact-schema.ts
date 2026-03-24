@@ -28,7 +28,7 @@ export const contactFieldSchemas = {
   fullName: z
     .string()
     .trim()
-    .min(2, "Please enter your full name.")
+    .min(4, "Please enter your full name.")
     .max(80, "Name should be under 80 characters."),
   email: z
     .string()
