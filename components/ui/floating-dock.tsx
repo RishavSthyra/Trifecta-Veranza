@@ -10,7 +10,7 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export const FloatingDock = ({
   items,
@@ -93,7 +93,7 @@ const FloatingDockDesktop = ({
 
   return (
     <motion.div
-      onMouseMove={(e) => mouseY.set(e.pageY)}
+      onMouseMove={(e) => mouseY.set(e.clientY)}
       onMouseLeave={() => mouseY.set(Infinity)}
       className={cn(
         "mx-auto hidden w-16 flex-col items-center gap-4 rounded-2xl bg-transparent px-3 py-4 md:flex dark:bg-neutral-900",
@@ -119,16 +119,37 @@ function IconContainer({
   href: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const centerYRef = useRef(0);
   const [hovered, setHovered] = useState(false);
 
-  const distance = useTransform(mouseY, (val) => {
-    const bounds = ref.current?.getBoundingClientRect() ?? {
-      y: 0,
-      height: 0,
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) {
+      return;
+    }
+
+    const measure = () => {
+      const bounds = node.getBoundingClientRect();
+      centerYRef.current = bounds.top + bounds.height / 2;
     };
 
-    return val - bounds.y - bounds.height / 2;
-  });
+    measure();
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(measure);
+
+    resizeObserver?.observe(node);
+    window.addEventListener("resize", measure, { passive: true });
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, []);
+
+  const distance = useTransform(mouseY, (val) => val - centerYRef.current);
 
   const widthTransform = useTransform(distance, [-150, 0, 150], [40, 80, 40]);
   const heightTransform = useTransform(distance, [-150, 0, 150], [40, 80, 40]);

@@ -1,0 +1,631 @@
+"use client";
+
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Canvas, useThree } from "@react-three/fiber";
+import {
+  Html,
+  OrbitControls,
+  Outlines,
+  PerspectiveCamera,
+  useGLTF,
+} from "@react-three/drei";
+import { Box3, Group, Matrix4, Mesh, Object3D, Vector2, Vector3 } from "three";
+import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import type {
+  InventoryApartment,
+  InventoryStatus,
+  TowerType,
+} from "@/types/inventory";
+
+const MODEL_PATH = "/models/Tower-Planes.glb";
+const APARTMENT_ID_PATTERN = /^(Tower_[A-Z]_\d{2}_\d{3,4})_/;
+const TARGET_MODEL_HEIGHT = 10;
+
+type HoverMeshData = {
+  geometry: Mesh["geometry"];
+  key: string;
+  matrix: Matrix4;
+};
+
+type PreparedTowerModel = {
+  apartmentCount: number;
+  apartmentIds: string[];
+  apartments: Map<string, HoverMeshData[]>;
+  offset: [number, number, number];
+  scaledHeight: number;
+  scene: Group;
+  scale: number;
+};
+
+type InventoryLoadState = "loading" | "ready" | "error";
+type PointerPosition = { x: number; y: number };
+
+function extractApartmentIdFromName(name: string) {
+  return name.match(APARTMENT_ID_PATTERN)?.[1] ?? null;
+}
+
+function resolveApartmentIdFromObject(object: Object3D | null) {
+  let current: Object3D | null = object;
+
+  while (current) {
+    const apartmentId = extractApartmentIdFromName(current.name);
+    if (apartmentId) {
+      return apartmentId;
+    }
+
+    current = current.parent;
+  }
+
+  return null;
+}
+
+function formatApartmentLabel(
+  apartmentId: string | null,
+  fallbackTower: TowerType,
+) {
+  if (!apartmentId) {
+    return {
+      floor: null,
+      tower: fallbackTower,
+      towerCode: fallbackTower.endsWith("B") ? "B" : "A",
+      unit: null,
+      title: "Hover a flat",
+    };
+  }
+
+  const [, towerCode = "A", floorCode = "", unitCode = ""] =
+    apartmentId.split("_");
+
+  return {
+    floor: floorCode,
+    tower: `Tower ${towerCode}`,
+    towerCode,
+    unit: unitCode,
+    title: `Flat ${unitCode}`,
+  };
+}
+
+function normalizeFlatToken(value: string) {
+  return value.replace(/[^a-z0-9]/gi, "").toUpperCase();
+}
+
+function buildFlatCandidates(apartmentId: string, tower: TowerType) {
+  const apartment = formatApartmentLabel(apartmentId, tower);
+  const unitToken = normalizeFlatToken(apartment.unit ?? "");
+  const towerCode = normalizeFlatToken(apartment.towerCode);
+
+  return new Set(
+    [
+      unitToken,
+      `${towerCode}${unitToken}`,
+      `T${towerCode}${unitToken}`,
+      `${towerCode}FLAT${unitToken}`,
+    ].filter(Boolean),
+  );
+}
+
+function findInventoryApartment(
+  apartments: InventoryApartment[],
+  apartmentId: string | null,
+  tower: TowerType,
+) {
+  if (!apartmentId) {
+    return null;
+  }
+
+  const candidates = buildFlatCandidates(apartmentId, tower);
+
+  return (
+    apartments.find((apartment) => {
+      if (apartment.tower !== tower) {
+        return false;
+      }
+
+      const flatToken = normalizeFlatToken(apartment.flatNumber);
+      const titleToken = normalizeFlatToken(apartment.title);
+      return candidates.has(flatToken) || candidates.has(titleToken);
+    }) ?? null
+  );
+}
+
+function getStatusMeta(
+  status: InventoryStatus | null | undefined,
+  inventoryState: InventoryLoadState,
+  inventoryError: string | null,
+) {
+  if (status === "Available") {
+    return {
+      badgeClassName:
+        "border-emerald-300/35 bg-emerald-400/12 text-emerald-100 shadow-[0_0_24px_rgba(52,211,153,0.16)]",
+      dotClassName: "bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.95)]",
+      label: "Available",
+    };
+  }
+
+  if (status === "Reserved") {
+    return {
+      badgeClassName:
+        "border-amber-300/35 bg-amber-300/14 text-amber-50 shadow-[0_0_24px_rgba(251,191,36,0.16)]",
+      dotClassName: "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.95)]",
+      label: "Reserved",
+    };
+  }
+
+  if (status === "Sold") {
+    return {
+      badgeClassName:
+        "border-rose-300/35 bg-rose-400/14 text-rose-50 shadow-[0_0_24px_rgba(251,113,133,0.18)]",
+      dotClassName: "bg-rose-300 shadow-[0_0_14px_rgba(253,164,175,0.95)]",
+      label: "Sold",
+    };
+  }
+
+  if (inventoryState === "loading") {
+    return {
+      badgeClassName:
+        "border-sky-200/30 bg-sky-300/12 text-sky-50 shadow-[0_0_24px_rgba(125,211,252,0.14)]",
+      dotClassName: "bg-sky-200 shadow-[0_0_14px_rgba(186,230,253,0.95)]",
+      label: "Syncing",
+    };
+  }
+
+  if (inventoryError) {
+    return {
+      badgeClassName:
+        "border-white/20 bg-white/8 text-white/90 shadow-[0_0_20px_rgba(148,163,184,0.12)]",
+      dotClassName: "bg-white/70 shadow-[0_0_12px_rgba(255,255,255,0.65)]",
+      label: "Offline",
+    };
+  }
+
+  return {
+    badgeClassName:
+      "border-white/20 bg-white/8 text-white/90 shadow-[0_0_20px_rgba(148,163,184,0.12)]",
+    dotClassName: "bg-white/70 shadow-[0_0_12px_rgba(255,255,255,0.65)]",
+    label: "Unmapped",
+  };
+}
+
+function prepareTowerScene(sourceScene: Object3D) {
+  const scene = cloneSkeleton(sourceScene) as Group;
+  const apartments = new Map<string, HoverMeshData[]>();
+
+  scene.updateWorldMatrix(true, true);
+
+  scene.traverse((object) => {
+    if (!(object instanceof Mesh)) {
+      return;
+    }
+
+    const apartmentId = resolveApartmentIdFromObject(object);
+
+    if (!apartmentId) {
+      return;
+    }
+
+    object.userData.apartmentId = apartmentId;
+
+    const meshEntry = apartments.get(apartmentId) ?? [];
+    meshEntry.push({
+      geometry: object.geometry,
+      key: object.uuid,
+      matrix: object.matrixWorld.clone(),
+    });
+    apartments.set(apartmentId, meshEntry);
+  });
+
+  const bounds = new Box3().setFromObject(scene);
+  const size = bounds.getSize(new Vector3());
+  const center = bounds.getCenter(new Vector3());
+  const scale = TARGET_MODEL_HEIGHT / Math.max(size.y, 1);
+
+  return {
+    apartmentCount: apartments.size,
+    apartmentIds: [...apartments.keys()].sort((left, right) =>
+      left.localeCompare(right),
+    ),
+    apartments,
+    offset: [-center.x, -bounds.min.y, -center.z] as [number, number, number],
+    scaledHeight: size.y * scale,
+    scene,
+    scale,
+  } satisfies PreparedTowerModel;
+}
+
+function LoadingState() {
+  return (
+    <Html center>
+      <div className="rounded-full border border-white/30 bg-slate-950/88 px-4 py-2 text-xs font-medium tracking-[0.28em] text-white uppercase shadow-[0_12px_48px_rgba(15,23,42,0.28)]">
+        Loading tower model
+      </div>
+    </Html>
+  );
+}
+
+function HoverTracker({
+  modelRootRef,
+  onHoverChange,
+}: {
+  modelRootRef: React.RefObject<Group | null>;
+  onHoverChange: (
+    apartmentId: string | null,
+    pointerPosition: PointerPosition | null,
+  ) => void;
+}) {
+  const { camera, gl, raycaster } = useThree();
+
+  useEffect(() => {
+    const element = gl.domElement;
+    const pointer = new Vector2();
+
+    const updateHover = (
+      apartmentId: string | null,
+      pointerPosition: PointerPosition | null,
+    ) => {
+      element.style.cursor = apartmentId ? "pointer" : "grab";
+      onHoverChange(apartmentId, pointerPosition);
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const modelRoot = modelRootRef.current;
+
+      if (!modelRoot) {
+        updateHover(null, null);
+        return;
+      }
+
+      const rect = element.getBoundingClientRect();
+      const pointerPosition = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+
+      pointer.x = (pointerPosition.x / rect.width) * 2 - 1;
+      pointer.y = -(pointerPosition.y / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointer, camera);
+
+      const hit = raycaster
+        .intersectObject(modelRoot, true)
+        .find((intersection) => resolveApartmentIdFromObject(intersection.object));
+
+      updateHover(
+        hit ? resolveApartmentIdFromObject(hit.object) : null,
+        pointerPosition,
+      );
+    };
+
+    const handlePointerLeave = () => {
+      updateHover(null, null);
+    };
+
+    element.addEventListener("pointermove", handlePointerMove);
+    element.addEventListener("pointerleave", handlePointerLeave);
+
+    return () => {
+      element.removeEventListener("pointermove", handlePointerMove);
+      element.removeEventListener("pointerleave", handlePointerLeave);
+    };
+  }, [camera, gl, modelRootRef, onHoverChange, raycaster]);
+
+  return null;
+}
+
+function HoverOverlay({
+  hoveredApartmentId,
+  apartments,
+}: {
+  hoveredApartmentId: string | null;
+  apartments: PreparedTowerModel["apartments"];
+}) {
+  const hoveredMeshes = hoveredApartmentId
+    ? apartments.get(hoveredApartmentId) ?? []
+    : [];
+
+  if (!hoveredMeshes.length) {
+    return null;
+  }
+
+  return (
+    <group>
+      {hoveredMeshes.map((meshData) => (
+        <mesh
+          key={meshData.key}
+          frustumCulled={false}
+          geometry={meshData.geometry}
+          matrix={meshData.matrix}
+          matrixAutoUpdate={false}
+          raycast={() => null}
+          renderOrder={12}
+        >
+          <meshPhysicalMaterial
+            clearcoat={1}
+            clearcoatRoughness={0.04}
+            color="#ffe38a"
+            depthWrite={false}
+            emissive="#ffd24a"
+            emissiveIntensity={1.6}
+            metalness={0.12}
+            opacity={0.78}
+            polygonOffset
+            polygonOffsetFactor={-8}
+            roughness={0.14}
+            toneMapped={false}
+            transparent
+          />
+          <Outlines
+            angle={Math.PI}
+            color="#fff7b2"
+            opacity={1}
+            screenspace
+            thickness={4.4}
+            transparent
+          />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+function TowerApartmentScene({
+  hoveredApartmentId,
+  onHoverChange,
+}: {
+  hoveredApartmentId: string | null;
+  onHoverChange: (
+    apartmentId: string | null,
+    pointerPosition: PointerPosition | null,
+  ) => void;
+}) {
+  const { scene } = useGLTF(MODEL_PATH);
+  const preparedModel = useMemo(() => prepareTowerScene(scene), [scene]);
+  const modelRootRef = useRef<Group>(null);
+
+  return (
+    <>
+      <PerspectiveCamera
+        makeDefault
+        far={120}
+        fov={34}
+        near={0.1}
+        position={[10.5, 7.25, 13.5]}
+      />
+
+      <color attach="background" args={["#dce7f7"]} />
+      <fog attach="fog" args={["#dce7f7", 16, 34]} />
+
+      <ambientLight intensity={1.75} />
+      <directionalLight color="#fff7d8" intensity={2.85} position={[12, 16, 8]} />
+      <directionalLight color="#d9ecff" intensity={1.2} position={[-10, 10, -10]} />
+
+      <group ref={modelRootRef} scale={preparedModel.scale}>
+        <group position={preparedModel.offset}>
+          <primitive object={preparedModel.scene} />
+          <HoverOverlay
+            apartments={preparedModel.apartments}
+            hoveredApartmentId={hoveredApartmentId}
+          />
+        </group>
+      </group>
+
+      <mesh position={[0, -0.02, 0]} rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[36, 36]} />
+        <shadowMaterial opacity={0.1} />
+      </mesh>
+
+      <mesh position={[0, -0.015, 0]} rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[36, 36]} />
+        <meshStandardMaterial color="#e8eef8" />
+      </mesh>
+
+      <OrbitControls
+        enableDamping
+        enablePan={false}
+        maxDistance={24}
+        maxPolarAngle={1.46}
+        minDistance={7}
+        minPolarAngle={0.55}
+        target={[0, preparedModel.scaledHeight * 0.52, 0]}
+      />
+
+      <HoverTracker modelRootRef={modelRootRef} onHoverChange={onHoverChange} />
+    </>
+  );
+}
+
+export default function TowerApartmentHoverPreview({
+  tower = "Tower A",
+}: {
+  tower?: TowerType;
+}) {
+  const sectionRef = useRef<HTMLElement | null>(null);
+  const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const hoveredApartmentIdRef = useRef<string | null>(null);
+  const [hoveredApartmentId, setHoveredApartmentId] = useState<string | null>(
+    null,
+  );
+  const [inventoryState, setInventoryState] = useState<InventoryLoadState>(
+    "loading",
+  );
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [inventoryApartments, setInventoryApartments] = useState<
+    InventoryApartment[]
+  >([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
+    const loadInventory = async () => {
+      setInventoryState("loading");
+
+      try {
+        const response = await fetch("/api/inventory", {
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const result = (await response.json()) as {
+          apartments?: InventoryApartment[];
+          message?: string;
+        };
+
+        if (!response.ok || !result.apartments) {
+          throw new Error(result.message || "Failed to load inventory.");
+        }
+
+        if (!isMounted) {
+          return;
+        }
+
+        setInventoryApartments(
+          result.apartments.filter((apartment) => apartment.tower === tower),
+        );
+        setInventoryError(null);
+        setInventoryState("ready");
+      } catch (error) {
+        if (controller.signal.aborted || !isMounted) {
+          return;
+        }
+
+        setInventoryApartments([]);
+        setInventoryError(
+          error instanceof Error
+            ? error.message
+            : "Failed to load inventory.",
+        );
+        setInventoryState("error");
+      }
+    };
+
+    void loadInventory();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [tower]);
+
+  const hoveredApartment = formatApartmentLabel(hoveredApartmentId, tower);
+  const hoveredInventoryApartment = useMemo(
+    () => findInventoryApartment(inventoryApartments, hoveredApartmentId, tower),
+    [hoveredApartmentId, inventoryApartments, tower],
+  );
+  const hoveredFlatLabel = (
+    hoveredInventoryApartment?.flatNumber ||
+    hoveredApartment.unit ||
+    "--"
+  )
+    .toUpperCase()
+    .trim();
+  const statusMeta = getStatusMeta(
+    hoveredInventoryApartment?.status,
+    inventoryState,
+    inventoryError,
+  );
+
+  const updateTooltipPosition = (pointerPosition: PointerPosition | null) => {
+    if (!pointerPosition || !sectionRef.current || !tooltipRef.current) {
+      return;
+    }
+
+    const rect = sectionRef.current.getBoundingClientRect();
+    const tooltipWidth = 180;
+    const tooltipHeight = 62;
+    const offsetX = 16;
+    const offsetY = 16;
+
+    const nextLeft = Math.min(
+      Math.max(pointerPosition.x + offsetX, 12),
+      Math.max(rect.width - tooltipWidth - 12, 12),
+    );
+    const nextTop = Math.min(
+      Math.max(pointerPosition.y + offsetY, 12),
+      Math.max(rect.height - tooltipHeight - 12, 12),
+    );
+
+    tooltipRef.current.style.left = `${nextLeft}px`;
+    tooltipRef.current.style.top = `${nextTop}px`;
+  };
+
+  return (
+    <section
+      ref={sectionRef}
+      className="relative min-h-dvh w-full overflow-hidden bg-[linear-gradient(180deg,#d5e4f5_0%,#eef5fc_40%,#f6efe3_100%)]"
+    >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,226,138,0.32),_transparent_28%),radial-gradient(circle_at_84%_18%,_rgba(96,165,250,0.26),_transparent_24%),linear-gradient(180deg,_rgba(255,255,255,0.30),_rgba(255,255,255,0.06))]" />
+
+      <div className="absolute inset-0">
+        <div
+          className={`h-full w-full ${
+            hoveredApartmentId
+              ? "cursor-pointer"
+              : "cursor-[grab] active:cursor-[grabbing]"
+          }`}
+        >
+          <Canvas dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
+            <Suspense fallback={<LoadingState />}>
+              <TowerApartmentScene
+                hoveredApartmentId={hoveredApartmentId}
+                onHoverChange={(apartmentId, nextPointerPosition) => {
+                  updateTooltipPosition(nextPointerPosition);
+
+                  if (hoveredApartmentIdRef.current === apartmentId) {
+                    return;
+                  }
+
+                  hoveredApartmentIdRef.current = apartmentId;
+                  setHoveredApartmentId(apartmentId);
+                }}
+              />
+            </Suspense>
+          </Canvas>
+        </div>
+      </div>
+
+      {hoveredApartmentId ? (
+        <div
+          ref={tooltipRef}
+          className="pointer-events-none absolute z-30"
+          style={{ left: 12, top: 12 }}
+        >
+          <div className="rounded-[18px] border border-white/30 bg-[linear-gradient(145deg,rgba(255,255,255,0.20),rgba(255,255,255,0.10))] px-3.5 py-3 shadow-[0_18px_44px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.28)] backdrop-blur-2xl">
+            <div className="flex items-center gap-3">
+              <span className="text-[1.28rem] font-semibold leading-none tracking-[-0.05em] text-slate-950">
+                {hoveredFlatLabel}
+              </span>
+              <div
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] ${statusMeta.badgeClassName}`}
+              >
+                <span
+                  className={`inline-flex h-2 w-2 rounded-full ${statusMeta.dotClassName}`}
+                />
+                {statusMeta.label}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex flex-wrap gap-3">
+          <div className="rounded-full border border-white/70 bg-white/72 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-slate-700 shadow-[0_18px_40px_rgba(15,23,42,0.10)] backdrop-blur-md">
+            {tower} Live Hover
+          </div>
+          <div className="rounded-full border border-white/70 bg-white/72 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-700 shadow-[0_18px_40px_rgba(15,23,42,0.10)] backdrop-blur-md">
+            {inventoryState === "ready"
+              ? `${inventoryApartments.length} synced flats`
+              : inventoryState === "loading"
+                ? "Syncing inventory"
+                : "Inventory offline"}
+          </div>
+        </div>
+
+        <div className="rounded-full border border-white/70 bg-white/72 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-700 shadow-[0_18px_40px_rgba(15,23,42,0.10)] backdrop-blur-md">
+          Tower-Planes.glb
+        </div>
+      </div>
+    </section>
+  );
+}
+
+useGLTF.preload(MODEL_PATH);

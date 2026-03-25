@@ -27,10 +27,8 @@ const towerCards: Array<{
 }> = [
   {
     value: "Tower A",
-    accent:
-      "border-cyan-300 bg-white ring-1 ring-cyan-200",
-    accentMuted:
-      "border-zinc-200 bg-white hover:border-zinc-300",
+    accent: "border-cyan-300 bg-white ring-1 ring-cyan-200",
+    accentMuted: "border-zinc-200 bg-white hover:border-zinc-300",
     accentCheck: "text-cyan-600",
     description: "Premium residences with open park-facing views.",
     image: towerimg,
@@ -40,13 +38,11 @@ const towerCards: Array<{
   },
   {
     value: "Tower B",
-    accent:
-      "border-violet-300 bg-white ring-1 ring-violet-200",
-    accentMuted:
-      "border-zinc-200 bg-white hover:border-zinc-300",
+    accent: "border-violet-300 bg-white ring-1 ring-violet-200",
+    accentMuted: "border-zinc-200 bg-white hover:border-zinc-300",
     accentCheck: "text-violet-600",
     description: "Larger layouts with clubhouse and skyline access.",
-    image:   towerimg,
+    image: towerimg,
     imageAlt: "Tower B exterior",
     imageClass:
       "absolute -bottom-[10%] -left-[8%] h-[126%] w-auto max-w-none object-contain object-bottom-left",
@@ -81,10 +77,7 @@ function TowerSelectPanel({
   };
 
   return (
-    <motion.aside
-      variants={slideFromRight}
-      initial="hidden"
-      animate="visible"
+    <aside
       className="w-full"
     >
       <div className="relative overflow-hidden rounded-[34px] border border-white/35 bg-white/18 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.16)] backdrop-blur-[22px] sm:p-4">
@@ -101,7 +94,8 @@ function TowerSelectPanel({
             Choose Your Tower
           </h2>
           <p className="mt-1.5 max-w-[28rem] text-sm leading-6 text-zinc-600">
-            Start with the tower, then we will open the matching inventory filters.
+            Start with the tower, then we will open the matching inventory
+            filters.
           </p>
         </div>
 
@@ -110,13 +104,8 @@ function TowerSelectPanel({
             const isActive = selectedTower === towerCard.value;
 
             return (
-              <motion.div
+              <div
                 key={towerCard.value}
-                variants={itemAnim}
-                initial="hidden"
-                animate="visible"
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.995 }}
               >
                 <button
                   type="button"
@@ -173,12 +162,12 @@ function TowerSelectPanel({
                     />
                   ) : null}
                 </button>
-              </motion.div>
+              </div>
             );
           })}
         </div>
       </div>
-    </motion.aside>
+    </aside>
   );
 }
 
@@ -218,7 +207,7 @@ export default function TowerSelect({
             onSelectTower={handleSelectTower}
           />
         </div>
-      </div>
+      </div> 
     </div>
   );
 }

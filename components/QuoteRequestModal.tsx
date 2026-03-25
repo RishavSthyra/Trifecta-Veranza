@@ -32,10 +32,11 @@ import {
   apartmentTypes,
   budgetRanges,
   contactFieldSchemas,
-  quoteRequestSchema,
   moveInOptions,
+  quoteRequestSchema,
   type QuoteRequestPayload,
 } from "@/lib/contact-schema";
+import { useCursorGlow } from "@/lib/useCursorGlow";
 import { cn } from "@/lib/utils";
 
 type QuoteRequestModalProps = {
@@ -103,6 +104,8 @@ export default function QuoteRequestModal({
     "idle" | "submitting" | "success" | "error"
   >("idle");
   const [feedbackMessage, setFeedbackMessage] = useState("");
+
+  useCursorGlow(modalRef, { radius: 180, enabled: isOpen });
 
   const minVisitDate = useMemo(() => {
     return new Date().toISOString().split("T")[0];
@@ -174,81 +177,41 @@ export default function QuoteRequestModal({
   useEffect(() => {
     if (!isOpen || !submitButtonRef.current) return;
 
-    const button = submitButtonRef.current;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+      return;
+    }
 
-    const onPointerMove = (event: MouseEvent) => {
+    const button = submitButtonRef.current;
+    const xTo = gsap.quickTo(button, "x", {
+      duration: 0.25,
+      ease: "power2.out",
+    });
+    const yTo = gsap.quickTo(button, "y", {
+      duration: 0.25,
+      ease: "power2.out",
+    });
+
+    const onPointerMove = (event: PointerEvent) => {
       const bounds = button.getBoundingClientRect();
       const offsetX = event.clientX - (bounds.left + bounds.width / 2);
       const offsetY = event.clientY - (bounds.top + bounds.height / 2);
 
-      gsap.to(button, {
-        x: offsetX * 0.06,
-        y: offsetY * 0.08,
-        duration: 0.25,
-        ease: "power2.out",
-      });
+      xTo(offsetX * 0.06);
+      yTo(offsetY * 0.08);
     };
 
     const onPointerLeave = () => {
-      gsap.to(button, {
-        x: 0,
-        y: 0,
-        duration: 0.35,
-        ease: "power3.out",
-      });
+      xTo(0);
+      yTo(0);
     };
 
-    button.addEventListener("mousemove", onPointerMove);
-    button.addEventListener("mouseleave", onPointerLeave);
+    button.addEventListener("pointermove", onPointerMove, { passive: true });
+    button.addEventListener("pointerleave", onPointerLeave);
 
     return () => {
-      button.removeEventListener("mousemove", onPointerMove);
-      button.removeEventListener("mouseleave", onPointerLeave);
-    };
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || !modalRef.current) return;
-
-    const root = modalRef.current;
-    const targets = Array.from(
-      root.querySelectorAll<HTMLElement>("[data-cursor-glow]"),
-    );
-    const radius = 180;
-
-    const updateGlow = (clientX: number, clientY: number) => {
-      targets.forEach((element) => {
-        const rect = element.getBoundingClientRect();
-        const nearestX = Math.max(rect.left, Math.min(clientX, rect.right));
-        const nearestY = Math.max(rect.top, Math.min(clientY, rect.bottom));
-        const dx = clientX - nearestX;
-        const dy = clientY - nearestY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const strength = Math.max(0, 1 - distance / radius);
-
-        element.style.setProperty("--glow-x", `${clientX - rect.left}px`);
-        element.style.setProperty("--glow-y", `${clientY - rect.top}px`);
-        element.style.setProperty("--glow-opacity", strength.toFixed(3));
-      });
-    };
-
-    const clearGlow = () => {
-      targets.forEach((element) => {
-        element.style.setProperty("--glow-opacity", "0");
-      });
-    };
-
-    const onPointerMove = (event: PointerEvent) => {
-      updateGlow(event.clientX, event.clientY);
-    };
-
-    root.addEventListener("pointermove", onPointerMove);
-    root.addEventListener("pointerleave", clearGlow);
-
-    return () => {
-      root.removeEventListener("pointermove", onPointerMove);
-      root.removeEventListener("pointerleave", clearGlow);
-      clearGlow();
+      button.removeEventListener("pointermove", onPointerMove);
+      button.removeEventListener("pointerleave", onPointerLeave);
+      gsap.set(button, { x: 0, y: 0 });
     };
   }, [isOpen]);
 
@@ -467,7 +430,7 @@ export default function QuoteRequestModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 20 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10 grid w-full max-w-295 overflow-hidden rounded-[30px] border border-white/10 bg-[#08090c]/95 text-white shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-2xl lg:max-h-[90vh] lg:grid-cols-[minmax(280px,0.72fr)_minmax(0,1fr)]"
+            className="gpu-layer relative z-10 grid w-full max-w-295 overflow-hidden rounded-[30px] border border-white/10 bg-[#08090c]/95 text-white shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-2xl lg:max-h-[90vh] lg:grid-cols-[minmax(280px,0.72fr)_minmax(0,1fr)]"
           >
             <div className="relative h-55 overflow-hidden border-b border-white/10 bg-[#0b0d12] lg:h-auto lg:min-h-full lg:border-b-0 lg:border-r">
               <div
@@ -487,7 +450,7 @@ export default function QuoteRequestModal({
 
               <div data-quote-item className="absolute inset-0 opacity-90">
                 <Image
-                  src="/Road night view.avif"
+                  src="https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774341842/Road_night_view_z1wmtp.avif"
                   alt="Form Left Image - Trifecta"
                   fill
                   className="object-cover object-right"
@@ -789,9 +752,9 @@ export default function QuoteRequestModal({
                                         </span>
                                       </motion.label>
                                       </GlowSurface>
-                                      {fieldErrors.consent ? (
-                                        <FieldError message={fieldErrors.consent} />
-                                      ) : null}
+                                      <FieldMessage
+                                        message={fieldErrors.consent}
+                                      />
                                     </div>
 
                                     <GlowSurface className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-5">
@@ -958,7 +921,7 @@ function GlowSurface({
       data-cursor-glow
       {...props}
       style={{ ...cursorGlowDefaults, ...style }}
-      className={cn("relative overflow-hidden", className)}
+      className={cn("surface-contain relative overflow-hidden", className)}
     >
       <GlowBorder />
       {children}
@@ -970,7 +933,7 @@ function GlowBorder() {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-[var(--glow-opacity)] transition-opacity duration-150"
+      className="glow-border-layer pointer-events-none absolute inset-0 rounded-[inherit] opacity-[var(--glow-opacity)] transition-opacity duration-150"
       style={{
         padding: "1px",
         background:
@@ -1018,7 +981,7 @@ function FormField({
         {label}
       </div>
       {children}
-      {error ? <FieldError message={error} /> : null}
+      <FieldMessage message={error} />
     </div>
   );
 }
@@ -1040,19 +1003,30 @@ function SectionHeading({
       <p className="mt-1 max-w-xl text-[13px] leading-6 text-white/55">
         {description}
       </p>
-      {error ? <FieldError className="mt-2" message={error} /> : null}
+      <FieldMessage className="mt-2" message={error} />
     </div>
   );
 }
 
-function FieldError({
+function FieldMessage({
   message,
   className,
 }: {
-  message: string;
+  message?: string;
   className?: string;
 }) {
-  return <p className={cn("text-xs text-rose-300", className)}>{message}</p>;
+  return (
+    <p
+      className={cn(
+        "min-h-5 text-xs leading-5 text-rose-300 transition-opacity",
+        message ? "opacity-100" : "opacity-0",
+        className,
+      )}
+      aria-live="polite"
+    >
+      {message ?? "\u00A0"}
+    </p>
+  );
 }
 
 function OptionCard({

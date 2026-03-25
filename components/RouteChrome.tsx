@@ -34,8 +34,9 @@ const dockItems = [
 export default function RouteChrome() {
   const pathname = usePathname();
   const isAdminRoute = pathname.startsWith("/admin");
+  const isImmersiveRoute = pathname === "/tower-hover-test";
 
-  if (isAdminRoute) {
+  if (isAdminRoute || isImmersiveRoute) {
     return null;
   }
 

@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   motion,
@@ -27,6 +35,7 @@ import type { InventoryApartment, TowerType } from "@/types/inventory";
 const facingOptions = ["All", "North", "South", "East", "West"] as const;
 const statusOptions = ["All", "Available", "Reserved", "Sold"] as const;
 const bhkOptions = ["All", "2", "3"] as const;
+const INVENTORY_REFRESH_INTERVAL = 15000;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
@@ -84,6 +93,35 @@ type MasterPlanLayoutProps = {
   initialApartments?: InventoryApartment[];
 };
 
+function getApartmentSignature(apartments: InventoryApartment[]) {
+  return apartments
+    .map(
+      ({
+        id,
+        title,
+        tower,
+        bhk,
+        priceLakhs,
+        areaSqft,
+        facing,
+        status,
+        floorLabel,
+      }) =>
+        [
+          id,
+          title,
+          tower,
+          bhk,
+          priceLakhs,
+          areaSqft,
+          facing,
+          status,
+          floorLabel,
+        ].join(":"),
+    )
+    .join("|");
+}
+
 export default function MasterPlanLayout({
   initialApartments = [],
 }: MasterPlanLayoutProps) {
@@ -94,6 +132,7 @@ export default function MasterPlanLayout({
   const reverseVideoRef = useRef<HTMLVideoElement | null>(null);
   const leavingRef = useRef(false);
   const touchStartYRef = useRef<number | null>(null);
+  const inventorySignatureRef = useRef(getApartmentSignature(initialApartments));
 
   const [search, setSearch] = useState("");
   const [selectedTower, setSelectedTower] = useState<TowerType | null>(null);
@@ -115,6 +154,7 @@ export default function MasterPlanLayout({
   const [showIdleVideo, setShowIdleVideo] = useState(true);
   const [showReverseVideo, setShowReverseVideo] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
+  const deferredSearch = useDeferredValue(search);
 
   useEffect(() => {
     let isMounted = true;
@@ -147,7 +187,21 @@ export default function MasterPlanLayout({
           return;
         }
 
-        setApartments(result.apartments);
+        const nextApartments = result.apartments;
+        const nextSignature = getApartmentSignature(nextApartments);
+
+        if (nextSignature !== inventorySignatureRef.current) {
+          inventorySignatureRef.current = nextSignature;
+
+          if (showLoadingState) {
+            setApartments(nextApartments);
+          } else {
+            startTransition(() => {
+              setApartments(nextApartments);
+            });
+          }
+        }
+
         setInventoryError(null);
       } catch (error) {
         if (controller.signal.aborted || !isMounted) {
@@ -170,14 +224,34 @@ export default function MasterPlanLayout({
       void loadInventory(true);
     }
 
-    const refreshInterval = window.setInterval(() => {
+    const refreshInventory = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
       void loadInventory(false);
-    }, 3000);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshInventory();
+      }
+    };
+
+    const refreshInterval = window.setInterval(
+      refreshInventory,
+      INVENTORY_REFRESH_INTERVAL,
+    );
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", refreshInventory);
 
     return () => {
       isMounted = false;
       activeController?.abort();
       window.clearInterval(refreshInterval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", refreshInventory);
     };
   }, [initialApartments.length]);
 
@@ -189,7 +263,7 @@ export default function MasterPlanLayout({
     return apartments.filter((apartment) => {
       const matchesSearch = apartment.title
         .toLowerCase()
-        .includes(search.toLowerCase());
+        .includes(deferredSearch.toLowerCase());
 
       const matchesTower = apartment.tower === selectedTower;
       const matchesBhk = bhk === "All" || apartment.bhk === Number(bhk);
@@ -211,7 +285,7 @@ export default function MasterPlanLayout({
     });
   }, [
     apartments,
-    search,
+    deferredSearch,
     selectedTower,
     bhk,
     facing,
@@ -411,7 +485,7 @@ export default function MasterPlanLayout({
         onCanPlay={() => {
           void handleIdleVideoReady();
         }}
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+        className={`gpu-layer absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           showIdleVideo && !showReverseVideo
             ? "opacity-100"
             : "pointer-events-none opacity-0"
@@ -424,7 +498,7 @@ export default function MasterPlanLayout({
         playsInline
         preload="none"
         onEnded={() => router.push("/")}
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+        className={`gpu-layer absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
           showReverseVideo ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       >
@@ -439,9 +513,9 @@ export default function MasterPlanLayout({
       ) : null}
 
       <div className="pointer-events-none absolute inset-0 z-[1]">
-        <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" />
-        <div className="absolute right-0 top-20 h-80 w-80 rounded-full bg-violet-300/20 blur-3xl dark:bg-violet-500/10" />
-        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-blue-300/20 blur-3xl dark:bg-blue-500/10" />
+        <div className="surface-contain absolute -left-24 top-0 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" />
+        <div className="surface-contain absolute right-0 top-20 h-80 w-80 rounded-full bg-violet-300/20 blur-3xl dark:bg-violet-500/10" />
+        <div className="surface-contain absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-blue-300/20 blur-3xl dark:bg-blue-500/10" />
       </div>
 
       <div
@@ -464,10 +538,10 @@ export default function MasterPlanLayout({
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="hidden min-w-0 xl:col-start-2 xl:block xl:h-full"
+                className="gpu-layer hidden min-w-0 xl:col-start-2 xl:block xl:h-full"
               >
                 <div
-                  className={`sticky top-6 ml-auto flex h-[calc(100dvh-3rem)] w-full flex-col gap-6 overflow-y-auto overscroll-contain pr-1 [overflow-anchor:none] ${
+                  className={`custom-scrollbar sticky top-6 ml-auto flex h-[calc(100dvh-3rem)] min-h-0 w-full flex-col gap-6 overflow-y-auto overscroll-contain pr-1 [overflow-anchor:none] ${
                     selectedTower ? "max-w-[420px]" : "max-w-[540px]"
                   }`}
                   data-scroll-area="sidebar"
@@ -548,12 +622,12 @@ export default function MasterPlanLayout({
                   : { y: "110%", opacity: 0 }
               }
               transition={{ duration: 0.45, ease: smoothEase }}
-              className={`absolute inset-x-3 bottom-3 z-30 xl:hidden ${
+              className={`gpu-layer absolute inset-x-3 bottom-3 top-3 z-30 xl:hidden ${
                 isMobileSheetOpen ? "pointer-events-auto" : "pointer-events-none"
               }`}
             >
               <div
-                className="flex max-h-[calc(100dvh-5.5rem)] min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:rounded-[32px]"
+                className="surface-contain flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:rounded-[32px]"
                 data-scroll-area="mobile-sheet"
               >
                 <div className="flex items-center justify-between border-b border-zinc-200/80 px-4 py-3 dark:border-white/10">
@@ -583,7 +657,7 @@ export default function MasterPlanLayout({
                   ) : null}
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
+                <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain p-3">
                   <div className="flex min-h-full flex-col gap-3 sm:gap-4">
                     {selectedTower ? (
                       <>
@@ -674,7 +748,7 @@ function MasterPlanFiltersCard({
 }) {
   return (
     <motion.div
-      className={`shrink-0 rounded-[24px] border border-white/30 bg-white/60 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] sm:p-5 ${
+      className={`surface-contain shrink-0 rounded-[24px] border border-white/30 bg-white/60 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] sm:p-5 ${
         compact ? "" : ""
       }`}
     >
@@ -832,8 +906,8 @@ function MasterPlanResultsCard({
 }) {
   return (
     <motion.div
-      className={`flex min-h-0 flex-col rounded-[24px] border border-white/30 bg-white/75 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] ${
-        compact ? "max-h-[36dvh] flex-none" : "flex-1"
+      className={`surface-contain flex min-h-0 flex-col rounded-[24px] border border-white/30 bg-white/75 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] ${
+        compact ? "min-h-[18rem] flex-1" : "flex-1"
       }`}
     >
       <div className="mb-4 flex items-center justify-between">
@@ -852,7 +926,7 @@ function MasterPlanResultsCard({
         variants={staggerWrap}
         initial="hidden"
         animate="visible"
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2 [overflow-anchor:none]"
+        className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pr-2 [overflow-anchor:none]"
         data-scroll-area="results"
       >
         <div className="space-y-3">

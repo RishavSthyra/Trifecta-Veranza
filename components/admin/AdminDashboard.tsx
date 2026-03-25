@@ -29,12 +29,12 @@ import {
   type CSSProperties,
   type HTMLAttributes,
   type ReactNode,
-  useEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
 } from "react";
+import { useCursorGlow } from "@/lib/useCursorGlow";
 import { cn } from "@/lib/utils";
 import type {
   InventoryAdminRow,
@@ -222,50 +222,7 @@ export default function AdminDashboard({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const root = glowRootRef.current;
-    if (!root) return;
-
-    const targets = Array.from(
-      root.querySelectorAll<HTMLElement>("[data-cursor-glow]"),
-    );
-    const radius = 200;
-
-    const updateGlow = (clientX: number, clientY: number) => {
-      targets.forEach((element) => {
-        const rect = element.getBoundingClientRect();
-        const nearestX = Math.max(rect.left, Math.min(clientX, rect.right));
-        const nearestY = Math.max(rect.top, Math.min(clientY, rect.bottom));
-        const dx = clientX - nearestX;
-        const dy = clientY - nearestY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const strength = Math.max(0, 1 - distance / radius);
-
-        element.style.setProperty("--glow-x", `${clientX - rect.left}px`);
-        element.style.setProperty("--glow-y", `${clientY - rect.top}px`);
-        element.style.setProperty("--glow-opacity", strength.toFixed(3));
-      });
-    };
-
-    const clearGlow = () => {
-      targets.forEach((element) => {
-        element.style.setProperty("--glow-opacity", "0");
-      });
-    };
-
-    const onPointerMove = (event: PointerEvent) => {
-      updateGlow(event.clientX, event.clientY);
-    };
-
-    root.addEventListener("pointermove", onPointerMove);
-    root.addEventListener("pointerleave", clearGlow);
-
-    return () => {
-      root.removeEventListener("pointermove", onPointerMove);
-      root.removeEventListener("pointerleave", clearGlow);
-      clearGlow();
-    };
-  }, []);
+  useCursorGlow(glowRootRef, { radius: 200 });
 
   const filteredInventory = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
@@ -291,8 +248,6 @@ export default function AdminDashboard({
       return haystack.includes(normalizedSearch);
     });
   }, [inventory, searchValue, selectedTower]);
-
-  const summary = useMemo(() => summarizeInventory(inventory), [inventory]);
 
   const activeSummary = useMemo(
     () => summarizeInventory(filteredInventory),
@@ -334,7 +289,9 @@ export default function AdminDashboard({
                 ? activeSummary.reserved
                 : activeSummary.sold,
           ),
-          backgroundColor: statusOptions.map((status) => statusTheme[status].solid),
+          backgroundColor: statusOptions.map(
+            (status) => statusTheme[status].solid,
+          ),
           borderColor: "rgba(8,9,12,0.88)",
           borderWidth: 4,
           hoverOffset: 8,
@@ -364,7 +321,9 @@ export default function AdminDashboard({
     : 0;
 
   const scopeLabel =
-    selectedTower === "All" ? "All towers in scope" : `${selectedTower} in scope`;
+    selectedTower === "All"
+      ? "All towers in scope"
+      : `${selectedTower} in scope`;
 
   const handleStatusChange = async (id: string, status: InventoryStatus) => {
     const previousInventory = inventory;
@@ -561,7 +520,9 @@ export default function AdminDashboard({
                         <Search className="h-4 w-4 text-white/38" />
                         <input
                           value={searchValue}
-                          onChange={(event) => setSearchValue(event.target.value)}
+                          onChange={(event) =>
+                            setSearchValue(event.target.value)
+                          }
                           placeholder="Search flat, floor, tower..."
                           className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/28"
                         />
@@ -644,7 +605,10 @@ export default function AdminDashboard({
 
                 {activeSummary.total ? (
                   <div className="relative mt-6 h-[260px]">
-                    <Doughnut data={availabilityChart} options={doughnutOptions} />
+                    <Doughnut
+                      data={availabilityChart}
+                      options={doughnutOptions}
+                    />
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                       <div className="text-center">
                         <p className="text-[11px] uppercase tracking-[0.28em] text-white/34">
@@ -823,7 +787,7 @@ function GlowSurface({
       data-cursor-glow
       {...props}
       style={{ ...cursorGlowDefaults, ...style }}
-      className={cn("relative overflow-hidden", className)}
+      className={cn("surface-contain relative overflow-hidden", className)}
     >
       <GlowBorder />
       {children}
@@ -835,7 +799,7 @@ function GlowBorder() {
   return (
     <span
       aria-hidden="true"
-      className="pointer-events-none absolute inset-0 rounded-[inherit] opacity-[var(--glow-opacity)] transition-opacity duration-150"
+      className="glow-border-layer pointer-events-none absolute inset-0 rounded-[inherit] opacity-[var(--glow-opacity)] transition-opacity duration-150"
       style={{
         padding: "1px",
         background:
@@ -875,41 +839,7 @@ function RailStrip({
   );
 }
 
-function RailMetric({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-}) {
-  return (
-    <GlowSurface className="rounded-[24px] border border-white/10 bg-white/[0.03] p-4">
-      <div className="relative z-10 flex items-end justify-between gap-3">
-        <div>
-          <p className="text-[11px] uppercase tracking-[0.28em] text-white/38">
-            {label}
-          </p>
-          <p className="mt-3 font-[var(--font-sora)] text-3xl font-semibold tracking-[-0.05em] text-white">
-            {value}
-          </p>
-        </div>
-        <p className="max-w-[120px] text-right text-xs leading-5 text-white/44">
-          {detail}
-        </p>
-      </div>
-    </GlowSurface>
-  );
-}
-
-function MiniPill({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
+function MiniPill({ label, value }: { label: string; value: number }) {
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-xs text-white/72">
       <span className="text-white/38">{label}</span>
