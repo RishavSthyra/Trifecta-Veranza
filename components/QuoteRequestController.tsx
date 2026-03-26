@@ -1,8 +1,12 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
-import QuoteRequestModal from "./QuoteRequestModal";
 import UpperLayoutCTA from "./UpperLayoutCTA";
+
+const QuoteRequestModal = dynamic(() => import("./QuoteRequestModal"), {
+  ssr: false,
+});
 
 export default function QuoteRequestController() {
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);

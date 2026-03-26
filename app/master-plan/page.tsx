@@ -1,9 +1,13 @@
 import MasterPlanLayout from "@/components/MasterPlanLayout";
-export default function MasterPlanPage() {
+import { getInventoryApartments } from "@/lib/inventory";
+
+export default async function MasterPlanPage() {
+  const initialApartments = await getInventoryApartments();
+
   return (
     <div className="relative min-h-dvh bg-zinc-50 dark:bg-black">
       <div className="">
-        <MasterPlanLayout />
+        <MasterPlanLayout initialApartments={initialApartments} />
       </div>
     </div>
   );
