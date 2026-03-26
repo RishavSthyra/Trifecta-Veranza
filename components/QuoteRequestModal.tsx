@@ -430,20 +430,20 @@ export default function QuoteRequestModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 20 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="gpu-layer relative z-10 grid w-full max-w-295 overflow-hidden rounded-[30px] border border-white/10 bg-[#08090c]/95 text-white shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-2xl lg:max-h-[90vh] lg:grid-cols-[minmax(280px,0.72fr)_minmax(0,1fr)]"
+            className="gpu-layer relative z-10 grid max-h-[92dvh] w-full max-w-295 overflow-hidden rounded-[26px] border border-white/10 bg-[#08090c]/95 text-white shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:max-h-[90dvh] sm:rounded-[30px] lg:grid-cols-[minmax(280px,0.72fr)_minmax(0,1fr)]"
           >
-            <div className="relative h-55 overflow-hidden border-b border-white/10 bg-[#0b0d12] lg:h-auto lg:min-h-full lg:border-b-0 lg:border-r">
+            <div className="relative h-22 overflow-hidden border-b border-white/10 bg-[#0b0d12] sm:h-32 lg:h-auto lg:min-h-full lg:border-b-0 lg:border-r">
               <div
                 data-quote-glow
-                className="absolute -left-14 top-8 h-56 w-56 rounded-full bg-[#c9a96b]/18 blur-3xl"
+                className="absolute -left-14 top-3 h-36 w-36 rounded-full bg-[#c9a96b]/18 blur-3xl sm:top-8 sm:h-56 sm:w-56"
               />
               <div
                 data-quote-glow
-                className="absolute -right-5 top-1/4 h-64 w-64 rounded-full bg-white/8 blur-3xl"
+                className="absolute -right-5 top-1/4 h-40 w-40 rounded-full bg-white/8 blur-3xl sm:h-64 sm:w-64"
               />
               <div
                 data-quote-glow
-                className="absolute -bottom-7.5 left-1/3 h-52 w-52 rounded-full bg-[#b08d57]/18 blur-3xl"
+                className="absolute -bottom-7.5 left-1/3 h-36 w-36 rounded-full bg-[#b08d57]/18 blur-3xl sm:h-52 sm:w-52"
               />
 
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.08),transparent_36%),linear-gradient(180deg,rgba(8,9,12,0.06),rgba(8,9,12,0.62)_54%,rgba(8,9,12,0.96))]" />
@@ -453,31 +453,33 @@ export default function QuoteRequestModal({
                   src="https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774341842/Road_night_view_z1wmtp.avif"
                   alt="Form Left Image - Trifecta"
                   fill
-                  className="object-cover object-right"
+                  className="object-cover object-center sm:object-right"
                   sizes="(max-width: 1024px) 100vw, 38vw"
                 />
               </div>
-
             </div>
 
-            <div className="relative flex h-full flex-col overflow-y-auto bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))]">
+            <div
+              data-scroll-area="quote-modal"
+              className="relative flex min-h-0 flex-col overflow-hidden bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01))] touch-pan-y"
+            >
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(201,169,107,0.12),transparent_26%)]" />
 
               <button
                 type="button"
                 onClick={handleClose}
-                className="absolute right-5 top-5 z-20 rounded-full border border-white/10 bg-white/5 p-2.5 text-white/70 transition hover:bg-white/9 hover:text-white"
+                className="absolute right-4 top-4 z-20 rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/9 hover:text-white sm:right-5 sm:top-5 sm:p-2.5"
                 aria-label="Close quote popup"
               >
                 <X className="h-4 w-4" />
               </button>
 
-              <div className="relative z-10 flex h-full flex-col px-6 py-6 sm:px-7 lg:px-8">
+              <div className="relative z-10 flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-7 sm:py-6 lg:px-8">
                 {submitState === "success" ? (
                   <motion.div
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="flex flex-1 flex-col items-center justify-center px-6 text-center"
+                    className="flex flex-1 flex-col items-center justify-center px-4 text-center sm:px-6"
                   >
                     <div className="rounded-full border border-[#d6bc88]/30 bg-[#d6bc88]/12 p-4 text-[#e7d2a7]">
                       <CheckCircle2 className="h-10 w-10" />
@@ -501,59 +503,79 @@ export default function QuoteRequestModal({
                   </motion.div>
                 ) : (
                   <>
-                    <div data-quote-item className="pr-14">
-                      <div className="text-[11px] uppercase tracking-[0.26em] text-[#d6bc88]">
-                        Request a Quote
-                      </div>
-                      <p
-                        id="quote-modal-title"
-                        className="mt-3 font-(--font-sora)text-[1.7rem]  leading-[1.08] text-white"
-                      >
-                        Quick quote request
-                      </p>
-                      <p className="mt-2 max-w-2xl text-[14px] leading-7 text-white/60">
-                        Complete the form in a few short steps.
-                      </p>
-                    </div>
-
-                    <div data-quote-item className="mt-5 text-sm text-white/62">
-                      {Math.round(progressValue)}% completed
-                    </div>
-
-                    <div
-                      data-quote-item
-                      className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/8"
-                    >
-                      <motion.div
-                        className="h-full rounded-full bg-[linear-gradient(90deg,#f2dfb3_0%,#caa164_55%,#f1ddaf_100%)]"
-                        initial={false}
-                        animate={{ width: `${progressValue}%` }}
-                        transition={{ duration: 0.35, ease: "easeOut" }}
-                      />
-                    </div>
-
-                    {feedbackMessage ? (
-                      <div
-                        data-quote-item
-                        className={cn(
-                          "mt-4 rounded-[18px] border px-4 py-3 text-sm",
-                          submitState === "error"
-                            ? "border-rose-400/20 bg-rose-400/10 text-rose-200"
-                            : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
-                        )}
-                      >
-                        {feedbackMessage}
-                      </div>
-                    ) : null}
-
                     <form
                       onSubmit={handleSubmit}
-                      className="mt-5 flex min-h-0 flex-1 flex-col"
+                      className="flex min-h-0 flex-1 flex-col"
                     >
+                      <div
+                        data-scroll-area="quote-modal-content"
+                        className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch] touch-pan-y"
+                      >
+                        <div data-quote-item className="pr-12 sm:pr-14">
+                          <div className="text-[10px] uppercase tracking-[0.24em] text-[#d6bc88] sm:text-[11px] sm:tracking-[0.26em]">
+                            Request a Quote
+                          </div>
+                          <p
+                            id="quote-modal-title"
+                            className="mt-2 font-(--font-sora) text-[1.32rem] leading-[1.08] text-white sm:mt-3 sm:text-[1.7rem]"
+                          >
+                            Quick quote request
+                          </p>
+                          <p className="mt-2 max-w-2xl text-[13px] leading-6 text-white/60 sm:text-[14px] sm:leading-7">
+                            Complete the form in a few short steps.
+                          </p>
+                        </div>
 
-                      <div className="min-h-0 flex-1">
-                        <div className="relative flex flex-col rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:p-6">
-                          <div className="min-h-0 flex-1">
+                        <div data-quote-item className="mt-4 flex items-center justify-between gap-3 text-xs text-white/62 sm:mt-5 sm:text-sm">
+                          <span>{Math.round(progressValue)}% completed</span>
+                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-white/46">
+                            {formSteps[currentStep]?.eyebrow}
+                          </span>
+                        </div>
+
+                        <div
+                          data-quote-item
+                          className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8 sm:mt-4"
+                        >
+                          <motion.div
+                            className="h-full rounded-full bg-[linear-gradient(90deg,#f2dfb3_0%,#caa164_55%,#f1ddaf_100%)]"
+                            initial={false}
+                            animate={{ width: `${progressValue}%` }}
+                            transition={{ duration: 0.35, ease: "easeOut" }}
+                          />
+                        </div>
+
+                        {feedbackMessage ? (
+                          <div
+                            data-quote-item
+                            className={cn(
+                              "mt-3 rounded-[18px] border px-4 py-3 text-sm sm:mt-4",
+                              submitState === "error"
+                                ? "border-rose-400/20 bg-rose-400/10 text-rose-200"
+                                : "border-emerald-400/20 bg-emerald-400/10 text-emerald-200",
+                            )}
+                          >
+                            {feedbackMessage}
+                          </div>
+                        ) : null}
+
+                        <div className="mt-4 min-h-0 sm:mt-5">
+                          <div className="relative flex flex-col rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:rounded-[28px] sm:p-6">
+                            <div className="mb-4 flex items-center justify-between sm:hidden">
+                              <div>
+                                <p className="text-[10px] uppercase tracking-[0.22em] text-white/38">
+                                  {formSteps[currentStep]?.eyebrow}
+                                </p>
+                                <p className="mt-1 text-sm font-semibold text-white">
+                                  {formSteps[currentStep]?.title}
+                                </p>
+                              </div>
+                              <span className="text-[11px] text-white/40">
+                                {currentStep + 1}/{formSteps.length}
+                              </span>
+                            </div>
+
+                            <div className="min-h-0 flex-1">
                             <AnimatePresence mode="wait">
                               <motion.div
                                 key={currentStep}
@@ -564,7 +586,7 @@ export default function QuoteRequestModal({
                                 className="h-full"
                               >
                                 {currentStep === 0 ? (
-                                  <div className="grid h-full gap-4 md:grid-cols-2">
+                                  <div className="grid h-full gap-3 sm:gap-4 md:grid-cols-2">
                                     <FormField
                                       data-quote-item
                                       error={fieldErrors.fullName}
@@ -633,14 +655,14 @@ export default function QuoteRequestModal({
                                 ) : null}
 
                                 {currentStep === 1 ? (
-                                  <div className="grid h-full gap-5">
-                                    <div className="space-y-3">
+                                  <div className="grid h-full gap-4 sm:gap-5">
+                                    <div className="space-y-2.5 sm:space-y-3">
                                       <SectionHeading
                                         error={fieldErrors.apartmentType}
                                         title="Apartment Interest"
                                         description="Choose the residence type that best matches your requirement."
                                       />
-                                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                                      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-4">
                                         {apartmentTypes.map((option) => (
                                           <OptionCard
                                             key={option}
@@ -651,18 +673,19 @@ export default function QuoteRequestModal({
                                               void validateField("apartmentType", option);
                                             }}
                                             icon={<Home className="h-3.5 w-3.5" />}
+                                            compact
                                           />
                                         ))}
                                       </div>
                                     </div>
 
-                                    <div className="space-y-3">
+                                    <div className="space-y-2.5 sm:space-y-3">
                                       <SectionHeading
                                         error={fieldErrors.budget}
                                         title="Budget Window"
                                         description="This helps us share options that are relevant and realistic."
                                       />
-                                      <div className="grid gap-3 sm:grid-cols-2">
+                                      <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
                                         {budgetRanges.map((option) => (
                                           <OptionCard
                                             key={option}
@@ -678,13 +701,13 @@ export default function QuoteRequestModal({
                                       </div>
                                     </div>
 
-                                    <div className="space-y-3">
+                                    <div className="space-y-2.5 sm:space-y-3">
                                       <SectionHeading
                                         error={fieldErrors.moveInTimeline}
                                         title="Move-In Timeline"
                                         description="Useful for prioritizing immediate and possession-ready inventory."
                                       />
-                                      <div className="flex flex-wrap gap-2.5">
+                                      <div className="flex flex-wrap gap-2">
                                         {moveInOptions.map((option) => (
                                           <ChipButton
                                             key={option}
@@ -702,7 +725,7 @@ export default function QuoteRequestModal({
                                 ) : null}
 
                                 {currentStep === 2 ? (
-                                  <div className="space-y-5">
+                                  <div className="space-y-4 sm:space-y-5">
                                     <FormField
                                       data-quote-item
                                       error={fieldErrors.message}
@@ -714,15 +737,15 @@ export default function QuoteRequestModal({
                                         onBlur={handleFieldBlur("message")}
                                         value={form.message}
                                         onChange={(event) => updateForm("message", event.target.value)}
-                                        rows={6}
+                                        rows={5}
                                         placeholder="Tell us about floor preference, vastu, view, or any specific requirement."
                                       />
                                     </FormField>
 
-                                    <div className="space-y-2.5">
+                                    <div className="space-y-2">
                                       <GlowSurface
                                         className={cn(
-                                          "rounded-[20px] border bg-white/3 px-4 py-4",
+                                          "rounded-[18px] border bg-white/3 px-4 py-3.5 sm:rounded-[20px] sm:py-4",
                                           fieldErrors.consent
                                             ? "border-rose-400/30" 
                                             : "border-white/10",
@@ -757,7 +780,7 @@ export default function QuoteRequestModal({
                                       />
                                     </div>
 
-                                    <GlowSurface className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-5">
+                                    <GlowSurface className="rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-4 sm:rounded-[24px] sm:p-5">
                                       <div className="relative z-10">
                                         <div className="text-[11px] uppercase tracking-[0.24em] text-[#d6bc88]">
                                           Review
@@ -780,22 +803,23 @@ export default function QuoteRequestModal({
                                 ) : null}
                               </motion.div>
                             </AnimatePresence>
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="mt-5 flex flex-col gap-4 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="text-[11px] uppercase tracking-[0.24em] text-white/34">
+                      <div className="mt-4 flex shrink-0 flex-col gap-3 border-t border-white/10 pt-3.5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-4">
+                        <div className="text-[10px] uppercase tracking-[0.22em] text-white/34 sm:text-[11px] sm:tracking-[0.24em]">
                           Private apartment inquiry
                         </div>
 
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:gap-3">
                           {currentStep > 0 ? (
                             <motion.button
                               whileTap={{ scale: 0.985 }}
                               type="button"
                               onClick={handlePreviousStep}
-                              className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-white transition hover:bg-white/[0.08]"
+                              className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.75 text-sm font-medium text-white transition hover:bg-white/[0.08] sm:px-5 sm:py-3"
                             >
                               <ArrowLeft className="h-4 w-4" />
                               Previous
@@ -812,7 +836,7 @@ export default function QuoteRequestModal({
                                 submitIntentRef.current = false;
                                 handleNextStep();
                               }}
-                              className="inline-flex min-w-[190px] items-center justify-center gap-2 rounded-full border border-[#d6bc88]/35 bg-[linear-gradient(135deg,#d8bf91_0%,#b8935c_45%,#e3cfaa_100%)] px-6 py-3.5 text-sm font-semibold text-[#0b0c0f] shadow-[0_18px_40px_rgba(0,0,0,0.35)] transition hover:brightness-105"
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#d6bc88]/35 bg-[linear-gradient(135deg,#d8bf91_0%,#b8935c_45%,#e3cfaa_100%)] px-5 py-3 text-sm font-semibold text-[#0b0c0f] shadow-[0_18px_40px_rgba(0,0,0,0.35)] transition hover:brightness-105 sm:min-w-[190px] sm:px-6 sm:py-3.5"
                             >
                               Continue
                               <ArrowRight className="h-4 w-4" />
@@ -827,7 +851,7 @@ export default function QuoteRequestModal({
                                 submitIntentRef.current = true;
                               }}
                               disabled={!isFormComplete || submitState === "submitting"}
-                              className="inline-flex min-w-[230px] items-center justify-center gap-2 rounded-full border border-[#d6bc88]/35 bg-[linear-gradient(135deg,#d8bf91_0%,#b8935c_45%,#e3cfaa_100%)] px-6 py-3.5 text-sm font-semibold text-[#0b0c0f] shadow-[0_18px_40px_rgba(0,0,0,0.35)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#d6bc88]/35 bg-[linear-gradient(135deg,#d8bf91_0%,#b8935c_45%,#e3cfaa_100%)] px-5 py-3 text-sm font-semibold text-[#0b0c0f] shadow-[0_18px_40px_rgba(0,0,0,0.35)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[230px] sm:px-6 sm:py-3.5"
                             >
                               {submitState === "submitting" ? (
                                 <>
