@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { motion, type Variants, type Easing } from "framer-motion";
 import Image, { type StaticImageData } from "next/image";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ChevronRight } from "lucide-react";
 import towerimg from "@/assets/Tower.avif";
 import type { TowerType } from "@/types/inventory";
 
@@ -13,6 +12,7 @@ type TowerSelectProps = {
   selectedTower?: TowerType | null;
   onSelectTower?: (tower: TowerType) => void;
   embedded?: boolean;
+  mobile?: boolean;
 };
 
 const towerCards: Array<{
@@ -24,6 +24,7 @@ const towerCards: Array<{
   image: StaticImageData;
   imageAlt: string;
   imageClass: string;
+  mobileImageClass: string;
 }> = [
   {
     value: "Tower A",
@@ -35,6 +36,7 @@ const towerCards: Array<{
     imageAlt: "Tower A exterior",
     imageClass:
       "absolute -bottom-[8%] -left-[10%] h-[122%] w-auto max-w-none object-contain object-bottom-left",
+    mobileImageClass: "scale-[1.28] object-cover object-[34%_100%]",
   },
   {
     value: "Tower B",
@@ -46,40 +48,83 @@ const towerCards: Array<{
     imageAlt: "Tower B exterior",
     imageClass:
       "absolute -bottom-[10%] -left-[8%] h-[126%] w-auto max-w-none object-contain object-bottom-left",
+    mobileImageClass: "scale-[1.28] object-cover object-[34%_100%]",
   },
 ];
 
 function TowerSelectPanel({
   selectedTower,
   onSelectTower,
+  mobile = false,
 }: {
   selectedTower: TowerType | null;
   onSelectTower: (tower: TowerType) => void;
+  mobile?: boolean;
 }) {
-  const smoothEase: Easing = [0.22, 1, 0.36, 1];
+  if (mobile) {
+    return (
+      <aside className="w-full">
+        <div className="px-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-zinc-500/85">
+            Master Plan
+          </p>
+          <h2 className="mt-1.5 text-[1.35rem] font-semibold tracking-[-0.03em] text-zinc-950">
+            Choose Your Tower
+          </h2>
+          <p className="mt-1 text-sm leading-5 text-zinc-600">
+            Pick a tower to open the matching flats.
+          </p>
+        </div>
 
-  const slideFromRight: Variants = {
-    hidden: { opacity: 0, x: 48 },
-    visible: {
-      opacity: 1,
-      x: 0,
-      transition: { duration: 0.55, ease: smoothEase },
-    },
-  };
+        <div className="mt-4 flex flex-col gap-3">
+          {towerCards.map((towerCard) => {
+            const isActive = selectedTower === towerCard.value;
 
-  const itemAnim: Variants = {
-    hidden: { opacity: 0, y: 24 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.38, ease: smoothEase },
-    },
-  };
+            return (
+              <button
+                key={towerCard.value}
+                type="button"
+                onClick={() => onSelectTower(towerCard.value)}
+                className={`group flex w-full items-center gap-3 rounded-full border px-3 py-3 text-left shadow-[0_14px_36px_rgba(15,23,42,0.10)] transition ${
+                  isActive
+                    ? "border-zinc-900/15 bg-white"
+                    : "border-white/70 bg-white/84"
+                }`}
+              >
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-black/5">
+                  <Image
+                    src={towerCard.image}
+                    alt={towerCard.imageAlt}
+                    fill
+                    sizes="64px"
+                    className={towerCard.mobileImageClass}
+                  />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-base font-semibold tracking-[-0.03em] text-zinc-950">
+                    {towerCard.value}
+                  </p>
+                  <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-400">
+                    Tap to explore
+                  </p>
+                </div>
+
+                {isActive ? (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-zinc-900" />
+                ) : (
+                  <ChevronRight className="h-5 w-5 shrink-0 text-zinc-400 transition group-hover:text-zinc-700" />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+    );
+  }
 
   return (
-    <aside
-      className="w-full"
-    >
+    <aside className="w-full">
       <div className="relative overflow-hidden rounded-[34px] border border-white/35 bg-white/18 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.16)] backdrop-blur-[22px] sm:p-4">
         <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/35 via-white/10 to-transparent" />
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-white/80" />
@@ -175,6 +220,7 @@ export default function TowerSelect({
   selectedTower,
   onSelectTower,
   embedded = false,
+  mobile = false,
 }: TowerSelectProps) {
   const [internalSelectedTower, setInternalSelectedTower] =
     useState<TowerType | null>(null);
@@ -192,6 +238,7 @@ export default function TowerSelect({
   if (embedded) {
     return (
       <TowerSelectPanel
+        mobile={mobile}
         selectedTower={activeTower}
         onSelectTower={handleSelectTower}
       />
@@ -203,6 +250,7 @@ export default function TowerSelect({
       <div className="relative z-10 w-full px-4 py-6 md:px-6 lg:px-8">
         <div className="ml-auto w-full max-w-[420px]">
           <TowerSelectPanel
+            mobile={mobile}
             selectedTower={activeTower}
             onSelectTower={handleSelectTower}
           />

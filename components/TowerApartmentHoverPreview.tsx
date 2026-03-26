@@ -32,6 +32,7 @@ type PreparedTowerModel = {
   apartmentIds: string[];
   apartments: Map<string, HoverMeshData[]>;
   offset: [number, number, number];
+  pickableMeshes: Mesh[];
   scaledHeight: number;
   scene: Group;
   scale: number;
@@ -189,6 +190,7 @@ function getStatusMeta(
 function prepareTowerScene(sourceScene: Object3D) {
   const scene = cloneSkeleton(sourceScene) as Group;
   const apartments = new Map<string, HoverMeshData[]>();
+  const pickableMeshes: Mesh[] = [];
 
   scene.updateWorldMatrix(true, true);
 
@@ -204,6 +206,7 @@ function prepareTowerScene(sourceScene: Object3D) {
     }
 
     object.userData.apartmentId = apartmentId;
+    pickableMeshes.push(object);
 
     const meshEntry = apartments.get(apartmentId) ?? [];
     meshEntry.push({
@@ -226,6 +229,7 @@ function prepareTowerScene(sourceScene: Object3D) {
     ),
     apartments,
     offset: [-center.x, -bounds.min.y, -center.z] as [number, number, number],
+    pickableMeshes,
     scaledHeight: size.y * scale,
     scene,
     scale,
@@ -243,41 +247,52 @@ function LoadingState() {
 }
 
 function HoverTracker({
-  modelRootRef,
+  allowHover,
   onHoverChange,
+  pickableMeshes,
 }: {
-  modelRootRef: React.RefObject<Group | null>;
+  allowHover: boolean;
   onHoverChange: (
     apartmentId: string | null,
     pointerPosition: PointerPosition | null,
   ) => void;
+  pickableMeshes: Mesh[];
 }) {
   const { camera, gl, raycaster } = useThree();
 
   useEffect(() => {
     const element = gl.domElement;
     const pointer = new Vector2();
+    const worldNormal = new Vector3();
+    let frameId = 0;
+    let latestClientX = 0;
+    let latestClientY = 0;
+    let latestButtons = 0;
 
     const updateHover = (
       apartmentId: string | null,
       pointerPosition: PointerPosition | null,
     ) => {
-      element.style.cursor = apartmentId ? "pointer" : "grab";
       onHoverChange(apartmentId, pointerPosition);
     };
 
-    const handlePointerMove = (event: PointerEvent) => {
-      const modelRoot = modelRootRef.current;
+    if (!allowHover || pickableMeshes.length === 0) {
+      updateHover(null, null);
+      return;
+    }
 
-      if (!modelRoot) {
+    const processPointerMove = () => {
+      frameId = 0;
+
+      if (latestButtons !== 0) {
         updateHover(null, null);
         return;
       }
 
       const rect = element.getBoundingClientRect();
       const pointerPosition = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
+        x: latestClientX - rect.left,
+        y: latestClientY - rect.top,
       };
 
       pointer.x = (pointerPosition.x / rect.width) * 2 - 1;
@@ -285,28 +300,76 @@ function HoverTracker({
 
       raycaster.setFromCamera(pointer, camera);
 
-      const hit = raycaster
-        .intersectObject(modelRoot, true)
-        .find((intersection) => resolveApartmentIdFromObject(intersection.object));
+      const intersections = raycaster.intersectObjects(pickableMeshes, false);
+      const frontFacingHit = intersections.find((intersection) => {
+        const apartmentId = intersection.object.userData.apartmentId as
+          | string
+          | undefined;
+
+        if (!apartmentId) {
+          return false;
+        }
+
+        if (!intersection.face) {
+          return true;
+        }
+
+        worldNormal
+          .copy(intersection.face.normal)
+          .transformDirection(intersection.object.matrixWorld);
+
+        return worldNormal.dot(raycaster.ray.direction) <= -0.02;
+      });
+      const fallbackHit = intersections.find(
+        (intersection) =>
+          typeof intersection.object.userData.apartmentId === "string",
+      );
+      const hit = frontFacingHit ?? fallbackHit ?? null;
 
       updateHover(
-        hit ? resolveApartmentIdFromObject(hit.object) : null,
+        (hit?.object.userData.apartmentId as string | undefined) ?? null,
         pointerPosition,
       );
     };
 
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!event.isPrimary || event.pointerType === "touch") {
+        return;
+      }
+
+      latestClientX = event.clientX;
+      latestClientY = event.clientY;
+      latestButtons = event.buttons;
+
+      if (frameId !== 0) {
+        return;
+      }
+
+      frameId = window.requestAnimationFrame(processPointerMove);
+    };
+
     const handlePointerLeave = () => {
+      if (frameId !== 0) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
       updateHover(null, null);
     };
 
     element.addEventListener("pointermove", handlePointerMove);
     element.addEventListener("pointerleave", handlePointerLeave);
+    element.addEventListener("pointercancel", handlePointerLeave);
 
     return () => {
+      if (frameId !== 0) {
+        window.cancelAnimationFrame(frameId);
+      }
+
       element.removeEventListener("pointermove", handlePointerMove);
       element.removeEventListener("pointerleave", handlePointerLeave);
+      element.removeEventListener("pointercancel", handlePointerLeave);
     };
-  }, [camera, gl, modelRootRef, onHoverChange, raycaster]);
+  }, [allowHover, camera, gl, onHoverChange, pickableMeshes, raycaster]);
 
   return null;
 }
@@ -368,9 +431,11 @@ function HoverOverlay({
 }
 
 function TowerApartmentScene({
+  allowHover,
   hoveredApartmentId,
   onHoverChange,
 }: {
+  allowHover: boolean;
   hoveredApartmentId: string | null;
   onHoverChange: (
     apartmentId: string | null,
@@ -379,7 +444,6 @@ function TowerApartmentScene({
 }) {
   const { scene } = useGLTF(MODEL_PATH);
   const preparedModel = useMemo(() => prepareTowerScene(scene), [scene]);
-  const modelRootRef = useRef<Group>(null);
 
   return (
     <>
@@ -398,20 +462,17 @@ function TowerApartmentScene({
       <directionalLight color="#fff7d8" intensity={2.85} position={[12, 16, 8]} />
       <directionalLight color="#d9ecff" intensity={1.2} position={[-10, 10, -10]} />
 
-      <group ref={modelRootRef} scale={preparedModel.scale}>
+      <group scale={preparedModel.scale}>
         <group position={preparedModel.offset}>
           <primitive object={preparedModel.scene} />
-          <HoverOverlay
-            apartments={preparedModel.apartments}
-            hoveredApartmentId={hoveredApartmentId}
-          />
+          {allowHover ? (
+            <HoverOverlay
+              apartments={preparedModel.apartments}
+              hoveredApartmentId={hoveredApartmentId}
+            />
+          ) : null}
         </group>
       </group>
-
-      <mesh position={[0, -0.02, 0]} rotation-x={-Math.PI / 2}>
-        <planeGeometry args={[36, 36]} />
-        <shadowMaterial opacity={0.1} />
-      </mesh>
 
       <mesh position={[0, -0.015, 0]} rotation-x={-Math.PI / 2}>
         <planeGeometry args={[36, 36]} />
@@ -419,7 +480,7 @@ function TowerApartmentScene({
       </mesh>
 
       <OrbitControls
-        enableDamping
+        enableDamping={allowHover}
         enablePan={false}
         maxDistance={24}
         maxPolarAngle={1.46}
@@ -428,7 +489,11 @@ function TowerApartmentScene({
         target={[0, preparedModel.scaledHeight * 0.52, 0]}
       />
 
-      <HoverTracker modelRootRef={modelRootRef} onHoverChange={onHoverChange} />
+      <HoverTracker
+        allowHover={allowHover}
+        onHoverChange={onHoverChange}
+        pickableMeshes={preparedModel.pickableMeshes}
+      />
     </>
   );
 }
@@ -451,6 +516,32 @@ export default function TowerApartmentHoverPreview({
   const [inventoryApartments, setInventoryApartments] = useState<
     InventoryApartment[]
   >([]);
+  const [supportsPreciseHover, setSupportsPreciseHover] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const hoverMedia = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const motionMedia = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    const syncInteractionPreferences = () => {
+      setSupportsPreciseHover(hoverMedia.matches);
+      setPrefersReducedMotion(motionMedia.matches);
+    };
+
+    syncInteractionPreferences();
+
+    hoverMedia.addEventListener("change", syncInteractionPreferences);
+    motionMedia.addEventListener("change", syncInteractionPreferences);
+
+    return () => {
+      hoverMedia.removeEventListener("change", syncInteractionPreferences);
+      motionMedia.removeEventListener("change", syncInteractionPreferences);
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -505,6 +596,17 @@ export default function TowerApartmentHoverPreview({
     };
   }, [tower]);
 
+  const allowHover = supportsPreciseHover && !prefersReducedMotion;
+
+  useEffect(() => {
+    if (allowHover) {
+      return;
+    }
+
+    hoveredApartmentIdRef.current = null;
+    setHoveredApartmentId(null);
+  }, [allowHover]);
+
   const hoveredApartment = formatApartmentLabel(hoveredApartmentId, tower);
   const hoveredInventoryApartment = useMemo(
     () => findInventoryApartment(inventoryApartments, hoveredApartmentId, tower),
@@ -557,16 +659,29 @@ export default function TowerApartmentHoverPreview({
       <div className="absolute inset-0">
         <div
           className={`h-full w-full ${
-            hoveredApartmentId
+            allowHover && hoveredApartmentId
               ? "cursor-pointer"
               : "cursor-[grab] active:cursor-[grabbing]"
           }`}
         >
-          <Canvas dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
+          <Canvas
+            dpr={allowHover ? [1, 1.25] : 1}
+            frameloop="demand"
+            gl={{
+              alpha: true,
+              antialias: allowHover,
+              powerPreference: allowHover ? "high-performance" : "low-power",
+            }}
+          >
             <Suspense fallback={<LoadingState />}>
               <TowerApartmentScene
+                allowHover={allowHover}
                 hoveredApartmentId={hoveredApartmentId}
                 onHoverChange={(apartmentId, nextPointerPosition) => {
+                  if (!allowHover) {
+                    return;
+                  }
+
                   updateTooltipPosition(nextPointerPosition);
 
                   if (hoveredApartmentIdRef.current === apartmentId) {
@@ -582,7 +697,7 @@ export default function TowerApartmentHoverPreview({
         </div>
       </div>
 
-      {hoveredApartmentId ? (
+      {allowHover && hoveredApartmentId ? (
         <div
           ref={tooltipRef}
           className="pointer-events-none absolute z-30"
@@ -621,7 +736,7 @@ export default function TowerApartmentHoverPreview({
         </div>
 
         <div className="rounded-full border border-white/70 bg-white/72 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-700 shadow-[0_18px_40px_rgba(15,23,42,0.10)] backdrop-blur-md">
-          Tower-Planes.glb
+          {allowHover ? "Desktop hover enabled" : "Touch-optimized view"}
         </div>
       </div>
     </section>
