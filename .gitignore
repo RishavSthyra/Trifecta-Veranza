@@ -46,5 +46,6 @@ next-env.d.ts
 
 
 #testing 
-public\panos
+raw-panos/
+public/panos/
 
