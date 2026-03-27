@@ -42,3 +42,10 @@ next-env.d.ts
 
 # environment variables
 .env
+
+
+
+#testing 
+public\panos
+raw-panos
+
