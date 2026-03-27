@@ -26,6 +26,7 @@ import {
   Vector3,
 } from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { getMasterPlanFrameCdnUrl } from "@/data/masterPlanFrameCdnUrls";
 import type {
   InventoryApartment,
   InventoryStatus,
@@ -92,6 +93,10 @@ function resolveApartmentIdFromObject(object: Object3D | null) {
 
 function wrapFrame(frame: number) {
   return ((frame - 1 + TOTAL_FRAMES) % TOTAL_FRAMES) + 1;
+}
+
+function getFrameSrc(frame: number) {
+  return getMasterPlanFrameCdnUrl(wrapFrame(frame));
 }
 
 function getFrameRotation(frame: number) {
@@ -637,7 +642,7 @@ export default function MasterPlanFrameHoverStage({
   const [supportsPreciseHover, setSupportsPreciseHover] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const safeFrame = wrapFrame(currentFrame);
-  const frameSrc = `/frames/frame_${String(safeFrame).padStart(5, "0")}.jpg`;
+  const frameSrc = getFrameSrc(safeFrame);
 
   const stopSnapAnimation = () => {
     if (snapAnimationFrameRef.current !== null) {
@@ -683,7 +688,7 @@ export default function MasterPlanFrameHoverStage({
 
     framesToPreload.forEach((frame) => {
       const image = new window.Image();
-      image.src = `/frames/frame_${String(frame).padStart(5, "0")}.jpg`;
+      image.src = getFrameSrc(frame);
     });
   }, [safeFrame]);
 
