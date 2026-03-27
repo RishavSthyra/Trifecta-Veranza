@@ -160,40 +160,40 @@ const pages = useMemo(() => {
     // Small laptops: slightly taller, less square
     if (isSmallLaptop) {
       return {
-        width: 900,
-        height: 1150,
-        minWidth: 700,
-        maxWidth: 920,
-        minHeight: 780,
-        maxHeight: 1150,
+        width: 860,
+        height: 980,
+        minWidth: 640,
+        maxWidth: 900,
+        minHeight: 720,
+        maxHeight: 1000,
       };
     }
 
     // Tablets: more portrait-like
     if (isTablet) {
       return {
-        width: 760,
-        height: 1120,
-        minWidth: 520,
-        maxWidth: 780,
-        minHeight: 760,
-        maxHeight: 1120,
+        width: 700,
+        height: 980,
+        minWidth: 480,
+        maxWidth: 740,
+        minHeight: 700,
+        maxHeight: 1000,
       };
     }
 
     // Mobile: tall portrait
     return {
-      width: 390,
-      height: 680,
-      minWidth: 260,
-      maxWidth: 410,
-      minHeight: 500,
-      maxHeight: 720,
+      width: 360,
+      height: 640,
+      minWidth: 280,
+      maxWidth: 380,
+      minHeight: 540,
+      maxHeight: 680,
     };
   })();
 
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-neutral-100 px-2 pb-3 pt-18 sm:px-4 sm:py-4 sm:pt-6">
+    <div className="relative flex min-h-dvh items-start justify-center overflow-auto bg-neutral-100 px-1.5 pb-4 pt-16 sm:items-center sm:overflow-hidden sm:px-4 sm:py-4 sm:pt-6">
       <motion.div
         variants={bgAnimation}
         initial="hidden"
@@ -238,7 +238,7 @@ const pages = useMemo(() => {
         />
       </motion.div>
 
-      <div className="relative z-10 mx-auto flex w-full max-w-[100%] flex-col items-center justify-center">
+      <div className="relative z-10 mx-auto flex w-full max-w-full flex-col items-center justify-center">
         <div className="relative flex w-full items-center justify-center">
           <div className="flex w-full justify-center">
             <HTMLFlipBook
@@ -265,7 +265,7 @@ const pages = useMemo(() => {
               showPageCorners
               disableFlipByClick={false}
               onFlip={() => {}}
-              className="mx-auto"
+              className="mx-auto max-w-full"
               style={{}}
             >
               {pages}

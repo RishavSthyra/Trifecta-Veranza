@@ -12,7 +12,7 @@ type Props = {
 function ArrowMarker({ point }: { point: MasterPlanArrowPoint }) {
   return (
     <div
-      className="absolute z-[4]"
+      className="pointer-events-none absolute z-[4]"
       style={{
         left: `${point.x}%`,
         top: `${point.y}%`,
@@ -23,7 +23,7 @@ function ArrowMarker({ point }: { point: MasterPlanArrowPoint }) {
         <button
           type="button"
           aria-label={point.label ?? point.id}
-          className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/60 bg-white/78 text-zinc-900 shadow-[0_12px_30px_rgba(15,23,42,0.20)] backdrop-blur-xl transition duration-200 hover:scale-105 hover:bg-white md:h-11 md:w-11"
+          className="pointer-events-auto relative flex h-9 w-9 items-center justify-center rounded-full border border-white/60 bg-white/78 text-zinc-900 shadow-[0_12px_30px_rgba(15,23,42,0.20)] backdrop-blur-xl transition duration-200 hover:scale-105 hover:bg-white md:h-11 md:w-11"
         >
           <span className="absolute inset-0 rounded-full border border-cyan-300/70 opacity-70 [animation:ping_2.4s_cubic-bezier(0,0,0.2,1)_infinite]" />
           <span className="absolute inset-[4px] rounded-full bg-[radial-gradient(circle,rgba(125,211,252,0.28),transparent_70%)]" />
@@ -42,7 +42,7 @@ function ArrowMarker({ point }: { point: MasterPlanArrowPoint }) {
 
 function MasterPlanArrowMarkersBase({ points, className }: Props) {
   return (
-    <div className={`absolute inset-0 z-[4] ${className ?? ""}`}>
+    <div className={`pointer-events-none absolute inset-0 z-[4] ${className ?? ""}`}>
       {points.map((point) => (
         <ArrowMarker key={point.id} point={point} />
       ))}

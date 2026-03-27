@@ -9,7 +9,16 @@ import {
   PerspectiveCamera,
   useGLTF,
 } from "@react-three/drei";
-import { Box3, Group, Matrix4, Mesh, Object3D, Vector2, Vector3 } from "three";
+import {
+  Box3,
+  Group,
+  Material,
+  Matrix4,
+  Mesh,
+  Object3D,
+  Vector2,
+  Vector3,
+} from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import type {
   InventoryApartment,
@@ -18,6 +27,7 @@ import type {
 } from "@/types/inventory";
 
 const MODEL_PATH = "/models/Tower-Planes.glb";
+const HOVER_VIDEO_PATH = "/360_Level_sequence_optimized.mp4";
 const APARTMENT_ID_PATTERN = /^(Tower_[A-Z]_\d{2}_\d{3,4})_/;
 const TARGET_MODEL_HEIGHT = 10;
 
@@ -198,6 +208,23 @@ function prepareTowerScene(sourceScene: Object3D) {
     if (!(object instanceof Mesh)) {
       return;
     }
+
+    const materials = Array.isArray(object.material)
+      ? object.material
+      : [object.material];
+
+    const invisibleMaterials = materials.map((material) => {
+      const nextMaterial = (material as Material).clone();
+      nextMaterial.transparent = true;
+      nextMaterial.opacity = 0;
+      nextMaterial.depthWrite = false;
+      nextMaterial.colorWrite = false;
+      return nextMaterial;
+    });
+
+    object.material = Array.isArray(object.material)
+      ? invisibleMaterials
+      : invisibleMaterials[0];
 
     const apartmentId = resolveApartmentIdFromObject(object);
 
@@ -455,9 +482,6 @@ function TowerApartmentScene({
         position={[10.5, 7.25, 13.5]}
       />
 
-      <color attach="background" args={["#dce7f7"]} />
-      <fog attach="fog" args={["#dce7f7", 16, 34]} />
-
       <ambientLight intensity={1.75} />
       <directionalLight color="#fff7d8" intensity={2.85} position={[12, 16, 8]} />
       <directionalLight color="#d9ecff" intensity={1.2} position={[-10, 10, -10]} />
@@ -473,11 +497,6 @@ function TowerApartmentScene({
           ) : null}
         </group>
       </group>
-
-      <mesh position={[0, -0.015, 0]} rotation-x={-Math.PI / 2}>
-        <planeGeometry args={[36, 36]} />
-        <meshStandardMaterial color="#e8eef8" />
-      </mesh>
 
       <OrbitControls
         enableDamping={allowHover}
@@ -652,9 +671,19 @@ export default function TowerApartmentHoverPreview({
   return (
     <section
       ref={sectionRef}
-      className="relative min-h-dvh w-full overflow-hidden bg-[linear-gradient(180deg,#d5e4f5_0%,#eef5fc_40%,#f6efe3_100%)]"
+      className="relative min-h-dvh w-full overflow-hidden bg-black"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,226,138,0.32),_transparent_28%),radial-gradient(circle_at_84%_18%,_rgba(96,165,250,0.26),_transparent_24%),linear-gradient(180deg,_rgba(255,255,255,0.30),_rgba(255,255,255,0.06))]" />
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        preload="auto"
+        src={HOVER_VIDEO_PATH}
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,226,138,0.18),_transparent_28%),radial-gradient(circle_at_84%_18%,_rgba(96,165,250,0.18),_transparent_24%),linear-gradient(180deg,_rgba(0,0,0,0.10),_rgba(0,0,0,0.16))]" />
 
       <div className="absolute inset-0">
         <div

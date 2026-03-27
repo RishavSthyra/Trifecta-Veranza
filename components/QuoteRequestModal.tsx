@@ -406,7 +406,7 @@ export default function QuoteRequestModal({
     <AnimatePresence>
       {isOpen ? (
         <motion.div
-          className="fixed inset-0 z-120 flex items-center justify-center p-3 sm:p-5 lg:p-8"
+          className="fixed inset-0 z-120 flex items-end justify-center overflow-y-auto p-0 sm:items-center sm:p-5 lg:p-8"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -430,9 +430,9 @@ export default function QuoteRequestModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.98, y: 20 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="gpu-layer relative z-10 grid max-h-[92dvh] w-full max-w-295 overflow-hidden rounded-[26px] border border-white/10 bg-[#08090c]/95 text-white shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:max-h-[90dvh] sm:rounded-[30px] lg:grid-cols-[minmax(280px,0.72fr)_minmax(0,1fr)]"
+            className="gpu-layer relative z-10 grid h-[100dvh] max-h-[100dvh] w-full max-w-295 overflow-hidden rounded-none border border-white/10 bg-[#08090c]/95 text-white shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:h-auto sm:max-h-[90dvh] sm:rounded-[30px] lg:grid-cols-[minmax(280px,0.72fr)_minmax(0,1fr)]"
           >
-            <div className="relative h-22 overflow-hidden border-b border-white/10 bg-[#0b0d12] sm:h-32 lg:h-auto lg:min-h-full lg:border-b-0 lg:border-r">
+            <div className="relative h-18 overflow-hidden border-b border-white/10 bg-[#0b0d12] sm:h-32 lg:h-auto lg:min-h-full lg:border-b-0 lg:border-r">
               <div
                 data-quote-glow
                 className="absolute -left-14 top-3 h-36 w-36 rounded-full bg-[#c9a96b]/18 blur-3xl sm:top-8 sm:h-56 sm:w-56"
@@ -468,13 +468,13 @@ export default function QuoteRequestModal({
               <button
                 type="button"
                 onClick={handleClose}
-                className="absolute right-4 top-4 z-20 rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/9 hover:text-white sm:right-5 sm:top-5 sm:p-2.5"
+                className="absolute right-3 top-3 z-20 rounded-full border border-white/10 bg-white/5 p-2 text-white/70 transition hover:bg-white/9 hover:text-white sm:right-5 sm:top-5 sm:p-2.5"
                 aria-label="Close quote popup"
               >
                 <X className="h-4 w-4" />
               </button>
 
-              <div className="relative z-10 flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-7 sm:py-6 lg:px-8">
+              <div className="relative z-10 flex min-h-0 flex-1 flex-col px-3.5 py-3.5 sm:px-7 sm:py-6 lg:px-8">
                 {submitState === "success" ? (
                   <motion.div
                     initial={{ opacity: 0, y: 16 }}
@@ -509,7 +509,7 @@ export default function QuoteRequestModal({
                     >
                       <div
                         data-scroll-area="quote-modal-content"
-                        className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch] touch-pan-y"
+                        className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5 [-webkit-overflow-scrolling:touch] touch-pan-y sm:pr-1"
                       >
                         <div data-quote-item className="pr-12 sm:pr-14">
                           <div className="text-[10px] uppercase tracking-[0.24em] text-[#d6bc88] sm:text-[11px] sm:tracking-[0.26em]">
@@ -517,16 +517,16 @@ export default function QuoteRequestModal({
                           </div>
                           <p
                             id="quote-modal-title"
-                            className="mt-2 font-(--font-sora) text-[1.32rem] leading-[1.08] text-white sm:mt-3 sm:text-[1.7rem]"
+                            className="mt-1.5 font-(--font-sora) text-[1.2rem] leading-[1.08] text-white sm:mt-3 sm:text-[1.7rem]"
                           >
                             Quick quote request
                           </p>
-                          <p className="mt-2 max-w-2xl text-[13px] leading-6 text-white/60 sm:text-[14px] sm:leading-7">
+                          <p className="mt-1.5 max-w-2xl text-[12px] leading-5 text-white/60 sm:mt-2 sm:text-[14px] sm:leading-7">
                             Complete the form in a few short steps.
                           </p>
                         </div>
 
-                        <div data-quote-item className="mt-4 flex items-center justify-between gap-3 text-xs text-white/62 sm:mt-5 sm:text-sm">
+                        <div data-quote-item className="mt-3 flex items-center justify-between gap-3 text-[11px] text-white/62 sm:mt-5 sm:text-sm">
                           <span>{Math.round(progressValue)}% completed</span>
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] text-white/46">
                             {formSteps[currentStep]?.eyebrow}
@@ -559,9 +559,9 @@ export default function QuoteRequestModal({
                           </div>
                         ) : null}
 
-                        <div className="mt-4 min-h-0 sm:mt-5">
-                          <div className="relative flex flex-col rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-4 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:rounded-[28px] sm:p-6">
-                            <div className="mb-4 flex items-center justify-between sm:hidden">
+                        <div className="mt-3 min-h-0 sm:mt-5">
+                          <div className="relative flex flex-col rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] p-3.5 shadow-[0_18px_60px_rgba(0,0,0,0.18)] sm:rounded-[28px] sm:p-6">
+                            <div className="mb-3 flex items-center justify-between sm:hidden">
                               <div>
                                 <p className="text-[10px] uppercase tracking-[0.22em] text-white/38">
                                   {formSteps[currentStep]?.eyebrow}
@@ -586,7 +586,7 @@ export default function QuoteRequestModal({
                                 className="h-full"
                               >
                                 {currentStep === 0 ? (
-                                  <div className="grid h-full gap-3 sm:gap-4 md:grid-cols-2">
+                                  <div className="grid h-full gap-2.5 sm:gap-4 md:grid-cols-2">
                                     <FormField
                                       data-quote-item
                                       error={fieldErrors.fullName}
@@ -655,7 +655,7 @@ export default function QuoteRequestModal({
                                 ) : null}
 
                                 {currentStep === 1 ? (
-                                  <div className="grid h-full gap-4 sm:gap-5">
+                                  <div className="grid h-full gap-3 sm:gap-5">
                                     <div className="space-y-2.5 sm:space-y-3">
                                       <SectionHeading
                                         error={fieldErrors.apartmentType}
@@ -725,7 +725,7 @@ export default function QuoteRequestModal({
                                 ) : null}
 
                                 {currentStep === 2 ? (
-                                  <div className="space-y-4 sm:space-y-5">
+                                  <div className="space-y-3 sm:space-y-5">
                                     <FormField
                                       data-quote-item
                                       error={fieldErrors.message}
@@ -745,7 +745,7 @@ export default function QuoteRequestModal({
                                     <div className="space-y-2">
                                       <GlowSurface
                                         className={cn(
-                                          "rounded-[18px] border bg-white/3 px-4 py-3.5 sm:rounded-[20px] sm:py-4",
+                                          "rounded-[18px] border bg-white/3 px-3.5 py-3 sm:rounded-[20px] sm:px-4 sm:py-4",
                                           fieldErrors.consent
                                             ? "border-rose-400/30" 
                                             : "border-white/10",
@@ -780,7 +780,7 @@ export default function QuoteRequestModal({
                                       />
                                     </div>
 
-                                    <GlowSurface className="rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-4 sm:rounded-[24px] sm:p-5">
+                                    <GlowSurface className="rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] p-3.5 sm:rounded-[24px] sm:p-5">
                                       <div className="relative z-10">
                                         <div className="text-[11px] uppercase tracking-[0.24em] text-[#d6bc88]">
                                           Review
@@ -808,7 +808,7 @@ export default function QuoteRequestModal({
                         </div>
                       </div>
 
-                      <div className="mt-4 flex shrink-0 flex-col gap-3 border-t border-white/10 pt-3.5 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-4">
+                      <div className="mt-3 flex shrink-0 flex-col gap-2.5 border-t border-white/10 bg-[linear-gradient(180deg,rgba(8,9,12,0),rgba(8,9,12,0.92)_20%)] pt-3 sm:mt-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:pt-4">
                         <div className="text-[10px] uppercase tracking-[0.22em] text-white/34 sm:text-[11px] sm:tracking-[0.24em]">
                           Private apartment inquiry
                         </div>
@@ -819,7 +819,7 @@ export default function QuoteRequestModal({
                               whileTap={{ scale: 0.985 }}
                               type="button"
                               onClick={handlePreviousStep}
-                              className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.75 text-sm font-medium text-white transition hover:bg-white/[0.08] sm:px-5 sm:py-3"
+                              className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.08] sm:px-5 sm:py-3"
                             >
                               <ArrowLeft className="h-4 w-4" />
                               Previous
@@ -836,7 +836,7 @@ export default function QuoteRequestModal({
                                 submitIntentRef.current = false;
                                 handleNextStep();
                               }}
-                              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#d6bc88]/35 bg-[linear-gradient(135deg,#d8bf91_0%,#b8935c_45%,#e3cfaa_100%)] px-5 py-3 text-sm font-semibold text-[#0b0c0f] shadow-[0_18px_40px_rgba(0,0,0,0.35)] transition hover:brightness-105 sm:min-w-[190px] sm:px-6 sm:py-3.5"
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#d6bc88]/35 bg-[linear-gradient(135deg,#d8bf91_0%,#b8935c_45%,#e3cfaa_100%)] px-5 py-2.75 text-sm font-semibold text-[#0b0c0f] shadow-[0_18px_40px_rgba(0,0,0,0.35)] transition hover:brightness-105 sm:min-w-[190px] sm:px-6 sm:py-3.5"
                             >
                               Continue
                               <ArrowRight className="h-4 w-4" />
@@ -851,7 +851,7 @@ export default function QuoteRequestModal({
                                 submitIntentRef.current = true;
                               }}
                               disabled={!isFormComplete || submitState === "submitting"}
-                              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#d6bc88]/35 bg-[linear-gradient(135deg,#d8bf91_0%,#b8935c_45%,#e3cfaa_100%)] px-5 py-3 text-sm font-semibold text-[#0b0c0f] shadow-[0_18px_40px_rgba(0,0,0,0.35)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[230px] sm:px-6 sm:py-3.5"
+                              className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[#d6bc88]/35 bg-[linear-gradient(135deg,#d8bf91_0%,#b8935c_45%,#e3cfaa_100%)] px-5 py-2.75 text-sm font-semibold text-[#0b0c0f] shadow-[0_18px_40px_rgba(0,0,0,0.35)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[230px] sm:px-6 sm:py-3.5"
                             >
                               {submitState === "submitting" ? (
                                 <>
@@ -899,7 +899,7 @@ function LuxuryInput({
         {...props}
         aria-invalid={invalid}
         className={cn(
-          "relative z-10 h-[56px] w-full bg-transparent px-4 text-[14px] text-white outline-none placeholder:text-white/30",
+          "relative z-10 h-[50px] w-full bg-transparent px-3.5 text-[13px] text-white outline-none placeholder:text-white/30 sm:h-[56px] sm:px-4 sm:text-[14px]",
           props.className,
         )}
       />
@@ -926,7 +926,7 @@ function LuxuryTextarea({
         {...props}
         aria-invalid={invalid}
         className={cn(
-          "relative z-10 w-full bg-transparent px-4 py-4 text-[14px] leading-7 text-white outline-none placeholder:text-white/30",
+          "relative z-10 w-full bg-transparent px-3.5 py-3.5 text-[13px] leading-6 text-white outline-none placeholder:text-white/30 sm:px-4 sm:py-4 sm:text-[14px] sm:leading-7",
           props.className,
         )}
       />
@@ -999,8 +999,8 @@ function FormField({
   label: string;
 }) {
   return (
-    <div {...props} className={cn("space-y-2.5", props.className)}>
-      <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-white/44">
+    <div {...props} className={cn("space-y-2", props.className)}>
+      <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.16em] text-white/44 sm:text-[11px] sm:tracking-[0.18em]">
         <span className="text-[#d6bc88]">{icon}</span>
         {label}
       </div>
@@ -1021,10 +1021,10 @@ function SectionHeading({
 }) {
   return (
     <div>
-      <h3 className="font-[var(--font-sora)] text-[15px] font-semibold text-white">
+      <h3 className="font-[var(--font-sora)] text-[14px] font-semibold text-white sm:text-[15px]">
         {title}
       </h3>
-      <p className="mt-1 max-w-xl text-[13px] leading-6 text-white/55">
+      <p className="mt-1 max-w-xl text-[12px] leading-5 text-white/55 sm:text-[13px] sm:leading-6">
         {description}
       </p>
       <FieldMessage className="mt-2" message={error} />
@@ -1075,11 +1075,11 @@ function OptionCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "relative flex items-center justify-center gap-2.5 overflow-hidden rounded-[18px] border px-3.5 py-3 text-left transition",
+        "relative flex items-center justify-center gap-2 overflow-hidden rounded-[18px] border px-3 py-2.5 text-left transition sm:gap-2.5 sm:px-3.5 sm:py-3",
         isActive
           ? "border-[#d6bc88]/40 bg-[linear-gradient(135deg,rgba(214,188,136,0.18),rgba(255,255,255,0.06))] text-white shadow-[0_12px_30px_rgba(0,0,0,0.22)]"
           : "border-white/10 bg-white/[0.03] text-white/72 hover:border-white/16 hover:bg-white/[0.05]",
-        compact ? "min-h-[56px]" : "min-h-[58px]",
+        compact ? "min-h-[50px] sm:min-h-[56px]" : "min-h-[52px] sm:min-h-[58px]",
       )}
     >
       <GlowBorder />
@@ -1097,7 +1097,7 @@ function OptionCard({
         </span>
       ) : null}
 
-      <span className="relative z-10 text-[12.5px] font-medium tracking-[0.01em] text-current">
+      <span className="relative z-10 text-[11.5px] font-medium tracking-[0.01em] text-current sm:text-[12.5px]">
         {label}
       </span>
     </motion.button>
@@ -1122,7 +1122,7 @@ function ChipButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "relative overflow-hidden rounded-full border px-4 py-2.5 text-[12px] leading-none transition",
+        "relative overflow-hidden rounded-full border px-3.5 py-2 text-[11px] leading-none transition sm:px-4 sm:py-2.5 sm:text-[12px]",
         isActive
           ? "border-[#d6bc88]/35 bg-[#d6bc88]/14 text-[#f3e3bf]"
           : "border-white/10 bg-white/[0.03] text-white/68 hover:border-white/16 hover:bg-white/[0.05]",

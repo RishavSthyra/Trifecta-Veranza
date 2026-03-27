@@ -126,6 +126,32 @@ export default function HeroSection() {
   }, [entryVideoReady, isTransitioningToMasterPlan, router, startEntryVideo]);
 
   useEffect(() => {
+    const heroVideo = heroVideoRef.current;
+    if (!heroVideo) return;
+
+    if (heroVideo.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+      setVideoReady(true);
+      return;
+    }
+
+    const markVideoReady = () => {
+      setVideoReady(true);
+    };
+
+    const markVideoFallbackReady = () => {
+      setVideoReady(true);
+    };
+
+    heroVideo.addEventListener("canplaythrough", markVideoReady);
+    heroVideo.addEventListener("error", markVideoFallbackReady);
+
+    return () => {
+      heroVideo.removeEventListener("canplaythrough", markVideoReady);
+      heroVideo.removeEventListener("error", markVideoFallbackReady);
+    };
+  }, []);
+
+  useEffect(() => {
     router.prefetch("/master-plan");
   }, [router]);
 
@@ -204,8 +230,7 @@ export default function HeroSection() {
         muted
         loop
         playsInline
-        preload="metadata"
-        onCanPlay={() => setVideoReady(true)}
+        preload="auto"
       >
         <source
           src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328995/HERO_BG_2_jz6mka.mp4"

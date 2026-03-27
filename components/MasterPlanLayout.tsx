@@ -19,8 +19,10 @@ import {
 import MasterPlanArrowMarkers from "./MasterPlanArrowMarkers";
 import { masterPlanArrowPoints } from "@/data/masterPlanArrowPoints";
 import GlassSelect, { GlassSelectItem } from "./ui/GlassSelect";
+import MasterPlanFrameHoverStage from "./MasterPlanFrameHoverStage";
 import {
   ArrowLeft,
+  ArrowRight,
   BedDouble,
   Building2,
   ChevronDown,
@@ -37,6 +39,9 @@ const facingOptions = ["All", "North", "South", "East", "West"] as const;
 const statusOptions = ["All", "Available", "Reserved", "Sold"] as const;
 const bhkOptions = ["All", "2", "3"] as const;
 const INVENTORY_REFRESH_INTERVAL = 15000;
+const TOTAL_MASTER_PLAN_FRAMES = 360;
+const FRAME_HOLD_DELAY_MS = 180;
+const FRAME_HOLD_INTERVAL_MS = 42;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
@@ -129,11 +134,12 @@ export default function MasterPlanLayout({
   const router = useRouter();
 
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const idleVideoRef = useRef<HTMLVideoElement | null>(null);
   const reverseVideoRef = useRef<HTMLVideoElement | null>(null);
   const leavingRef = useRef(false);
   const touchStartYRef = useRef<number | null>(null);
   const inventorySignatureRef = useRef(getApartmentSignature(initialApartments));
+  const frameHoldTimeoutRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+  const frameHoldIntervalRef = useRef<ReturnType<typeof globalThis.setInterval> | null>(null);
 
   const [search, setSearch] = useState("");
   const [selectedTower, setSelectedTower] = useState<TowerType | null>(null);
@@ -152,9 +158,8 @@ export default function MasterPlanLayout({
   const [minArea, setMinArea] = useState(0);
 
   const [isLeaving, setIsLeaving] = useState(false);
-  const [showIdleVideo, setShowIdleVideo] = useState(true);
-  const [showReverseVideo, setShowReverseVideo] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
+  const [currentFrame, setCurrentFrame] = useState(1);
   const deferredSearch = useDeferredValue(search);
 
   useEffect(() => {
@@ -317,28 +322,57 @@ export default function MasterPlanLayout({
     setIsMobileSheetOpen(true);
   };
 
-  const handleIdleVideoReady = async () => {
-    const idleVideo = idleVideoRef.current;
-    if (!idleVideo) return;
+  const wrapFrame = useCallback(
+    (frame: number) =>
+      ((frame - 1 + TOTAL_MASTER_PLAN_FRAMES) % TOTAL_MASTER_PLAN_FRAMES) + 1,
+    [],
+  );
 
-    try {
-      await idleVideo.play();
-    } catch {
-      // muted autoplay should usually work, but keep the fallback visible if it doesn't
+  const setWrappedFrame = useCallback(
+    (frame: number) => {
+      setCurrentFrame(wrapFrame(frame));
+    },
+    [wrapFrame],
+  );
+
+  const stepFrame = useCallback((direction: 1 | -1) => {
+    setCurrentFrame((current) => wrapFrame(current + direction));
+  }, [wrapFrame]);
+
+  const stopFrameHold = useCallback(() => {
+    if (frameHoldTimeoutRef.current !== null) {
+      globalThis.clearTimeout(frameHoldTimeoutRef.current);
+      frameHoldTimeoutRef.current = null;
     }
-  };
+
+    if (frameHoldIntervalRef.current !== null) {
+      globalThis.clearInterval(frameHoldIntervalRef.current);
+      frameHoldIntervalRef.current = null;
+    }
+  }, []);
+
+  const startFrameHold = useCallback(
+    (direction: 1 | -1) => {
+      if (leavingRef.current) return;
+
+      stopFrameHold();
+      stepFrame(direction);
+
+      frameHoldTimeoutRef.current = globalThis.setTimeout(() => {
+        frameHoldIntervalRef.current = globalThis.setInterval(() => {
+          stepFrame(direction);
+        }, FRAME_HOLD_INTERVAL_MS);
+      }, FRAME_HOLD_DELAY_MS);
+    },
+    [stepFrame, stopFrameHold],
+  );
 
   const leaveToHome = useCallback(async () => {
     if (leavingRef.current) return;
     leavingRef.current = true;
 
     setIsLeaving(true);
-    setShowReverseVideo(true);
-    setShowIdleVideo(false);
-
-    if (idleVideoRef.current) {
-      idleVideoRef.current.pause();
-    }
+    stopFrameHold();
 
     const reverseVideo = reverseVideoRef.current;
     if (!reverseVideo) {
@@ -354,7 +388,13 @@ export default function MasterPlanLayout({
     } catch {
       router.push("/");
     }
-  }, [router]);
+  }, [router, stopFrameHold]);
+
+  useEffect(() => {
+    return () => {
+      stopFrameHold();
+    };
+  }, [stopFrameHold]);
 
   useEffect(() => {
     const isInsideScrollArea = (target: EventTarget | null) => {
@@ -401,6 +441,18 @@ export default function MasterPlanLayout({
       }
 
       if (isInsideScrollArea(e.target)) return;
+
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        stepFrame(-1);
+        return;
+      }
+
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        stepFrame(1);
+        return;
+      }
 
       const upKeys = ["ArrowUp", "PageUp", "Home"];
       if (upKeys.includes(e.key)) {
@@ -468,29 +520,20 @@ export default function MasterPlanLayout({
         blockAllScrollLikeActions as EventListener,
       );
     };
-  }, [leaveToHome]);
+  }, [leaveToHome, stepFrame]);
 
   return (
     <div
       ref={rootRef}
       className="relative h-dvh w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
     >
-      <video
-        ref={idleVideoRef}
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        src="/master_plan_idle_loop.webm"
-        onCanPlay={() => {
-          void handleIdleVideoReady();
-        }}
-        className={`gpu-layer absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-          showIdleVideo && !showReverseVideo
-            ? "opacity-100"
-            : "pointer-events-none opacity-0"
-        }`}
+      <MasterPlanFrameHoverStage
+        apartments={apartments}
+        currentFrame={currentFrame}
+        inventoryError={inventoryError}
+        inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
+        onSetFrame={setWrappedFrame}
+        selectedTower={selectedTower}
       />
 
       <video
@@ -500,7 +543,7 @@ export default function MasterPlanLayout({
         preload="none"
         onEnded={() => router.push("/")}
         className={`gpu-layer absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
-          showReverseVideo ? "opacity-100" : "pointer-events-none opacity-0"
+          isLeaving ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
       >
         <source
@@ -513,6 +556,47 @@ export default function MasterPlanLayout({
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
       ) : null}
 
+      {!isLeaving ? (
+        <div className="pointer-events-none absolute inset-x-0 top-16 z-40 flex justify-center md:top-18">
+          <div className="pointer-events-auto inline-flex items-center gap-3 rounded-full border border-white/60 bg-white/82 px-3 py-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-black/42">
+            <button
+              type="button"
+              onPointerDown={() => startFrameHold(-1)}
+              onPointerUp={stopFrameHold}
+              onPointerLeave={stopFrameHold}
+              onPointerCancel={stopFrameHold}
+              onContextMenu={(event) => event.preventDefault()}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white text-zinc-900 transition hover:scale-[1.03] hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+              aria-label="Previous master plan frame"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+
+            <div className="hidden text-center sm:block">
+              <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-500 dark:text-white/45">
+                Master Plan Frames
+              </div>
+              <div className="mt-1 text-[11px] font-medium text-zinc-700 dark:text-white/78">
+                Drag anywhere or hold the arrows to scrub through all 360 frames
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onPointerDown={() => startFrameHold(1)}
+              onPointerUp={stopFrameHold}
+              onPointerLeave={stopFrameHold}
+              onPointerCancel={stopFrameHold}
+              onContextMenu={(event) => event.preventDefault()}
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white text-zinc-900 transition hover:scale-[1.03] hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+              aria-label="Next master plan frame"
+            >
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="pointer-events-none absolute inset-0 z-[1]">
         <div className="surface-contain absolute -left-24 top-0 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" />
         <div className="surface-contain absolute right-0 top-20 h-80 w-80 rounded-full bg-violet-300/20 blur-3xl dark:bg-violet-500/10" />
@@ -520,7 +604,7 @@ export default function MasterPlanLayout({
       </div>
 
       <div
-        className="relative z-10 h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8"
+        className="pointer-events-none relative z-10 h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8"
       >
         <div
           className={`grid h-full gap-6 ${
@@ -529,7 +613,7 @@ export default function MasterPlanLayout({
               : "xl:grid-cols-[minmax(0,1fr)_540px]"
           }`}
         >
-          <div className="hidden xl:block" />
+          <div className="pointer-events-none hidden xl:block" />
 
           <AnimatePresence mode="wait">
             {!isLeaving && (
@@ -539,7 +623,7 @@ export default function MasterPlanLayout({
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="gpu-layer hidden min-w-0 xl:col-start-2 xl:block xl:h-full"
+                className="pointer-events-auto gpu-layer hidden min-w-0 xl:col-start-2 xl:block xl:h-full"
               >
                 <div
                   className={`custom-scrollbar sticky top-6 ml-auto flex h-[calc(100dvh-3rem)] min-h-0 w-full flex-col gap-6 overflow-y-auto overscroll-contain pr-1 [overflow-anchor:none] ${
@@ -598,7 +682,7 @@ export default function MasterPlanLayout({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   onClick={() => setIsMobileSheetOpen(false)}
-                  className="absolute inset-0 z-20 bg-black/10 backdrop-blur-[1px] xl:hidden"
+                  className="pointer-events-auto absolute inset-0 z-20 bg-black/10 backdrop-blur-[1px] xl:hidden"
                   aria-label="Close master plan panel"
                 />
               ) : null}
@@ -608,7 +692,7 @@ export default function MasterPlanLayout({
               <button
                 type="button"
                 onClick={() => setIsMobileSheetOpen(true)}
-                className="absolute bottom-6 right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl xl:hidden"
+                className="pointer-events-auto absolute bottom-6 right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl xl:hidden"
               >
                 <SlidersHorizontal className="h-4 w-4" />
                 {filteredApartments.length} units
