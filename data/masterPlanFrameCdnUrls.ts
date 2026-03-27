@@ -1,7 +1,7 @@
 export const TOTAL_MASTER_PLAN_FRAMES = 360;
 
 const MASTER_PLAN_FRAME_CDN_BASE_URL =
-  "https://res.cloudinary.com/dlhfbu3kh/image/upload";
+  "https://res.cloudinary.com/dlhfbu3kh/image/upload/";
 
 export function wrapMasterPlanFrame(frame: number) {
   return (

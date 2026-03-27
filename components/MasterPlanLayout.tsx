@@ -40,8 +40,8 @@ const statusOptions = ["All", "Available", "Reserved", "Sold"] as const;
 const bhkOptions = ["All", "2", "3"] as const;
 const INVENTORY_REFRESH_INTERVAL = 15000;
 const TOTAL_MASTER_PLAN_FRAMES = 360;
-const FRAME_HOLD_DELAY_MS = 180;
-const FRAME_HOLD_INTERVAL_MS = 42;
+const MASTER_PLAN_SNAP_FRAMES = [1, 90, 180, 270, 360] as const;
+const HOTSPOT_ANIMATION_FRAME_MS = 14;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
@@ -138,8 +138,9 @@ export default function MasterPlanLayout({
   const leavingRef = useRef(false);
   const touchStartYRef = useRef<number | null>(null);
   const inventorySignatureRef = useRef(getApartmentSignature(initialApartments));
-  const frameHoldTimeoutRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
-  const frameHoldIntervalRef = useRef<ReturnType<typeof globalThis.setInterval> | null>(null);
+  const currentFrameRef = useRef(1);
+  const hotspotAnimationFrameRef = useRef<number | null>(null);
+  const hotspotAnimationLastTickRef = useRef(0);
 
   const [search, setSearch] = useState("");
   const [selectedTower, setSelectedTower] = useState<TowerType | null>(null);
@@ -161,6 +162,10 @@ export default function MasterPlanLayout({
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(1);
   const deferredSearch = useDeferredValue(search);
+
+  useEffect(() => {
+    currentFrameRef.current = currentFrame;
+  }, [currentFrame]);
 
   useEffect(() => {
     let isMounted = true;
@@ -330,41 +335,83 @@ export default function MasterPlanLayout({
 
   const setWrappedFrame = useCallback(
     (frame: number) => {
+      if (hotspotAnimationFrameRef.current !== null) {
+        window.cancelAnimationFrame(hotspotAnimationFrameRef.current);
+        hotspotAnimationFrameRef.current = null;
+      }
+      hotspotAnimationLastTickRef.current = 0;
       setCurrentFrame(wrapFrame(frame));
     },
     [wrapFrame],
   );
 
-  const stepFrame = useCallback((direction: 1 | -1) => {
-    setCurrentFrame((current) => wrapFrame(current + direction));
-  }, [wrapFrame]);
-
-  const stopFrameHold = useCallback(() => {
-    if (frameHoldTimeoutRef.current !== null) {
-      globalThis.clearTimeout(frameHoldTimeoutRef.current);
-      frameHoldTimeoutRef.current = null;
+  const stopHotspotAnimation = useCallback(() => {
+    if (hotspotAnimationFrameRef.current !== null) {
+      window.cancelAnimationFrame(hotspotAnimationFrameRef.current);
+      hotspotAnimationFrameRef.current = null;
     }
 
-    if (frameHoldIntervalRef.current !== null) {
-      globalThis.clearInterval(frameHoldIntervalRef.current);
-      frameHoldIntervalRef.current = null;
-    }
+    hotspotAnimationLastTickRef.current = 0;
   }, []);
 
-  const startFrameHold = useCallback(
+  const getNextHotspotFrame = useCallback(
+    (frame: number, direction: 1 | -1) => {
+      const normalizedFrame = wrapFrame(frame);
+
+      if (direction === 1) {
+        return (
+          MASTER_PLAN_SNAP_FRAMES.find((snapFrame) => snapFrame > normalizedFrame) ??
+          MASTER_PLAN_SNAP_FRAMES[0]
+        );
+      }
+
+      const previousSnapFrames = MASTER_PLAN_SNAP_FRAMES.filter(
+        (snapFrame) => snapFrame < normalizedFrame,
+      );
+
+      return previousSnapFrames.at(-1) ?? MASTER_PLAN_SNAP_FRAMES.at(-1) ?? 1;
+    },
+    [wrapFrame],
+  );
+
+  const goToHotspot = useCallback(
     (direction: 1 | -1) => {
       if (leavingRef.current) return;
 
-      stopFrameHold();
-      stepFrame(direction);
+      stopHotspotAnimation();
+      const targetFrame = getNextHotspotFrame(currentFrameRef.current, direction);
 
-      frameHoldTimeoutRef.current = globalThis.setTimeout(() => {
-        frameHoldIntervalRef.current = globalThis.setInterval(() => {
-          stepFrame(direction);
-        }, FRAME_HOLD_INTERVAL_MS);
-      }, FRAME_HOLD_DELAY_MS);
+      if (targetFrame === currentFrameRef.current) {
+        return;
+      }
+
+      const animateToHotspot = (timestamp: number) => {
+        if (hotspotAnimationLastTickRef.current === 0) {
+          hotspotAnimationLastTickRef.current = timestamp;
+        }
+
+        const elapsed = timestamp - hotspotAnimationLastTickRef.current;
+
+        if (elapsed >= HOTSPOT_ANIMATION_FRAME_MS) {
+          hotspotAnimationLastTickRef.current = timestamp;
+          const nextFrame = wrapFrame(currentFrameRef.current + direction);
+          currentFrameRef.current = nextFrame;
+          setCurrentFrame(nextFrame);
+
+          if (nextFrame === targetFrame) {
+            stopHotspotAnimation();
+            return;
+          }
+        }
+
+        hotspotAnimationFrameRef.current =
+          window.requestAnimationFrame(animateToHotspot);
+      };
+
+      hotspotAnimationFrameRef.current =
+        window.requestAnimationFrame(animateToHotspot);
     },
-    [stepFrame, stopFrameHold],
+    [getNextHotspotFrame, stopHotspotAnimation, wrapFrame],
   );
 
   const leaveToHome = useCallback(async () => {
@@ -372,7 +419,7 @@ export default function MasterPlanLayout({
     leavingRef.current = true;
 
     setIsLeaving(true);
-    stopFrameHold();
+    stopHotspotAnimation();
 
     const reverseVideo = reverseVideoRef.current;
     if (!reverseVideo) {
@@ -388,13 +435,13 @@ export default function MasterPlanLayout({
     } catch {
       router.push("/");
     }
-  }, [router, stopFrameHold]);
+  }, [router, stopHotspotAnimation]);
 
   useEffect(() => {
     return () => {
-      stopFrameHold();
+      stopHotspotAnimation();
     };
-  }, [stopFrameHold]);
+  }, [stopHotspotAnimation]);
 
   useEffect(() => {
     const isInsideScrollArea = (target: EventTarget | null) => {
@@ -444,13 +491,13 @@ export default function MasterPlanLayout({
 
       if (e.key === "ArrowLeft") {
         e.preventDefault();
-        stepFrame(-1);
+        goToHotspot(-1);
         return;
       }
 
       if (e.key === "ArrowRight") {
         e.preventDefault();
-        stepFrame(1);
+        goToHotspot(1);
         return;
       }
 
@@ -520,7 +567,7 @@ export default function MasterPlanLayout({
         blockAllScrollLikeActions as EventListener,
       );
     };
-  }, [leaveToHome, stepFrame]);
+  }, [goToHotspot, leaveToHome]);
 
   return (
     <div
@@ -561,35 +608,29 @@ export default function MasterPlanLayout({
           <div className="pointer-events-auto inline-flex items-center gap-3 rounded-full border border-white/60 bg-white/82 px-3 py-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-black/42">
             <button
               type="button"
-              onPointerDown={() => startFrameHold(-1)}
-              onPointerUp={stopFrameHold}
-              onPointerLeave={stopFrameHold}
-              onPointerCancel={stopFrameHold}
+              onClick={() => goToHotspot(-1)}
               onContextMenu={(event) => event.preventDefault()}
               className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white text-zinc-900 transition hover:scale-[1.03] hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-              aria-label="Previous master plan frame"
+              aria-label="Previous master plan hotspot"
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
 
             <div className="hidden text-center sm:block">
               <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-500 dark:text-white/45">
-                Master Plan Frames
+                Master Plan Hotspots
               </div>
               <div className="mt-1 text-[11px] font-medium text-zinc-700 dark:text-white/78">
-                Drag anywhere or hold the arrows to scrub through all 360 frames
+                Drag anywhere to scrub, or use the arrows to jump between the main views
               </div>
             </div>
 
             <button
               type="button"
-              onPointerDown={() => startFrameHold(1)}
-              onPointerUp={stopFrameHold}
-              onPointerLeave={stopFrameHold}
-              onPointerCancel={stopFrameHold}
+              onClick={() => goToHotspot(1)}
               onContextMenu={(event) => event.preventDefault()}
               className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white text-zinc-900 transition hover:scale-[1.03] hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
-              aria-label="Next master plan frame"
+              aria-label="Next master plan hotspot"
             >
               <ArrowRight className="h-4 w-4" />
             </button>
