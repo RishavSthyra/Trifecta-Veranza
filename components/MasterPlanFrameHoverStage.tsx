@@ -2,6 +2,7 @@
 
 import {
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -26,7 +27,16 @@ import {
   Vector3,
 } from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { getMasterPlanFrameCdnUrl } from "@/data/masterPlanFrameCdnUrls";
+import {
+  getMasterPlanFramePreloadSequence,
+  TOTAL_MASTER_PLAN_FRAMES,
+} from "@/data/masterPlanFrameCdnUrls";
+import {
+  ensureMasterPlanFrameConnectionHints,
+  getCachedMasterPlanFrameImage,
+  preloadMasterPlanFrame,
+  preloadMasterPlanFrames,
+} from "@/lib/masterPlanFramePreload";
 import type {
   InventoryApartment,
   InventoryStatus,
@@ -36,11 +46,14 @@ import type {
 const MODEL_PATH = "/models/Tower-Planes.glb";
 const APARTMENT_ID_PATTERN = /^(Tower_[A-Z]_\d{2}_\d{3,4})_/;
 const TARGET_MODEL_HEIGHT = 10;
-const TOTAL_FRAMES = 360;
+const TOTAL_FRAMES = TOTAL_MASTER_PLAN_FRAMES;
 const SNAP_FRAMES = [1, 90, 180, 270, 360] as const;
 const DRAG_THRESHOLD_PX = 8;
 const DRAG_PIXELS_PER_FRAME = 10;
 const SNAP_ANIMATION_FRAME_MS = 14;
+const NEARBY_PRELOAD_FRAME_COUNT = 15;
+const BACKGROUND_PRELOAD_FRAME_COUNT = 120;
+const BACKGROUND_PRELOAD_BATCH_SIZE = 4;
 
 // Placeholder alignment until Unreal tracking data is available.
 const BASE_CAMERA_POSITION: [number, number, number] = [10.5, 7.25, 13.5];
@@ -95,8 +108,52 @@ function wrapFrame(frame: number) {
   return ((frame - 1 + TOTAL_FRAMES) % TOTAL_FRAMES) + 1;
 }
 
-function getFrameSrc(frame: number) {
-  return getMasterPlanFrameCdnUrl(wrapFrame(frame));
+function drawFrameToCanvas(
+  canvas: HTMLCanvasElement,
+  image: HTMLImageElement,
+  container: HTMLElement,
+) {
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    return;
+  }
+
+  const width = Math.max(Math.round(container.clientWidth), 1);
+  const height = Math.max(Math.round(container.clientHeight), 1);
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  const targetWidth = Math.max(Math.round(width * devicePixelRatio), 1);
+  const targetHeight = Math.max(Math.round(height * devicePixelRatio), 1);
+
+  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+  }
+
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.scale(devicePixelRatio, devicePixelRatio);
+
+  const imageAspectRatio = image.naturalWidth / image.naturalHeight;
+  const canvasAspectRatio = width / height;
+  let drawWidth = width;
+  let drawHeight = height;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  if (imageAspectRatio > canvasAspectRatio) {
+    drawHeight = height;
+    drawWidth = height * imageAspectRatio;
+    offsetX = (width - drawWidth) / 2;
+  } else {
+    drawWidth = width;
+    drawHeight = width / imageAspectRatio;
+    offsetY = (height - drawHeight) / 2;
+  }
+
+  context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
 }
 
 function getFrameRotation(frame: number) {
@@ -628,21 +685,40 @@ export default function MasterPlanFrameHoverStage({
   onSetFrame,
   selectedTower,
 }: MasterPlanFrameHoverStageProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
+  const initialFrameRef = useRef(wrapFrame(currentFrame));
+  const paintedFrameRef = useRef<number | null>(null);
+  const frameSwapRequestRef = useRef(0);
   const snapAnimationFrameRef = useRef<number | null>(null);
   const snapAnimationLastTickRef = useRef(0);
   const hoveredApartmentIdRef = useRef<string | null>(null);
   const [hoveredApartmentId, setHoveredApartmentId] = useState<string | null>(
     null,
   );
+  const [displayedFrame, setDisplayedFrame] = useState(() =>
+    wrapFrame(currentFrame),
+  );
   const [isDragging, setIsDragging] = useState(false);
   const [isSnapping, setIsSnapping] = useState(false);
   const [supportsPreciseHover, setSupportsPreciseHover] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const safeFrame = wrapFrame(currentFrame);
-  const frameSrc = getFrameSrc(safeFrame);
+  const drawDisplayedFrame = useCallback((frame: number) => {
+    const canvas = canvasRef.current;
+    const container = sectionRef.current;
+    const image = getCachedMasterPlanFrameImage(frame);
+
+    if (!canvas || !container || !image) {
+      return false;
+    }
+
+    drawFrameToCanvas(canvas, image, container);
+    paintedFrameRef.current = frame;
+    return true;
+  }, []);
 
   const stopSnapAnimation = () => {
     if (snapAnimationFrameRef.current !== null) {
@@ -678,19 +754,116 @@ export default function MasterPlanFrameHoverStage({
   }, []);
 
   useEffect(() => {
-    const framesToPreload = [
+    const framesToPreload = getMasterPlanFramePreloadSequence(
       safeFrame,
-      wrapFrame(safeFrame + 1),
-      wrapFrame(safeFrame - 1),
-      wrapFrame(safeFrame + 2),
-      wrapFrame(safeFrame - 2),
-    ];
+      NEARBY_PRELOAD_FRAME_COUNT,
+    );
 
-    framesToPreload.forEach((frame) => {
-      const image = new window.Image();
-      image.src = getFrameSrc(frame);
+    framesToPreload.forEach((frame, index) => {
+      preloadMasterPlanFrame(frame, {
+        decode: index < 3,
+        fetchPriority: index < 2 ? "high" : "low",
+      });
     });
   }, [safeFrame]);
+
+  useEffect(() => {
+    ensureMasterPlanFrameConnectionHints();
+
+    return preloadMasterPlanFrames(
+      getMasterPlanFramePreloadSequence(
+        initialFrameRef.current,
+        BACKGROUND_PRELOAD_FRAME_COUNT,
+      ),
+      {
+        batchSize: BACKGROUND_PRELOAD_BATCH_SIZE,
+        decode: true,
+        initialHighPriorityCount: 10,
+      },
+    );
+  }, []);
+
+  useEffect(() => {
+    if (drawDisplayedFrame(displayedFrame)) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void preloadMasterPlanFrame(displayedFrame, {
+      decode: true,
+      fetchPriority: "high",
+    })
+      .then(() => {
+        if (!cancelled) {
+          drawDisplayedFrame(displayedFrame);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [displayedFrame, drawDisplayedFrame]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleResize = () => {
+      if (paintedFrameRef.current !== null) {
+        drawDisplayedFrame(paintedFrameRef.current);
+      }
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined" && sectionRef.current
+        ? new ResizeObserver(handleResize)
+        : null;
+
+    if (sectionRef.current && resizeObserver) {
+      resizeObserver.observe(sectionRef.current);
+    }
+
+    window.addEventListener("resize", handleResize);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [drawDisplayedFrame]);
+
+  useEffect(() => {
+    if (displayedFrame === safeFrame || typeof window === "undefined") {
+      return;
+    }
+
+    const requestId = frameSwapRequestRef.current + 1;
+    frameSwapRequestRef.current = requestId;
+    let cancelled = false;
+
+    const commitFrameSwap = () => {
+      if (cancelled || frameSwapRequestRef.current !== requestId) {
+        return;
+      }
+
+      if (drawDisplayedFrame(safeFrame)) {
+        setDisplayedFrame(safeFrame);
+      }
+    };
+
+    void preloadMasterPlanFrame(safeFrame, {
+      decode: true,
+      fetchPriority: "high",
+    })
+      .then(commitFrameSwap)
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [displayedFrame, safeFrame, drawDisplayedFrame]);
 
   useEffect(() => {
     return () => {
@@ -859,11 +1032,10 @@ export default function MasterPlanFrameHoverStage({
       ref={sectionRef}
       className="absolute inset-0 overflow-hidden bg-black"
     >
-      <img
-        src={frameSrc}
-        alt={`Master plan frame ${safeFrame}`}
-        className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        draggable={false}
+      <canvas
+        ref={canvasRef}
+        aria-label={`Master plan frame ${displayedFrame}`}
+        className="pointer-events-none absolute inset-0 h-full w-full"
       />
 
       <div className="absolute inset-0">
