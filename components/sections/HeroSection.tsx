@@ -5,10 +5,7 @@ import { motion, type Variants } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ensureMasterPlanFrameConnectionHints,
-  preloadMasterPlanFrameWindow,
-} from "@/lib/masterPlanFramePreload";
+import { MASTER_PLAN_SCRUB_HQ_VIDEO_PATH } from "@/data/masterPlanFrameCdnUrls";
 
 type IdleCapableWindow = Window &
   typeof globalThis & {
@@ -20,14 +17,12 @@ type IdleCapableWindow = Window &
   };
 
 type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
-const HERO_MASTER_PLAN_PRELOAD_COUNT = 36;
 
 export default function HeroSection() {
   const router = useRouter();
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
   const entryVideoRef = useRef<HTMLVideoElement | null>(null);
   const idleWarmVideoRef = useRef<HTMLVideoElement | null>(null);
-  const warmFramesCleanupRef = useRef<(() => void) | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const scrollLockRef = useRef(false);
 
@@ -118,17 +113,6 @@ export default function HeroSection() {
     }
   }, [router]);
 
-  const warmMasterPlanFrames = useCallback(() => {
-    ensureMasterPlanFrameConnectionHints();
-    warmFramesCleanupRef.current?.();
-    warmFramesCleanupRef.current = preloadMasterPlanFrameWindow(1, {
-      batchSize: 3,
-      count: HERO_MASTER_PLAN_PRELOAD_COUNT,
-      decode: false,
-      initialHighPriorityCount: 8,
-    });
-  }, []);
-
   const goToNextPage = useCallback(() => {
     if (scrollLockRef.current || isTransitioningToMasterPlan) return;
 
@@ -137,17 +121,10 @@ export default function HeroSection() {
     router.prefetch("/master-plan");
     entryVideoRef.current?.load();
     idleWarmVideoRef.current?.load();
-    warmMasterPlanFrames();
     if (entryVideoReady) {
       void startEntryVideo();
     }
-  }, [
-    entryVideoReady,
-    isTransitioningToMasterPlan,
-    router,
-    startEntryVideo,
-    warmMasterPlanFrames,
-  ]);
+  }, [entryVideoReady, isTransitioningToMasterPlan, router, startEntryVideo]);
 
   useEffect(() => {
     const heroVideo = heroVideoRef.current;
@@ -200,7 +177,6 @@ export default function HeroSection() {
       router.prefetch("/master-plan");
       entryVideoRef.current?.load();
       idleWarmVideoRef.current?.load();
-      warmMasterPlanFrames();
     };
 
     if (typeof idleWindow.requestIdleCallback === "function") {
@@ -223,13 +199,7 @@ export default function HeroSection() {
         globalThis.clearTimeout(timeoutId);
       }
     };
-  }, [router, videoReady, warmMasterPlanFrames]);
-
-  useEffect(() => {
-    return () => {
-      warmFramesCleanupRef.current?.();
-    };
-  }, []);
+  }, [router, videoReady]);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -306,11 +276,11 @@ export default function HeroSection() {
         ref={idleWarmVideoRef}
         muted
         playsInline
-        preload="auto"
+        preload="metadata"
         aria-hidden="true"
         className="pointer-events-none absolute h-0 w-0 opacity-0"
       >
-        <source src="/master_plan_idle_loop.webm" type="video/webm" />
+        <source src={MASTER_PLAN_SCRUB_HQ_VIDEO_PATH} type="video/mp4" />
       </video>
 
       <motion.div

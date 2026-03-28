@@ -40,10 +40,7 @@ const statusOptions = ["All", "Available", "Reserved", "Sold"] as const;
 const bhkOptions = ["All", "2", "3"] as const;
 const INVENTORY_REFRESH_INTERVAL = 15000;
 const TOTAL_MASTER_PLAN_FRAMES = 360;
-const MASTER_PLAN_SNAP_FRAMES = [1, 90, 180, 270, 360] as const;
-const HOTSPOT_ANIMATION_MIN_DURATION_MS = 220;
-const HOTSPOT_ANIMATION_MAX_DURATION_MS = 420;
-const HOTSPOT_ANIMATION_MS_PER_FRAME = 4.5;
+const MASTER_PLAN_SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
@@ -97,10 +94,6 @@ const itemAnim: Variants = {
   },
 };
 
-function easeOutCubic(progress: number) {
-  return 1 - (1 - progress) ** 3;
-}
-
 type MasterPlanLayoutProps = {
   initialApartments?: InventoryApartment[];
 };
@@ -145,8 +138,6 @@ export default function MasterPlanLayout({
   const touchStartYRef = useRef<number | null>(null);
   const inventorySignatureRef = useRef(getApartmentSignature(initialApartments));
   const currentFrameRef = useRef(1);
-  const hotspotAnimationFrameRef = useRef<number | null>(null);
-  const hotspotAnimationStartTimeRef = useRef(0);
 
   const [search, setSearch] = useState("");
   const [selectedTower, setSelectedTower] = useState<TowerType | null>(null);
@@ -311,6 +302,17 @@ export default function MasterPlanLayout({
     maxPrice,
     minArea,
   ]);
+  const hasActiveInventoryFilters = useMemo(
+    () =>
+      deferredSearch.trim().length > 0 ||
+      bhk !== "All" ||
+      facing !== "All" ||
+      status !== "All" ||
+      minPrice > 0 ||
+      maxPrice < 200 ||
+      minArea > 0,
+    [deferredSearch, bhk, facing, status, minPrice, maxPrice, minArea],
+  );
 
   const resetFilters = () => {
     setSearch("");
@@ -341,24 +343,12 @@ export default function MasterPlanLayout({
 
   const setWrappedFrame = useCallback(
     (frame: number) => {
-      if (hotspotAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(hotspotAnimationFrameRef.current);
-        hotspotAnimationFrameRef.current = null;
-      }
-      hotspotAnimationStartTimeRef.current = 0;
-      setCurrentFrame(wrapFrame(frame));
+      const nextFrame = wrapFrame(frame);
+      currentFrameRef.current = nextFrame;
+      setCurrentFrame(nextFrame);
     },
     [wrapFrame],
   );
-
-  const stopHotspotAnimation = useCallback(() => {
-    if (hotspotAnimationFrameRef.current !== null) {
-      window.cancelAnimationFrame(hotspotAnimationFrameRef.current);
-      hotspotAnimationFrameRef.current = null;
-    }
-
-    hotspotAnimationStartTimeRef.current = 0;
-  }, []);
 
   const getNextHotspotFrame = useCallback(
     (frame: number, direction: 1 | -1) => {
@@ -384,62 +374,14 @@ export default function MasterPlanLayout({
     (direction: 1 | -1) => {
       if (leavingRef.current) return;
 
-      stopHotspotAnimation();
       const targetFrame = getNextHotspotFrame(currentFrameRef.current, direction);
-      const startFrame = currentFrameRef.current;
-
-      if (targetFrame === startFrame) {
+      if (targetFrame === currentFrameRef.current) {
         return;
       }
-
-      const totalFrames =
-        direction === 1
-          ? (targetFrame - startFrame + TOTAL_MASTER_PLAN_FRAMES) %
-            TOTAL_MASTER_PLAN_FRAMES
-          : (startFrame - targetFrame + TOTAL_MASTER_PLAN_FRAMES) %
-            TOTAL_MASTER_PLAN_FRAMES;
-      const duration = Math.min(
-        HOTSPOT_ANIMATION_MAX_DURATION_MS,
-        Math.max(
-          HOTSPOT_ANIMATION_MIN_DURATION_MS,
-          totalFrames * HOTSPOT_ANIMATION_MS_PER_FRAME,
-        ),
-      );
-
-      const animateToHotspot = (timestamp: number) => {
-        if (hotspotAnimationStartTimeRef.current === 0) {
-          hotspotAnimationStartTimeRef.current = timestamp;
-        }
-
-        const elapsed = timestamp - hotspotAnimationStartTimeRef.current;
-        const progress = Math.min(elapsed / duration, 1);
-        const easedProgress = easeOutCubic(progress);
-        const travelledFrames = Math.min(
-          totalFrames,
-          Math.round(totalFrames * easedProgress),
-        );
-        const nextFrame = wrapFrame(startFrame + travelledFrames * direction);
-
-        if (currentFrameRef.current !== nextFrame) {
-          currentFrameRef.current = nextFrame;
-          setCurrentFrame(nextFrame);
-        }
-
-        if (progress >= 1 || nextFrame === targetFrame) {
-          currentFrameRef.current = targetFrame;
-          setCurrentFrame(targetFrame);
-          stopHotspotAnimation();
-          return;
-        }
-
-        hotspotAnimationFrameRef.current =
-          window.requestAnimationFrame(animateToHotspot);
-      };
-
-      hotspotAnimationFrameRef.current =
-        window.requestAnimationFrame(animateToHotspot);
+      currentFrameRef.current = targetFrame;
+      setCurrentFrame(targetFrame);
     },
-    [getNextHotspotFrame, stopHotspotAnimation, wrapFrame],
+    [getNextHotspotFrame],
   );
 
   const leaveToHome = useCallback(async () => {
@@ -447,7 +389,6 @@ export default function MasterPlanLayout({
     leavingRef.current = true;
 
     setIsLeaving(true);
-    stopHotspotAnimation();
 
     const reverseVideo = reverseVideoRef.current;
     if (!reverseVideo) {
@@ -463,13 +404,7 @@ export default function MasterPlanLayout({
     } catch {
       router.push("/");
     }
-  }, [router, stopHotspotAnimation]);
-
-  useEffect(() => {
-    return () => {
-      stopHotspotAnimation();
-    };
-  }, [stopHotspotAnimation]);
+  }, [router]);
 
   useEffect(() => {
     const isInsideScrollArea = (target: EventTarget | null) => {
@@ -605,6 +540,7 @@ export default function MasterPlanLayout({
       <MasterPlanFrameHoverStage
         apartments={apartments}
         currentFrame={currentFrame}
+        filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
         inventoryError={inventoryError}
         inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
         onSetFrame={setWrappedFrame}
@@ -627,7 +563,7 @@ export default function MasterPlanLayout({
         />
       </video>
 
-      {!isLeaving ? (
+      {!isLeaving && selectedTower === "Tower B" ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
       ) : null}
 

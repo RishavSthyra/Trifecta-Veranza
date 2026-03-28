@@ -2,61 +2,72 @@
 
 import {
   Suspense,
+  memo,
+  type MutableRefObject,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
-import { Canvas, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   Html,
-  Outlines,
+  Line,
   PerspectiveCamera,
   useGLTF,
 } from "@react-three/drei";
 import {
   Box3,
   DoubleSide,
+  EdgesGeometry,
+  Euler,
   Group,
+  MathUtils,
   Material,
   Matrix4,
   Mesh,
   Object3D,
+  PerspectiveCamera as ThreePerspectiveCamera,
+  Quaternion,
   Vector2,
   Vector3,
 } from "three";
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import {
-  getMasterPlanFramePreloadSequence,
+  MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
+  MASTER_PLAN_SCRUB_VIDEO_FPS,
   TOTAL_MASTER_PLAN_FRAMES,
 } from "@/data/masterPlanFrameCdnUrls";
-import {
-  ensureMasterPlanFrameConnectionHints,
-  getCachedMasterPlanFrameImage,
-  preloadMasterPlanFrame,
-  preloadMasterPlanFrames,
-} from "@/lib/masterPlanFramePreload";
+import trackingData from "@/data/trifecta_unreal_tracking_data.json";
 import type {
   InventoryApartment,
   InventoryStatus,
   TowerType,
 } from "@/types/inventory";
 
-const MODEL_PATH = "/models/Tower-Planes.glb";
+const MODEL_PATH = "/models/Towers_Final.glb";
 const APARTMENT_ID_PATTERN = /^(Tower_[A-Z]_\d{2}_\d{3,4})_/;
 const TARGET_MODEL_HEIGHT = 10;
 const TOTAL_FRAMES = TOTAL_MASTER_PLAN_FRAMES;
-const SNAP_FRAMES = [1, 90, 180, 270, 360] as const;
+const SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
 const DRAG_THRESHOLD_PX = 8;
 const DRAG_PIXELS_PER_FRAME = 8;
-const DRAG_FRAME_STEP = 2;
-const SNAP_ANIMATION_MIN_DURATION_MS = 180;
-const SNAP_ANIMATION_MAX_DURATION_MS = 420;
+const DRAG_MAX_LEAD_FRAMES = 12;
+const DRAG_PROGRESS_LERP_FORWARD = 0.28;
+const DRAG_PROGRESS_LERP_BACKWARD = 0.36;
+const DRAG_PROGRESS_DIRECT_COMMIT_THRESHOLD = 0.02;
+const DRAG_PROGRESS_EPSILON = 0.00008;
+const SNAP_ANIMATION_MIN_DURATION_MS = 240;
+const SNAP_ANIMATION_MAX_DURATION_MS = 460;
 const SNAP_ANIMATION_MS_PER_FRAME = 4.5;
-const NEARBY_PRELOAD_FRAME_COUNT = 12;
-const BACKGROUND_PRELOAD_FRAME_COUNT = 72;
-const BACKGROUND_PRELOAD_BATCH_SIZE = 2;
+const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 560;
+const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 980;
+const HOTSPOT_NAVIGATION_MS_PER_FRAME = 9.5;
+const TRACKING_VIDEO_ASPECT = 16 / 9;
+const VIDEO_SYNC_THRESHOLD_SECONDS = 1 / (MASTER_PLAN_SCRUB_VIDEO_FPS * 1.5);
+const VIDEO_FAST_SEEK_THRESHOLD_SECONDS = 0.18;
+const ENABLE_TRACKING_DEBUG = false;
 
 // Placeholder alignment until Unreal tracking data is available.
 const BASE_CAMERA_POSITION: [number, number, number] = [10.5, 7.25, 13.5];
@@ -64,6 +75,12 @@ const BASE_MODEL_OFFSET: [number, number, number] = [1.8, 0, 0];
 
 type InventoryLoadState = "loading" | "ready" | "error";
 type PointerPosition = { x: number; y: number };
+type CoverViewport = {
+  height: number;
+  left: number;
+  top: number;
+  width: number;
+};
 
 type HoverMeshData = {
   geometry: Mesh["geometry"];
@@ -73,20 +90,101 @@ type HoverMeshData = {
 
 type PreparedTowerModel = {
   apartments: Map<string, HoverMeshData[]>;
+  debugTarget: Vector3;
+  modelTowerDummies: TowerFootprint | null;
   offset: [number, number, number];
   pickableMeshes: Mesh[];
   scaledHeight: number;
   scene: Group;
   scale: number;
+  trackedTowerFootprints: Partial<Record<TowerCode, TowerFootprint>>;
+  towerFootprints: Partial<Record<TowerCode, TowerFootprint>>;
 };
 
 type DragState = {
   didDrag: boolean;
-  lastFrame: number;
   pointerId: number;
-  startFrame: number;
+  startProgress: number;
   startX: number;
 };
+
+type TowerCode = "A" | "B";
+
+type UnrealCameraKey = keyof typeof trackingData;
+
+type TowerFootprint = {
+  ta1: Vector3;
+  ta2: Vector3;
+  ta3: Vector3;
+  ta4: Vector3;
+};
+
+type TrackingDebugPoint = {
+  color: string;
+  key: string;
+  label: string;
+  position: Vector3;
+};
+
+type TrackingCameraRay = {
+  color: string;
+  end: Vector3;
+  key: string;
+  label: string;
+  start: Vector3;
+};
+
+type TrackingCameraView = {
+  fov: number;
+  position: Vector3;
+  quaternion: Quaternion;
+  target: Vector3;
+};
+type SimilarityTransform = {
+  position: Vector3;
+  quaternion: Quaternion;
+  scale: number;
+};
+type UnrealVector3Like = {
+  x: number;
+  y: number;
+  z: number;
+};
+
+const TOWER_A_TRACKING_KEYS = [
+  "A1",
+  "A2",
+  "A3",
+  "A4",
+  "A5",
+  "A6",
+] as const satisfies UnrealCameraKey[];
+const TRACKING_CAMERA_DISTANCE = 12;
+const HIGHLIGHT_EDGE_GEOMETRY_CACHE = new WeakMap<Mesh["geometry"], EdgesGeometry>();
+
+function getHighlightEdgesGeometry(geometry: Mesh["geometry"]) {
+  const cachedGeometry = HIGHLIGHT_EDGE_GEOMETRY_CACHE.get(geometry);
+
+  if (cachedGeometry) {
+    return cachedGeometry;
+  }
+
+  const edgesGeometry = new EdgesGeometry(geometry, 20);
+  HIGHLIGHT_EDGE_GEOMETRY_CACHE.set(geometry, edgesGeometry);
+  return edgesGeometry;
+}
+
+function createExpandedHighlightMatrix(matrix: Matrix4, scaleMultiplier: number) {
+  return matrix
+    .clone()
+    .multiply(
+      new Matrix4().makeScale(
+        scaleMultiplier,
+        scaleMultiplier,
+        scaleMultiplier,
+      ),
+    );
+}
 
 function extractApartmentIdFromName(name: string) {
   return name.match(APARTMENT_ID_PATTERN)?.[1] ?? null;
@@ -107,60 +205,49 @@ function resolveApartmentIdFromObject(object: Object3D | null) {
   return null;
 }
 
+function resolveTowerCodeFromObject(object: Object3D | null): TowerCode | null {
+  let current: Object3D | null = object;
+
+  while (current) {
+    const apartmentId = extractApartmentIdFromName(current.name);
+
+    if (apartmentId) {
+      return apartmentId.split("_")[1] === "B" ? "B" : "A";
+    }
+
+    const towerMatch = current.name.match(/Tower_([AB])_/i);
+
+    if (towerMatch) {
+      return towerMatch[1].toUpperCase() === "B" ? "B" : "A";
+    }
+
+    current = current.parent;
+  }
+
+  return null;
+}
+
 function wrapFrame(frame: number) {
   return ((frame - 1 + TOTAL_FRAMES) % TOTAL_FRAMES) + 1;
 }
 
-function drawFrameToCanvas(
-  canvas: HTMLCanvasElement,
-  image: HTMLImageElement,
-  container: HTMLElement,
-) {
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    return;
-  }
-
-  const width = Math.max(Math.round(container.clientWidth), 1);
-  const height = Math.max(Math.round(container.clientHeight), 1);
-  const devicePixelRatio = Math.min(window.devicePixelRatio || 1, 1);
-  const targetWidth = Math.max(Math.round(width * devicePixelRatio), 1);
-  const targetHeight = Math.max(Math.round(height * devicePixelRatio), 1);
-
-  if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-    canvas.style.width = `${width}px`;
-    canvas.style.height = `${height}px`;
-  }
-
-  context.setTransform(1, 0, 0, 1, 0, 0);
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.scale(devicePixelRatio, devicePixelRatio);
-
-  const imageAspectRatio = image.naturalWidth / image.naturalHeight;
-  const canvasAspectRatio = width / height;
-  let drawWidth = width;
-  let drawHeight = height;
-  let offsetX = 0;
-  let offsetY = 0;
-
-  if (imageAspectRatio > canvasAspectRatio) {
-    drawHeight = height;
-    drawWidth = height * imageAspectRatio;
-    offsetX = (width - drawWidth) / 2;
-  } else {
-    drawWidth = width;
-    drawHeight = width / imageAspectRatio;
-    offsetY = (height - drawHeight) / 2;
-  }
-
-  context.drawImage(image, offsetX, offsetY, drawWidth, drawHeight);
+function wrapProgress(progress: number) {
+  return ((progress % 1) + 1) % 1;
 }
 
-function getFrameRotation(frame: number) {
-  return -(((wrapFrame(frame) - 1) / TOTAL_FRAMES) * Math.PI * 2);
+function frameToProgress(frame: number) {
+  return (wrapFrame(frame) - 1) / TOTAL_FRAMES;
+}
+
+function progressToFrame(progress: number) {
+  const normalizedProgress = wrapProgress(progress);
+  const roundedFrame =
+    Math.round(normalizedProgress * TOTAL_FRAMES) % TOTAL_FRAMES;
+  return wrapFrame(roundedFrame + 1);
+}
+
+function getProgressRotation(progress: number) {
+  return -(wrapProgress(progress) * Math.PI * 2);
 }
 
 function isSnapFrame(frame: number) {
@@ -188,34 +275,550 @@ function getNearestSnapFrame(frame: number) {
   return closestFrame;
 }
 
-function getShortestSnapStep(currentFrame: number, targetFrame: number) {
-  const normalizedCurrent = wrapFrame(currentFrame);
-  const normalizedTarget = wrapFrame(targetFrame);
-  const forwardDistance =
-    (normalizedTarget - normalizedCurrent + TOTAL_FRAMES) % TOTAL_FRAMES;
-  const backwardDistance =
-    (normalizedCurrent - normalizedTarget + TOTAL_FRAMES) % TOTAL_FRAMES;
+function getTrackingHotspotIndex(frame: number) {
+  const snapFrame = getNearestSnapFrame(frame);
+  const index = SNAP_FRAMES.findIndex((candidate) => candidate === snapFrame);
 
-  return forwardDistance <= backwardDistance ? 1 : -1;
+  return index >= 0 ? index : 0;
 }
 
-function getDirectionalFrameDistance(
-  startFrame: number,
-  targetFrame: number,
-  direction: 1 | -1,
+function getShortestProgressDelta(startProgress: number, endProgress: number) {
+  const normalizedStart = wrapProgress(startProgress);
+  const normalizedEnd = wrapProgress(endProgress);
+  const forwardDistance = (normalizedEnd - normalizedStart + 1) % 1;
+  const backwardDistance = forwardDistance - 1;
+
+  return Math.abs(forwardDistance) <= Math.abs(backwardDistance)
+    ? forwardDistance
+    : backwardDistance;
+}
+
+function clampProgressLead(
+  currentProgress: number,
+  targetProgress: number,
+  maxLeadFrames: number,
 ) {
-  const normalizedStart = wrapFrame(startFrame);
-  const normalizedTarget = wrapFrame(targetFrame);
+  const maxLeadProgress = maxLeadFrames / TOTAL_FRAMES;
+  const delta = getShortestProgressDelta(currentProgress, targetProgress);
+  const clampedDelta = Math.max(
+    -maxLeadProgress,
+    Math.min(maxLeadProgress, delta),
+  );
 
-  if (direction === 1) {
-    return (normalizedTarget - normalizedStart + TOTAL_FRAMES) % TOTAL_FRAMES;
-  }
-
-  return (normalizedStart - normalizedTarget + TOTAL_FRAMES) % TOTAL_FRAMES;
+  return wrapProgress(currentProgress + clampedDelta);
 }
 
 function easeOutCubic(progress: number) {
   return 1 - (1 - progress) ** 3;
+}
+
+function easeInOutCubic(progress: number) {
+  return progress < 0.5
+    ? 4 * progress ** 3
+    : 1 - (-2 * progress + 2) ** 3 / 2;
+}
+
+function towerTypeToCode(tower: TowerType | null) {
+  if (tower === "Tower B") {
+    return "B" as const;
+  }
+
+  return tower === "Tower A" ? ("A" as const) : null;
+}
+
+function buildTowerFootprint(
+  bounds: Box3,
+  offset: [number, number, number],
+  scale: number,
+): TowerFootprint {
+  const groundY = bounds.min.y;
+  const toSceneSpace = (x: number, y: number, z: number) =>
+    new Vector3(
+      (x + offset[0]) * scale,
+      (y + offset[1]) * scale,
+      (z + offset[2]) * scale,
+    );
+
+  return {
+    ta1: toSceneSpace(bounds.min.x, groundY, bounds.max.z),
+    ta2: toSceneSpace(bounds.max.x, groundY, bounds.max.z),
+    ta3: toSceneSpace(bounds.max.x, groundY, bounds.min.z),
+    ta4: toSceneSpace(bounds.min.x, groundY, bounds.min.z),
+  };
+}
+
+function toSceneSpacePosition(
+  position: Vector3,
+  offset: [number, number, number],
+  scale: number,
+  preserveWorldPosition = false,
+  includeBaseModelOffset = true,
+) {
+  if (preserveWorldPosition) {
+    return position.clone();
+  }
+
+  return new Vector3(
+    (position.x + offset[0]) * scale +
+      (includeBaseModelOffset ? BASE_MODEL_OFFSET[0] : 0),
+    (position.y + offset[1]) * scale +
+      (includeBaseModelOffset ? BASE_MODEL_OFFSET[1] : 0),
+    (position.z + offset[2]) * scale +
+      (includeBaseModelOffset ? BASE_MODEL_OFFSET[2] : 0),
+  );
+}
+
+function collectModelTowerDummies(scene: Group): TowerFootprint | null {
+  const dummyPositions = new Map<string, Vector3>();
+
+  scene.traverse((object) => {
+    const normalizedName = object.name.trim().toLowerCase();
+
+    if (!/^dummy_a[1-4]$/.test(normalizedName)) {
+      return;
+    }
+
+    const worldPosition = new Vector3();
+    object.getWorldPosition(worldPosition);
+    dummyPositions.set(normalizedName, worldPosition.clone());
+  });
+
+  const ta1 = dummyPositions.get("dummy_a1");
+  const ta2 = dummyPositions.get("dummy_a2");
+  const ta3 = dummyPositions.get("dummy_a3");
+  const ta4 = dummyPositions.get("dummy_a4");
+
+  if (!ta1 || !ta2 || !ta3 || !ta4) {
+    return null;
+  }
+
+  return { ta1, ta2, ta3, ta4 } satisfies TowerFootprint;
+}
+
+function getTowerFootprintsFromModelDummies(
+  scene: Group,
+  offset: [number, number, number],
+  scale: number,
+  preserveWorldPosition = false,
+  includeBaseModelOffset = true,
+): Partial<Record<TowerCode, TowerFootprint>> {
+  const modelDummies = collectModelTowerDummies(scene);
+
+  if (!modelDummies) {
+    return {} satisfies Partial<Record<TowerCode, TowerFootprint>>;
+  }
+
+  return {
+    A: {
+      ta1: toSceneSpacePosition(
+        modelDummies.ta1,
+        offset,
+        scale,
+        preserveWorldPosition,
+        includeBaseModelOffset,
+      ),
+      ta2: toSceneSpacePosition(
+        modelDummies.ta2,
+        offset,
+        scale,
+        preserveWorldPosition,
+        includeBaseModelOffset,
+      ),
+      ta3: toSceneSpacePosition(
+        modelDummies.ta3,
+        offset,
+        scale,
+        preserveWorldPosition,
+        includeBaseModelOffset,
+      ),
+      ta4: toSceneSpacePosition(
+        modelDummies.ta4,
+        offset,
+        scale,
+        preserveWorldPosition,
+        includeBaseModelOffset,
+      ),
+    },
+  } satisfies Partial<Record<TowerCode, TowerFootprint>>;
+}
+
+function getCoverViewport(
+  containerWidth: number,
+  containerHeight: number,
+  aspect: number,
+): CoverViewport {
+  if (containerWidth <= 0 || containerHeight <= 0 || aspect <= 0) {
+    return { width: 1, height: 1, left: 0, top: 0 };
+  }
+
+  const containerAspect = containerWidth / containerHeight;
+
+  if (containerAspect > aspect) {
+    const width = containerWidth;
+    const height = width / aspect;
+
+    return {
+      width,
+      height,
+      left: 0,
+      top: (containerHeight - height) / 2,
+    };
+  }
+
+  const height = containerHeight;
+  const width = height * aspect;
+
+  return {
+    width,
+    height,
+    left: (containerWidth - width) / 2,
+    top: 0,
+  };
+}
+
+function getUnrealTowerADummies() {
+  const dummies = trackingData.A1?.dummies;
+
+  if (
+    !dummies?.dummy_Ta1 ||
+    !dummies.dummy_Ta2 ||
+    !dummies.dummy_Ta3 ||
+    !dummies.dummy_Ta4
+  ) {
+    return null;
+  }
+
+  return {
+    ta1: dummies.dummy_Ta1,
+    ta2: dummies.dummy_Ta2,
+    ta3: dummies.dummy_Ta3,
+    ta4: dummies.dummy_Ta4,
+  } satisfies Record<keyof TowerFootprint, UnrealVector3Like>;
+}
+
+function getQuadPoints(quad: Record<keyof TowerFootprint, Vector3>) {
+  return [quad.ta1, quad.ta2, quad.ta3, quad.ta4];
+}
+
+function averageVector(points: Vector3[]) {
+  return points
+    .reduce((sum, point) => sum.add(point.clone()), new Vector3())
+    .multiplyScalar(1 / Math.max(points.length, 1));
+}
+
+function computeSimilarityTransformFromQuads(
+  modelQuad: TowerFootprint,
+  unrealQuad: Record<keyof TowerFootprint, Vector3>,
+): SimilarityTransform | null {
+  const modelPoints = getQuadPoints(modelQuad);
+  const unrealPoints = getQuadPoints(unrealQuad);
+  const modelCenter = averageVector(modelPoints);
+  const unrealCenter = averageVector(unrealPoints);
+  const centeredModel = modelPoints.map(
+    (point) => new Vector2(point.x - modelCenter.x, point.z - modelCenter.z),
+  );
+  const centeredUnreal = unrealPoints.map(
+    (point) => new Vector2(point.x - unrealCenter.x, point.z - unrealCenter.z),
+  );
+
+  let dot = 0;
+  let cross = 0;
+  let sourceNorm = 0;
+
+  centeredModel.forEach((point, index) => {
+    dot += point.dot(centeredUnreal[index]);
+    cross += point.x * centeredUnreal[index].y - point.y * centeredUnreal[index].x;
+    sourceNorm += point.lengthSq();
+  });
+
+  if (sourceNorm <= 1e-8) {
+    return null;
+  }
+
+  const rotationAngle = Math.atan2(cross, dot);
+  const quaternion = new Quaternion().setFromAxisAngle(
+    new Vector3(0, 1, 0),
+    rotationAngle,
+  );
+  let scaledDot = 0;
+
+  centeredModel.forEach((point, index) => {
+    const rotatedPoint = point.clone().rotateAround(new Vector2(0, 0), rotationAngle);
+    scaledDot += rotatedPoint.dot(centeredUnreal[index]);
+  });
+
+  const scale = scaledDot / sourceNorm;
+
+  if (!Number.isFinite(scale) || scale <= 0) {
+    return null;
+  }
+
+  const position = unrealCenter
+    .clone()
+    .sub(modelCenter.clone().applyQuaternion(quaternion).multiplyScalar(scale));
+
+  return {
+    position,
+    quaternion,
+    scale,
+  } satisfies SimilarityTransform;
+}
+
+function applyTransformToPoint(point: Vector3, transform: SimilarityTransform) {
+  return point
+    .clone()
+    .applyQuaternion(transform.quaternion)
+    .multiplyScalar(transform.scale)
+    .add(transform.position);
+}
+
+function unrealToThreePosition(point: UnrealVector3Like) {
+  return new Vector3(point.x, point.z, point.y);
+}
+
+function unrealEulerToThreeQuaternion(rotation: {
+  pitch: number;
+  yaw: number;
+  roll: number;
+}) {
+  const euler = new Euler(
+    MathUtils.degToRad(rotation.pitch),
+    -MathUtils.degToRad(rotation.yaw) - Math.PI / 2,
+    -MathUtils.degToRad(rotation.roll),
+    "YXZ",
+  );
+
+  return new Quaternion().setFromEuler(euler);
+}
+
+function getTowerATrackingTransform(modelTowerDummies: TowerFootprint | null) {
+  if (!modelTowerDummies) {
+    return null;
+  }
+
+  const unrealDummies = getUnrealTowerADummies();
+
+  if (!unrealDummies) {
+    return null;
+  }
+
+  return computeSimilarityTransformFromQuads(modelTowerDummies, {
+    ta1: unrealToThreePosition(unrealDummies.ta1),
+    ta2: unrealToThreePosition(unrealDummies.ta2),
+    ta3: unrealToThreePosition(unrealDummies.ta3),
+    ta4: unrealToThreePosition(unrealDummies.ta4),
+  });
+}
+
+function getUnrealTowerAFootprintInThreeSpace() {
+  const unrealDummies = getUnrealTowerADummies();
+
+  if (!unrealDummies) {
+    return null;
+  }
+
+  return {
+    ta1: unrealToThreePosition(unrealDummies.ta1),
+    ta2: unrealToThreePosition(unrealDummies.ta2),
+    ta3: unrealToThreePosition(unrealDummies.ta3),
+    ta4: unrealToThreePosition(unrealDummies.ta4),
+  } satisfies TowerFootprint;
+}
+
+function getTowerATrackingCameraPath(
+  trackingTransform: SimilarityTransform | null,
+  aspect: number,
+) {
+  if (!trackingTransform) {
+    return null;
+  }
+
+  return TOWER_A_TRACKING_KEYS.flatMap((key) => {
+    const cameraData = trackingData[key]?.camera;
+
+    if (!cameraData) {
+      return [];
+    }
+    const horizontalFov = MathUtils.degToRad(cameraData.fov);
+    const verticalFov = MathUtils.radToDeg(
+      2 * Math.atan(Math.tan(horizontalFov / 2) / aspect),
+    );
+    // A1 used to look correct because the older setup was only locally
+    // accurate near the first shot. The 4-view snap system hid that because it
+    // only visited a few discrete angles. In the tracked 6-view system the
+    // GLB is moved into tracked world by the solved transform, so the camera
+    // path must stay in raw tracked space rather than being transformed again.
+    const position = unrealToThreePosition(cameraData.position);
+    const quaternion = unrealEulerToThreeQuaternion(cameraData.rotation);
+    const target = position.clone().add(
+      new Vector3(0, 0, -1)
+        .applyQuaternion(quaternion)
+        .multiplyScalar(TRACKING_CAMERA_DISTANCE),
+    );
+
+    return [
+      {
+        fov: verticalFov,
+        position,
+        quaternion,
+        target,
+      } satisfies TrackingCameraView,
+    ];
+  });
+}
+
+function interpolateTrackingCameraView(
+  path: TrackingCameraView[],
+  progress: number,
+) {
+  if (path.length === 0) {
+    return null;
+  }
+
+  const wrapped = wrapProgress(progress) * path.length;
+  const fromIndex = Math.floor(wrapped) % path.length;
+  const toIndex = (fromIndex + 1) % path.length;
+  const blend = wrapped - Math.floor(wrapped);
+  const from = path[fromIndex];
+  const to = path[toIndex];
+
+  return {
+    fov: MathUtils.lerp(from.fov, to.fov, blend),
+    position: new Vector3().lerpVectors(from.position, to.position, blend),
+    quaternion: new Quaternion().slerpQuaternions(
+      from.quaternion,
+      to.quaternion,
+      blend,
+    ),
+    target: new Vector3().lerpVectors(from.target, to.target, blend),
+  } satisfies TrackingCameraView;
+}
+
+function getTrackingDebugPoints(
+  footprint: TowerFootprint | undefined,
+  color = "#ff2d2d",
+  labelPrefix = "",
+) {
+  if (!footprint) {
+    return [];
+  }
+
+  return [
+    {
+      color,
+      key: `${labelPrefix}ta1`,
+      label: `${labelPrefix}Ta1`,
+      position: footprint.ta1.clone(),
+    },
+    {
+      color,
+      key: `${labelPrefix}ta2`,
+      label: `${labelPrefix}Ta2`,
+      position: footprint.ta2.clone(),
+    },
+    {
+      color,
+      key: `${labelPrefix}ta3`,
+      label: `${labelPrefix}Ta3`,
+      position: footprint.ta3.clone(),
+    },
+    {
+      color,
+      key: `${labelPrefix}ta4`,
+      label: `${labelPrefix}Ta4`,
+      position: footprint.ta4.clone(),
+    },
+  ] satisfies TrackingDebugPoint[];
+}
+
+function transformTowerFootprint(
+  footprint: TowerFootprint | null | undefined,
+  transform: SimilarityTransform | null,
+) {
+  if (!footprint || !transform) {
+    return null;
+  }
+
+  return {
+    ta1: applyTransformToPoint(footprint.ta1, transform),
+    ta2: applyTransformToPoint(footprint.ta2, transform),
+    ta3: applyTransformToPoint(footprint.ta3, transform),
+    ta4: applyTransformToPoint(footprint.ta4, transform),
+  } satisfies TowerFootprint;
+}
+
+function getTrackingCameraRays(path: TrackingCameraView[] | null | undefined) {
+  if (!path?.length) {
+    return [];
+  }
+
+  return path.map((view, index) => ({
+    color: index === 0 ? "#7dd3fc" : "#38bdf8",
+    end: view.target.clone(),
+    key: TOWER_A_TRACKING_KEYS[index] ?? `camera-${index}`,
+    label: TOWER_A_TRACKING_KEYS[index] ?? `C${index + 1}`,
+    start: view.position.clone(),
+  })) satisfies TrackingCameraRay[];
+}
+
+function vectorToDebugRow(vector: Vector3) {
+  return {
+    x: Number(vector.x.toFixed(4)),
+    y: Number(vector.y.toFixed(4)),
+    z: Number(vector.z.toFixed(4)),
+  };
+}
+
+type VideoStreamBindingOptions = {
+  hlsPath: string;
+  mp4Path: string;
+  onReady: () => void;
+  video: HTMLVideoElement;
+};
+
+function bindVideoStream({
+  hlsPath,
+  mp4Path,
+  onReady,
+  video,
+}: VideoStreamBindingOptions) {
+  let cancelled = false;
+
+  const markReady = () => {
+    onReady();
+  };
+
+  const applyMp4Fallback = () => {
+    if (cancelled) {
+      return;
+    }
+
+    if (video.src !== mp4Path) {
+      video.src = mp4Path;
+      video.load();
+    }
+  };
+
+  video.addEventListener("loadedmetadata", markReady);
+  video.addEventListener("canplay", markReady);
+  video.addEventListener("error", applyMp4Fallback);
+
+  applyMp4Fallback();
+
+  if (hlsPath && video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = hlsPath;
+    video.load();
+  }
+
+  return () => {
+    cancelled = true;
+    video.removeEventListener("loadedmetadata", markReady);
+    video.removeEventListener("canplay", markReady);
+    video.removeEventListener("error", applyMp4Fallback);
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+  };
 }
 
 function inferTowerFromApartmentId(
@@ -363,10 +966,17 @@ function getStatusMeta(
   };
 }
 
-function prepareTowerScene(sourceScene: Object3D) {
+function prepareTowerScene(
+  sourceScene: Object3D,
+  selectedTower: TowerType | null,
+  showDebugModel: boolean,
+) {
   const scene = cloneSkeleton(sourceScene) as Group;
+  const modelTowerDummies = collectModelTowerDummies(scene);
   const apartments = new Map<string, HoverMeshData[]>();
   const pickableMeshes: Mesh[] = [];
+  const selectedTowerCode = towerTypeToCode(selectedTower);
+  const towerBounds = new Map<TowerCode, Box3>();
 
   scene.updateWorldMatrix(true, true);
 
@@ -381,14 +991,29 @@ function prepareTowerScene(sourceScene: Object3D) {
     const materials = Array.isArray(object.material)
       ? object.material
       : [object.material];
+    const towerCode = resolveTowerCodeFromObject(object);
+
+    const shouldShowDebugMaterial =
+      showDebugModel &&
+      (!selectedTowerCode || towerCode === selectedTowerCode) &&
+      towerCode === "A";
 
     const proxyMaterials = materials.map((material) => {
       const nextMaterial = (material as Material).clone();
+      nextMaterial.side = DoubleSide;
+
+      if (shouldShowDebugMaterial) {
+        nextMaterial.transparent = true;
+        nextMaterial.opacity = 0;
+        nextMaterial.depthWrite = false;
+        nextMaterial.colorWrite = true;
+        return nextMaterial;
+      }
+
       nextMaterial.transparent = true;
       nextMaterial.opacity = 0;
       nextMaterial.depthWrite = false;
       nextMaterial.colorWrite = false;
-      nextMaterial.side = DoubleSide;
       return nextMaterial;
     });
 
@@ -396,9 +1021,33 @@ function prepareTowerScene(sourceScene: Object3D) {
       ? proxyMaterials
       : proxyMaterials[0];
 
+    if (towerCode) {
+      object.geometry.computeBoundingBox();
+
+      if (object.geometry.boundingBox) {
+        const nextBounds = object.geometry.boundingBox
+          .clone()
+          .applyMatrix4(object.matrixWorld);
+        const existingBounds = towerBounds.get(towerCode);
+
+        if (existingBounds) {
+          existingBounds.union(nextBounds);
+        } else {
+          towerBounds.set(towerCode, nextBounds);
+        }
+      }
+    }
+
     const apartmentId = resolveApartmentIdFromObject(object);
 
     if (!apartmentId) {
+      return;
+    }
+
+    if (
+      selectedTowerCode &&
+      resolveTowerCodeFromObject(object) !== selectedTowerCode
+    ) {
       return;
     }
 
@@ -418,14 +1067,42 @@ function prepareTowerScene(sourceScene: Object3D) {
   const size = bounds.getSize(new Vector3());
   const center = bounds.getCenter(new Vector3());
   const scale = TARGET_MODEL_HEIGHT / Math.max(size.y, 1);
+  const offset = [-center.x, -bounds.min.y, -center.z] as [number, number, number];
+  const towerFootprints: Partial<Record<TowerCode, TowerFootprint>> =
+    getTowerFootprintsFromModelDummies(scene, offset, scale);
+  const trackedTowerFootprints: Partial<Record<TowerCode, TowerFootprint>> =
+    getTowerFootprintsFromModelDummies(
+      scene,
+      offset,
+      scale,
+      false,
+      false,
+    );
+
+  towerBounds.forEach((towerBoundsEntry, towerCode) => {
+    towerFootprints[towerCode] ??= buildTowerFootprint(
+      towerBoundsEntry,
+      offset,
+      scale,
+    );
+    trackedTowerFootprints[towerCode] ??= buildTowerFootprint(
+      towerBoundsEntry,
+      offset,
+      scale,
+    );
+  });
 
   return {
     apartments,
-    offset: [-center.x, -bounds.min.y, -center.z] as [number, number, number],
+    debugTarget: new Vector3(0, size.y * 0.32 * scale, 0),
+    modelTowerDummies,
+    offset,
     pickableMeshes,
     scaledHeight: size.y * scale,
     scene,
     scale,
+    trackedTowerFootprints,
+    towerFootprints,
   } satisfies PreparedTowerModel;
 }
 
@@ -439,65 +1116,154 @@ function LoadingState() {
   );
 }
 
-function HoverOverlay({
+const HighlightEdgeLines = memo(function HighlightEdgeLines({
+  color,
+  geometry,
+  matrix,
+  scaleMultiplier = 1,
+  renderOrder,
+  thickness = 1,
+}: {
+  color: string;
+  geometry: Mesh["geometry"];
+  matrix: Matrix4;
+  scaleMultiplier?: number;
+  renderOrder: number;
+  thickness?: number;
+}) {
+  const edgesGeometry = useMemo(
+    () => getHighlightEdgesGeometry(geometry),
+    [geometry],
+  );
+  const renderMatrix = useMemo(
+    () =>
+      scaleMultiplier === 1
+        ? matrix
+        : createExpandedHighlightMatrix(matrix, scaleMultiplier),
+    [matrix, scaleMultiplier],
+  );
+
+  return (
+    <lineSegments
+      frustumCulled={false}
+      geometry={edgesGeometry}
+      matrix={renderMatrix}
+      matrixAutoUpdate={false}
+      raycast={() => null}
+      renderOrder={renderOrder}
+    >
+      <lineBasicMaterial
+        color={color}
+        depthTest={false}
+        linewidth={thickness}
+        toneMapped={false}
+      />
+    </lineSegments>
+  );
+});
+
+const HighlightOverlay = memo(function HighlightOverlay({
+  filteredApartmentIds,
   hoveredApartmentId,
   apartments,
 }: {
+  filteredApartmentIds: Set<string>;
   hoveredApartmentId: string | null;
   apartments: PreparedTowerModel["apartments"];
 }) {
   const hoveredMeshes = hoveredApartmentId
     ? apartments.get(hoveredApartmentId) ?? []
     : [];
+  const filteredMeshes = Array.from(filteredApartmentIds).flatMap((apartmentId) =>
+    apartmentId === hoveredApartmentId ? [] : apartments.get(apartmentId) ?? [],
+  );
 
-  if (!hoveredMeshes.length) {
+  if (!hoveredMeshes.length && filteredMeshes.length === 0) {
     return null;
   }
 
   return (
     <group>
+      {filteredMeshes.map((meshData) => (
+        <group key={`filter-${meshData.key}`}>
+          <mesh
+            frustumCulled={false}
+            geometry={meshData.geometry}
+            matrix={meshData.matrix}
+            matrixAutoUpdate={false}
+            raycast={() => null}
+            renderOrder={10}
+          >
+            <meshBasicMaterial
+              color="#86efac"
+              depthTest={false}
+              depthWrite={false}
+              opacity={0.22}
+              side={DoubleSide}
+              toneMapped={false}
+              transparent
+            />
+          </mesh>
+          <HighlightEdgeLines
+            color="#4ade80"
+            geometry={meshData.geometry}
+            matrix={meshData.matrix}
+            renderOrder={11}
+            scaleMultiplier={1.006}
+            thickness={2}
+          />
+          <HighlightEdgeLines
+            color="#f0fdf4"
+            geometry={meshData.geometry}
+            matrix={meshData.matrix}
+            renderOrder={12}
+            thickness={3}
+          />
+        </group>
+      ))}
+
       {hoveredMeshes.map((meshData) => (
-        <mesh
-          key={meshData.key}
-          frustumCulled={false}
-          geometry={meshData.geometry}
-          matrix={meshData.matrix}
-          matrixAutoUpdate={false}
-          raycast={() => null}
-          renderOrder={12}
-        >
-          <meshPhysicalMaterial
-            clearcoat={1}
-            clearcoatRoughness={0.04}
-            color="#ffe066"
-            depthTest={false}
-            depthWrite={false}
-            emissive="#ffaa00"
-            emissiveIntensity={2}
-            metalness={0}
-            opacity={0.8}
-            polygonOffset
-            polygonOffsetFactor={-8}
-            roughness={0.06}
-            side={DoubleSide}
-            toneMapped={false}
-            transparent
+        <group key={`hover-${meshData.key}`}>
+          <mesh
+            frustumCulled={false}
+            geometry={meshData.geometry}
+            matrix={meshData.matrix}
+            matrixAutoUpdate={false}
+            raycast={() => null}
+            renderOrder={12}
+          >
+            <meshBasicMaterial
+              color="#ffffff"
+              depthTest={false}
+              depthWrite={false}
+              opacity={0.16}
+              side={DoubleSide}
+              toneMapped={false}
+              transparent
+            />
+          </mesh>
+          <HighlightEdgeLines
+            color="#d1d5db"
+            geometry={meshData.geometry}
+            matrix={meshData.matrix}
+            renderOrder={13}
+            scaleMultiplier={1.008}
+            thickness={2}
           />
-          <Outlines
-            angle={Math.PI}
-            color="#fff2a6"
-            opacity={1}
-            screenspace
-            thickness={4.2}
-            transparent
+          <HighlightEdgeLines
+            color="#ffffff"
+            geometry={meshData.geometry}
+            matrix={meshData.matrix}
+            renderOrder={14}
+            thickness={4}
           />
-        </mesh>
+        </group>
       ))}
     </group>
   );
-}
+});
 
-function HoverTracker({
+const HoverTracker = memo(function HoverTracker({
   allowHover,
   onHoverChange,
   pickableMeshes,
@@ -541,13 +1307,15 @@ function HoverTracker({
       }
 
       const rect = element.getBoundingClientRect();
+      const localPointerX = latestClientX - rect.left;
+      const localPointerY = latestClientY - rect.top;
       const pointerPosition = {
-        x: latestClientX - rect.left,
-        y: latestClientY - rect.top,
+        x: latestClientX,
+        y: latestClientY,
       };
 
-      pointer.x = (pointerPosition.x / rect.width) * 2 - 1;
-      pointer.y = -(pointerPosition.y / rect.height) * 2 + 1;
+      pointer.x = (localPointerX / rect.width) * 2 - 1;
+      pointer.y = -(localPointerY / rect.height) * 2 + 1;
 
       raycaster.setFromCamera(pointer, camera);
 
@@ -626,73 +1394,369 @@ function HoverTracker({
   }, [allowHover, camera, gl, onHoverChange, pickableMeshes, raycaster]);
 
   return null;
+});
+
+function TrackingDebugOverlay({
+  currentViewLabel,
+  rays,
+  points,
+}: {
+  currentViewLabel: string;
+  rays: TrackingCameraRay[];
+  points: TrackingDebugPoint[];
+}) {
+  if (points.length === 0 && rays.length === 0) {
+    return null;
+  }
+
+  return (
+    <group>
+      {rays.map((ray) => (
+        <group key={ray.key}>
+          <Line
+            color={ray.color}
+            depthTest={false}
+            lineWidth={1.6}
+            opacity={0.9}
+            points={[ray.start, ray.end]}
+            transparent
+          />
+          <mesh position={ray.start.toArray()} renderOrder={38}>
+            <sphereGeometry args={[0.11, 16, 16]} />
+            <meshBasicMaterial color={ray.color} depthTest={false} toneMapped={false} />
+          </mesh>
+          <Html
+            center
+            distanceFactor={10}
+            position={ray.end.toArray()}
+            style={{ pointerEvents: "none" }}
+            transform
+          >
+            <div
+              className="rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-white shadow-[0_8px_24px_rgba(2,6,23,0.35)]"
+              style={{ background: "rgba(14, 165, 233, 0.88)" }}
+            >
+              {ray.label}
+            </div>
+          </Html>
+        </group>
+      ))}
+
+      {points.map((point) => (
+        <group key={point.key} position={point.position.toArray()}>
+          <mesh renderOrder={40}>
+            <sphereGeometry args={[0.16, 24, 24]} />
+            <meshBasicMaterial
+              color={point.color}
+              depthTest={false}
+              toneMapped={false}
+            />
+          </mesh>
+          <Html
+            center
+            distanceFactor={8}
+            position={[0, 0.48, 0]}
+            style={{ pointerEvents: "none" }}
+            transform
+          >
+            <div
+              className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_10px_28px_rgba(2,6,23,0.3)]"
+              style={{ background: point.color }}
+            >
+              {point.label}
+            </div>
+          </Html>
+        </group>
+      ))}
+
+      <Html
+        center
+        position={[0, 8, 0]}
+        style={{ pointerEvents: "none" }}
+        transform
+      >
+        <div className="rounded-full border border-red-300/60 bg-black/72 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-red-100 shadow-[0_12px_32px_rgba(0,0,0,0.3)]">
+          {currentViewLabel}
+        </div>
+      </Html>
+    </group>
+  );
 }
 
-function TowerScene({
-  currentFrame,
+const TowerScene = memo(function TowerScene({
+  filteredApartments,
+  onInvalidateReady,
   hoveredApartmentId,
   allowHover,
   onApartmentHover,
+  rotationProgressRef,
+  selectedTower,
+  showApartmentMeshes,
+  showTrackingDebug,
 }: {
-  currentFrame: number;
+  filteredApartments: InventoryApartment[];
+  onInvalidateReady?: (invalidateCanvas: () => void) => void;
   hoveredApartmentId: string | null;
   allowHover: boolean;
   onApartmentHover: (
     apartmentId: string | null,
     pointerPosition: PointerPosition | null,
   ) => void;
+  rotationProgressRef: MutableRefObject<number>;
+  selectedTower: TowerType | null;
+  showApartmentMeshes: boolean;
+  showTrackingDebug: boolean;
 }) {
-  const { scene } = useGLTF(MODEL_PATH);
-  const preparedModel = useMemo(() => prepareTowerScene(scene), [scene]);
+  const { invalidate, size } = useThree();
+  const gltf = useGLTF(MODEL_PATH);
+  const cameraRef = useRef<ThreePerspectiveCamera | null>(null);
+  const fallbackGroupRef = useRef<Group | null>(null);
+  const trackingDebugLoggedRef = useRef(false);
+  const useTowerATracking = selectedTower !== "Tower B";
+  const preparedModel = useMemo(
+    () => prepareTowerScene(gltf.scene, selectedTower, false),
+    [gltf.scene, selectedTower],
+  );
   const cameraTargetY = preparedModel.scaledHeight * 0.52;
-  const rotationY = getFrameRotation(currentFrame);
+  const towerATrackingTransform = useMemo(
+    () =>
+      useTowerATracking
+        ? getTowerATrackingTransform(preparedModel.trackedTowerFootprints.A ?? null)
+        : null,
+    [preparedModel.trackedTowerFootprints.A, useTowerATracking],
+  );
+  const towerATrackingPath = useMemo(
+    () =>
+      useTowerATracking
+        ? getTowerATrackingCameraPath(towerATrackingTransform, size.width / size.height)
+        : null,
+    [size.height, size.width, towerATrackingTransform, useTowerATracking],
+  );
+  const unrealTowerADummies = useMemo(
+    () => (showTrackingDebug ? getUnrealTowerAFootprintInThreeSpace() : null),
+    [showTrackingDebug],
+  );
+  const transformedTrackedTowerADummies = useMemo(
+    () =>
+      showTrackingDebug
+        ? transformTowerFootprint(
+            preparedModel.trackedTowerFootprints.A,
+            towerATrackingTransform,
+          )
+        : null,
+    [preparedModel.trackedTowerFootprints.A, showTrackingDebug, towerATrackingTransform],
+  );
+  const filteredApartmentIds = useMemo(() => {
+    if (!showApartmentMeshes || !filteredApartments.length) {
+      return new Set<string>();
+    }
+
+    return new Set(
+      Array.from(preparedModel.apartments.keys()).filter((apartmentId) =>
+        Boolean(findInventoryApartment(filteredApartments, apartmentId, selectedTower)),
+      ),
+    );
+  }, [filteredApartments, preparedModel.apartments, selectedTower, showApartmentMeshes]);
+  const towerADebugPoints = useMemo(() => {
+    if (!showTrackingDebug) {
+      return [];
+    }
+
+    if (towerATrackingTransform && transformedTrackedTowerADummies && unrealTowerADummies) {
+      return [
+        ...getTrackingDebugPoints(
+          transformedTrackedTowerADummies,
+          "rgba(245, 158, 11, 0.95)",
+          "Model ",
+        ),
+        ...getTrackingDebugPoints(
+          unrealTowerADummies,
+          "rgba(14, 165, 233, 0.95)",
+          "Track ",
+        ),
+      ];
+    }
+
+    return getTrackingDebugPoints(preparedModel.towerFootprints.A);
+  }, [
+    preparedModel.towerFootprints.A,
+    showTrackingDebug,
+    towerATrackingTransform,
+    transformedTrackedTowerADummies,
+    unrealTowerADummies,
+  ]);
+  const trackingCameraRays = useMemo(
+    () => getTrackingCameraRays(towerATrackingPath),
+    [towerATrackingPath],
+  );
+  useEffect(() => {
+    if (!showTrackingDebug) {
+      trackingDebugLoggedRef.current = false;
+      return;
+    }
+
+    if (
+      trackingDebugLoggedRef.current ||
+      !transformedTrackedTowerADummies ||
+      !unrealTowerADummies
+    ) {
+      return;
+    }
+
+    console.groupCollapsed("Tower A tracking debug: A1 dummy comparison");
+    console.table({
+      modelTa1: vectorToDebugRow(transformedTrackedTowerADummies.ta1),
+      modelTa2: vectorToDebugRow(transformedTrackedTowerADummies.ta2),
+      modelTa3: vectorToDebugRow(transformedTrackedTowerADummies.ta3),
+      modelTa4: vectorToDebugRow(transformedTrackedTowerADummies.ta4),
+      unrealTa1: vectorToDebugRow(unrealTowerADummies.ta1),
+      unrealTa2: vectorToDebugRow(unrealTowerADummies.ta2),
+      unrealTa3: vectorToDebugRow(unrealTowerADummies.ta3),
+      unrealTa4: vectorToDebugRow(unrealTowerADummies.ta4),
+    });
+    console.groupEnd();
+    trackingDebugLoggedRef.current = true;
+  }, [showTrackingDebug, transformedTrackedTowerADummies, unrealTowerADummies]);
+  const trackingViewLabel = useMemo(() => {
+    if (!towerATrackingPath?.length) {
+      return "Tower A Tracking";
+    }
+
+    const index =
+      Math.round(
+        wrapProgress(rotationProgressRef.current) * towerATrackingPath.length,
+      ) %
+      towerATrackingPath.length;
+
+    return `Tower A ${TOWER_A_TRACKING_KEYS[index]}`;
+  }, [rotationProgressRef, towerATrackingPath]);
+  const fallbackScenePosition = BASE_MODEL_OFFSET;
+  const trackedScenePosition: [number, number, number] = [0, 0, 0];
+  const shouldShowHighlightOverlay =
+    showApartmentMeshes &&
+    (hoveredApartmentId !== null || filteredApartmentIds.size > 0);
+
+  useEffect(() => {
+    onInvalidateReady?.(invalidate);
+  }, [invalidate, onInvalidateReady]);
+
+  useFrame(() => {
+    const camera = cameraRef.current;
+
+    if (!camera) {
+      return;
+    }
+
+    if (towerATrackingPath?.length) {
+      const trackingView = interpolateTrackingCameraView(
+        towerATrackingPath,
+        rotationProgressRef.current,
+      );
+
+      if (!trackingView) {
+        return;
+      }
+
+      if (Math.abs(camera.fov - trackingView.fov) > 0.001) {
+        camera.fov = trackingView.fov;
+        camera.updateProjectionMatrix();
+      }
+
+      camera.position.copy(trackingView.position);
+      camera.quaternion.copy(trackingView.quaternion);
+      return;
+    }
+
+    camera.position.set(...BASE_CAMERA_POSITION);
+    camera.lookAt(
+      fallbackScenePosition[0],
+      cameraTargetY + fallbackScenePosition[1],
+      fallbackScenePosition[2],
+    );
+
+    if (fallbackGroupRef.current) {
+      fallbackGroupRef.current.rotation.y = getProgressRotation(
+        rotationProgressRef.current,
+      );
+    }
+  });
 
   return (
     <>
       <PerspectiveCamera
+        ref={cameraRef}
         makeDefault
-        far={120}
+        far={towerATrackingPath?.length ? 100000 : 400}
         fov={34}
-        near={0.1}
+        near={0.01}
         position={BASE_CAMERA_POSITION}
-        onUpdate={(camera) => {
-          camera.lookAt(
-            BASE_MODEL_OFFSET[0],
-            cameraTargetY + BASE_MODEL_OFFSET[1],
-            BASE_MODEL_OFFSET[2],
-          );
-        }}
       />
 
       <ambientLight intensity={1.75} />
       <directionalLight color="#fff7d8" intensity={2.85} position={[12, 16, 8]} />
       <directionalLight color="#d9ecff" intensity={1.2} position={[-10, 10, -10]} />
-      <group
-        position={BASE_MODEL_OFFSET}
-        rotation={[0, rotationY, 0]}
-        scale={preparedModel.scale}
-      >
-        <group position={preparedModel.offset}>
-          <primitive object={preparedModel.scene} />
-          <HoverOverlay
-            apartments={preparedModel.apartments}
-            hoveredApartmentId={hoveredApartmentId}
-          />
+      {towerATrackingTransform ? (
+        <group
+          position={towerATrackingTransform.position.toArray()}
+          quaternion={towerATrackingTransform.quaternion.toArray()}
+          scale={towerATrackingTransform.scale}
+        >
+          <group position={trackedScenePosition} scale={preparedModel.scale}>
+            <group position={preparedModel.offset}>
+              <primitive object={preparedModel.scene} />
+              {shouldShowHighlightOverlay ? (
+                <HighlightOverlay
+                  apartments={preparedModel.apartments}
+                  filteredApartmentIds={filteredApartmentIds}
+                  hoveredApartmentId={hoveredApartmentId}
+                />
+              ) : null}
+            </group>
+            {showTrackingDebug && useTowerATracking ? (
+              null
+            ) : null}
+          </group>
         </group>
-      </group>
+      ) : (
+        <group
+          ref={fallbackGroupRef}
+          position={fallbackScenePosition}
+          scale={preparedModel.scale}
+        >
+          <group position={preparedModel.offset}>
+            <primitive object={preparedModel.scene} />
+            {shouldShowHighlightOverlay ? (
+              <HighlightOverlay
+                apartments={preparedModel.apartments}
+                filteredApartmentIds={filteredApartmentIds}
+                hoveredApartmentId={hoveredApartmentId}
+              />
+            ) : null}
+          </group>
+        </group>
+      )}
 
       <HoverTracker
         allowHover={allowHover}
         onHoverChange={onApartmentHover}
         pickableMeshes={preparedModel.pickableMeshes}
       />
+
+      {showTrackingDebug && useTowerATracking ? (
+        <TrackingDebugOverlay
+          currentViewLabel={trackingViewLabel}
+          rays={trackingCameraRays}
+          points={towerADebugPoints}
+        />
+      ) : null}
     </>
   );
-}
+});
 
 type MasterPlanFrameHoverStageProps = {
   apartments: InventoryApartment[];
   currentFrame: number;
+  filteredApartments: InventoryApartment[];
   inventoryError: string | null;
   inventoryState: InventoryLoadState;
   onSetFrame: (frame: number) => void;
@@ -702,54 +1766,243 @@ type MasterPlanFrameHoverStageProps = {
 export default function MasterPlanFrameHoverStage({
   apartments,
   currentFrame,
+  filteredApartments,
   inventoryError,
   inventoryState,
   onSetFrame,
   selectedTower,
 }: MasterPlanFrameHoverStageProps) {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
   const dragStateRef = useRef<DragState | null>(null);
-  const initialFrameRef = useRef(wrapFrame(currentFrame));
-  const paintedFrameRef = useRef<number | null>(null);
-  const frameSwapRequestRef = useRef(0);
-  const snapAnimationFrameRef = useRef<number | null>(null);
-  const snapAnimationStartTimeRef = useRef(0);
+  const animationFrameRef = useRef<number | null>(null);
+  const canvasInvalidateRef = useRef<(() => void) | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
+  const displayedFrameRef = useRef(wrapFrame(currentFrame));
+  const lastSyncedVideoFrameRef = useRef<number | null>(null);
+  const progressFrameRef = useRef<number | null>(null);
+  const pendingProgressRef = useRef<number | null>(null);
+  const displayProgressRef = useRef(frameToProgress(currentFrame));
+  const dragTargetProgressRef = useRef(frameToProgress(currentFrame));
   const hoveredApartmentIdRef = useRef<string | null>(null);
   const [hoveredApartmentId, setHoveredApartmentId] = useState<string | null>(
     null,
   );
-  const [displayedFrame, setDisplayedFrame] = useState(() =>
-    wrapFrame(currentFrame),
-  );
+  const [displayedFrame, setDisplayedFrame] = useState(() => wrapFrame(currentFrame));
   const [isDragging, setIsDragging] = useState(false);
-  const [isSnapping, setIsSnapping] = useState(false);
+  const [isSettling, setIsSettling] = useState(false);
+  const [isVideoReady, setIsVideoReady] = useState(false);
   const [supportsPreciseHover, setSupportsPreciseHover] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [sectionSize, setSectionSize] = useState(() => ({
+    height: 0,
+    width: 0,
+  }));
   const safeFrame = wrapFrame(currentFrame);
-  const drawDisplayedFrame = useCallback((frame: number) => {
-    const canvas = canvasRef.current;
-    const container = sectionRef.current;
-    const image = getCachedMasterPlanFrameImage(frame);
+  const coverViewport = useMemo(
+    () =>
+      getCoverViewport(
+        sectionSize.width,
+        sectionSize.height,
+        TRACKING_VIDEO_ASPECT,
+      ),
+    [sectionSize.height, sectionSize.width],
+  );
 
-    if (!canvas || !container || !image) {
-      return false;
+  const stopScheduledProgress = useCallback(() => {
+    if (progressFrameRef.current !== null) {
+      window.cancelAnimationFrame(progressFrameRef.current);
+      progressFrameRef.current = null;
     }
-
-    drawFrameToCanvas(canvas, image, container);
-    paintedFrameRef.current = frame;
-    return true;
   }, []);
 
-  const stopSnapAnimation = () => {
-    if (snapAnimationFrameRef.current !== null) {
-      window.cancelAnimationFrame(snapAnimationFrameRef.current);
-      snapAnimationFrameRef.current = null;
+  const stopDragLoop = useCallback(() => {
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current);
+      dragFrameRef.current = null;
     }
-    snapAnimationStartTimeRef.current = 0;
-    setIsSnapping(false);
-  };
+  }, []);
+
+  const syncVideoTime = useCallback(
+    (video: HTMLVideoElement | null, progress: number) => {
+      if (!video || !Number.isFinite(video.duration) || video.duration <= 0) {
+        return;
+      }
+
+      const targetFrame = progressToFrame(progress);
+
+      if (lastSyncedVideoFrameRef.current === targetFrame) {
+        return;
+      }
+
+      const targetTime = Math.min(
+        wrapProgress(progress) * video.duration,
+        Math.max(video.duration - 1 / MASTER_PLAN_SCRUB_VIDEO_FPS, 0),
+      );
+
+      lastSyncedVideoFrameRef.current = targetFrame;
+
+      if (
+        Math.abs(video.currentTime - targetTime) >
+        VIDEO_SYNC_THRESHOLD_SECONDS
+      ) {
+        if (
+          targetTime < video.currentTime &&
+          Math.abs(video.currentTime - targetTime) > VIDEO_FAST_SEEK_THRESHOLD_SECONDS &&
+          typeof video.fastSeek === "function"
+        ) {
+          video.fastSeek(targetTime);
+          return;
+        }
+
+        video.currentTime = targetTime;
+      }
+    },
+    [],
+  );
+
+  const syncVisibleVideoTime = useCallback(
+    (progress: number) => {
+      syncVideoTime(videoRef.current, progress);
+    },
+    [syncVideoTime],
+  );
+
+  const commitProgress = useCallback(
+    (nextProgress: number) => {
+      const wrappedProgress = wrapProgress(nextProgress);
+      displayProgressRef.current = wrappedProgress;
+      const nextDisplayedFrame = progressToFrame(wrappedProgress);
+
+      if (displayedFrameRef.current !== nextDisplayedFrame) {
+        displayedFrameRef.current = nextDisplayedFrame;
+        setDisplayedFrame(nextDisplayedFrame);
+      }
+
+      syncVisibleVideoTime(wrappedProgress);
+      canvasInvalidateRef.current?.();
+    },
+    [syncVisibleVideoTime],
+  );
+
+  const scheduleProgress = useCallback(
+    (nextProgress: number) => {
+      pendingProgressRef.current = wrapProgress(nextProgress);
+
+      if (progressFrameRef.current !== null) {
+        return;
+      }
+
+      progressFrameRef.current = window.requestAnimationFrame(() => {
+        progressFrameRef.current = null;
+
+        if (pendingProgressRef.current == null) {
+          return;
+        }
+
+        const progress = pendingProgressRef.current;
+        pendingProgressRef.current = null;
+        commitProgress(progress);
+      });
+    },
+    [commitProgress],
+  );
+
+  const startDragLoop = useCallback(() => {
+    if (dragFrameRef.current !== null) {
+      return;
+    }
+
+    const step = () => {
+      dragFrameRef.current = null;
+
+      const delta = getShortestProgressDelta(
+        displayProgressRef.current,
+        dragTargetProgressRef.current,
+      );
+
+      if (Math.abs(delta) <= DRAG_PROGRESS_EPSILON) {
+        commitProgress(dragTargetProgressRef.current);
+        return;
+      }
+
+      if (Math.abs(delta) >= DRAG_PROGRESS_DIRECT_COMMIT_THRESHOLD) {
+        commitProgress(dragTargetProgressRef.current);
+        dragFrameRef.current = window.requestAnimationFrame(step);
+        return;
+      }
+
+      const dragLerp =
+        delta < 0 ? DRAG_PROGRESS_LERP_BACKWARD : DRAG_PROGRESS_LERP_FORWARD;
+
+      commitProgress(displayProgressRef.current + delta * dragLerp);
+      dragFrameRef.current = window.requestAnimationFrame(step);
+    };
+
+    dragFrameRef.current = window.requestAnimationFrame(step);
+  }, [commitProgress]);
+
+  const stopMotionAnimation = useCallback(() => {
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    setIsSettling(false);
+  }, []);
+
+  const animateToProgress = useCallback(
+    (
+      targetProgress: number,
+      duration: number,
+      onComplete?: (() => void) | undefined,
+      easing: (progress: number) => number = easeOutCubic,
+    ) => {
+      stopDragLoop();
+      stopMotionAnimation();
+
+      const startProgress = displayProgressRef.current;
+      const progressDelta = getShortestProgressDelta(
+        startProgress,
+        targetProgress,
+      );
+
+      if (Math.abs(progressDelta) < 0.0005) {
+        scheduleProgress(targetProgress);
+        onComplete?.();
+        return;
+      }
+
+      setIsSettling(true);
+      let startTime = 0;
+
+      const animate = (timestamp: number) => {
+        if (startTime === 0) {
+          startTime = timestamp;
+        }
+
+        const elapsed = timestamp - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easedProgress = easing(progress);
+
+        scheduleProgress(startProgress + progressDelta * easedProgress);
+
+        if (progress >= 1) {
+          dragTargetProgressRef.current = wrapProgress(targetProgress);
+          scheduleProgress(targetProgress);
+          stopMotionAnimation();
+          onComplete?.();
+          return;
+        }
+
+        animationFrameRef.current = window.requestAnimationFrame(animate);
+      };
+
+      animationFrameRef.current = window.requestAnimationFrame(animate);
+    },
+    [scheduleProgress, stopDragLoop, stopMotionAnimation],
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -776,124 +2029,101 @@ export default function MasterPlanFrameHoverStage({
   }, []);
 
   useEffect(() => {
-    const framesToPreload = getMasterPlanFramePreloadSequence(
-      safeFrame,
-      NEARBY_PRELOAD_FRAME_COUNT,
-    );
+    const section = sectionRef.current;
 
-    framesToPreload.forEach((frame, index) => {
-      preloadMasterPlanFrame(frame, {
-        decode: index < 2,
-        fetchPriority: index < 1 ? "high" : "low",
-      });
-    });
-  }, [safeFrame]);
-
-  useEffect(() => {
-    ensureMasterPlanFrameConnectionHints();
-
-    return preloadMasterPlanFrames(
-      getMasterPlanFramePreloadSequence(
-        initialFrameRef.current,
-        BACKGROUND_PRELOAD_FRAME_COUNT,
-      ),
-      {
-        batchSize: BACKGROUND_PRELOAD_BATCH_SIZE,
-        decode: false,
-        initialHighPriorityCount: 8,
-      },
-    );
-  }, []);
-
-  useEffect(() => {
-    if (drawDisplayedFrame(displayedFrame)) {
+    if (!section || typeof ResizeObserver === "undefined") {
       return;
     }
 
-    let cancelled = false;
+    const syncSectionSize = () => {
+      const rect = section.getBoundingClientRect();
 
-    void preloadMasterPlanFrame(displayedFrame, {
-      decode: true,
-      fetchPriority: "high",
-    })
-      .then(() => {
-        if (!cancelled) {
-          drawDisplayedFrame(displayedFrame);
+      setSectionSize((current) => {
+        const nextWidth = Math.round(rect.width);
+        const nextHeight = Math.round(rect.height);
+
+        if (
+          current.width === nextWidth &&
+          current.height === nextHeight
+        ) {
+          return current;
         }
-      })
-      .catch(() => undefined);
+
+        return {
+          width: nextWidth,
+          height: nextHeight,
+        };
+      });
+    };
+
+    syncSectionSize();
+
+    const resizeObserver = new ResizeObserver(syncSectionSize);
+    resizeObserver.observe(section);
 
     return () => {
-      cancelled = true;
-    };
-  }, [displayedFrame, drawDisplayedFrame]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const handleResize = () => {
-      if (paintedFrameRef.current !== null) {
-        drawDisplayedFrame(paintedFrameRef.current);
-      }
-    };
-
-    const resizeObserver =
-      typeof ResizeObserver !== "undefined" && sectionRef.current
-        ? new ResizeObserver(handleResize)
-        : null;
-
-    if (sectionRef.current && resizeObserver) {
-      resizeObserver.observe(sectionRef.current);
-    }
-
-    window.addEventListener("resize", handleResize);
-
-    return () => {
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", handleResize);
-    };
-  }, [drawDisplayedFrame]);
-
-  useEffect(() => {
-    if (displayedFrame === safeFrame || typeof window === "undefined") {
-      return;
-    }
-
-    const requestId = frameSwapRequestRef.current + 1;
-    frameSwapRequestRef.current = requestId;
-    let cancelled = false;
-
-    const commitFrameSwap = () => {
-      if (cancelled || frameSwapRequestRef.current !== requestId) {
-        return;
-      }
-
-      if (drawDisplayedFrame(safeFrame)) {
-        setDisplayedFrame(safeFrame);
-      }
-    };
-
-    void preloadMasterPlanFrame(safeFrame, {
-      decode: true,
-      fetchPriority: "high",
-    })
-      .then(commitFrameSwap)
-      .catch(() => undefined);
-
-    return () => {
-      cancelled = true;
-    };
-  }, [displayedFrame, safeFrame, drawDisplayedFrame]);
-
-  useEffect(() => {
-    return () => {
-      if (snapAnimationFrameRef.current !== null) {
-        window.cancelAnimationFrame(snapAnimationFrameRef.current);
-      }
+      resizeObserver.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    const syncVideoState = () => {
+      video.pause();
+      lastSyncedVideoFrameRef.current = null;
+      syncVisibleVideoTime(displayProgressRef.current);
+      setIsVideoReady(true);
+    };
+
+    const cleanup = bindVideoStream({
+      hlsPath: "",
+      mp4Path: MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
+      onReady: syncVideoState,
+      video,
+    });
+
+    return () => {
+      cleanup();
+    };
+  }, [syncVisibleVideoTime]);
+
+  useEffect(() => {
+    if (dragStateRef.current) {
+      return;
+    }
+
+    const targetProgress = frameToProgress(safeFrame);
+    const frameDistance =
+      Math.abs(
+        getShortestProgressDelta(displayProgressRef.current, targetProgress),
+      ) * TOTAL_FRAMES;
+
+    if (frameDistance < 0.5) {
+      scheduleProgress(targetProgress);
+      return;
+    }
+
+    const duration = Math.min(
+      HOTSPOT_NAVIGATION_MAX_DURATION_MS,
+      Math.max(
+        HOTSPOT_NAVIGATION_MIN_DURATION_MS,
+        frameDistance * HOTSPOT_NAVIGATION_MS_PER_FRAME,
+      ),
+    );
+
+    const animationId = window.requestAnimationFrame(() => {
+      animateToProgress(targetProgress, duration, undefined, easeInOutCubic);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(animationId);
+    };
+  }, [animateToProgress, safeFrame, scheduleProgress]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -912,32 +2142,23 @@ export default function MasterPlanFrameHoverStage({
       if (!dragState.didDrag) {
         dragState.didDrag = true;
         setIsDragging(true);
-        stopSnapAnimation();
+        stopDragLoop();
+        stopMotionAnimation();
         hoveredApartmentIdRef.current = null;
         setHoveredApartmentId(null);
       }
 
-      const rawFrameDelta = Math.round(deltaX / DRAG_PIXELS_PER_FRAME);
-      const frameDelta =
-        Math.abs(rawFrameDelta) <= DRAG_FRAME_STEP
-          ? rawFrameDelta
-          : rawFrameDelta >= 0
-            ? Math.floor(rawFrameDelta / DRAG_FRAME_STEP) * DRAG_FRAME_STEP
-            : Math.ceil(rawFrameDelta / DRAG_FRAME_STEP) * DRAG_FRAME_STEP;
-
-      if (frameDelta === 0) {
-        return;
-      }
-
-      const nextFrame = wrapFrame(dragState.startFrame + frameDelta);
-
-      if (dragState.lastFrame === nextFrame) {
-        return;
-      }
-
-      dragState.lastFrame = nextFrame;
       event.preventDefault();
-      onSetFrame(nextFrame);
+      const rawTargetProgress = wrapProgress(
+        dragState.startProgress +
+          deltaX / (DRAG_PIXELS_PER_FRAME * TOTAL_FRAMES),
+      );
+      dragTargetProgressRef.current = clampProgressLead(
+        displayProgressRef.current,
+        rawTargetProgress,
+        DRAG_MAX_LEAD_FRAMES,
+      );
+      startDragLoop();
     };
 
     const handlePointerEnd = (event: PointerEvent) => {
@@ -949,26 +2170,20 @@ export default function MasterPlanFrameHoverStage({
 
       dragStateRef.current = null;
       setIsDragging(false);
+      stopDragLoop();
 
-      const releaseFrame = dragState.didDrag ? dragState.lastFrame : safeFrame;
-      const snappedFrame = getNearestSnapFrame(releaseFrame);
-
-      if (wrapFrame(releaseFrame) === wrapFrame(snappedFrame)) {
-        stopSnapAnimation();
-        onSetFrame(snappedFrame);
+      if (!dragState.didDrag) {
         return;
       }
 
-      stopSnapAnimation();
-      setIsSnapping(true);
-
-      const startFrame = dragState.lastFrame;
-      const stepDirection = getShortestSnapStep(startFrame, snappedFrame);
-      const totalFrames = getDirectionalFrameDistance(
-        startFrame,
-        snappedFrame,
-        stepDirection,
-      );
+      const releaseFrame = progressToFrame(dragTargetProgressRef.current);
+      const snappedFrame = getNearestSnapFrame(releaseFrame);
+      const targetProgress = frameToProgress(snappedFrame);
+      dragTargetProgressRef.current = targetProgress;
+      const totalFrames =
+        Math.abs(
+          getShortestProgressDelta(displayProgressRef.current, targetProgress),
+        ) * TOTAL_FRAMES;
       const duration = Math.min(
         SNAP_ANIMATION_MAX_DURATION_MS,
         Math.max(
@@ -977,37 +2192,9 @@ export default function MasterPlanFrameHoverStage({
         ),
       );
 
-      const animateSnap = (timestamp: number) => {
-        if (snapAnimationStartTimeRef.current === 0) {
-          snapAnimationStartTimeRef.current = timestamp;
-        }
-
-        const elapsed = timestamp - snapAnimationStartTimeRef.current;
-        const progress = Math.min(elapsed / duration, 1);
-        const easedProgress = easeOutCubic(progress);
-        const travelledFrames = Math.min(
-          totalFrames,
-          Math.round(totalFrames * easedProgress),
-        );
-        const nextFrame = wrapFrame(
-          startFrame + travelledFrames * stepDirection,
-        );
-
-        if (dragState.lastFrame !== nextFrame) {
-          dragState.lastFrame = nextFrame;
-          onSetFrame(nextFrame);
-        }
-
-        if (progress >= 1 || nextFrame === wrapFrame(snappedFrame)) {
-          onSetFrame(wrapFrame(snappedFrame));
-          stopSnapAnimation();
-          return;
-        }
-
-        snapAnimationFrameRef.current = window.requestAnimationFrame(animateSnap);
-      };
-
-      snapAnimationFrameRef.current = window.requestAnimationFrame(animateSnap);
+      animateToProgress(targetProgress, duration, () => {
+        onSetFrame(snappedFrame);
+      });
     };
 
     window.addEventListener("pointermove", handlePointerMove, {
@@ -1021,14 +2208,28 @@ export default function MasterPlanFrameHoverStage({
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [onSetFrame, safeFrame]);
+  }, [animateToProgress, onSetFrame, startDragLoop, stopDragLoop, stopMotionAnimation]);
+
+  useEffect(() => {
+    return () => {
+      stopDragLoop();
+      stopMotionAnimation();
+      stopScheduledProgress();
+    };
+  }, [stopDragLoop, stopMotionAnimation, stopScheduledProgress]);
 
   const allowHover =
     supportsPreciseHover &&
     !prefersReducedMotion &&
     !isDragging &&
-    !isSnapping &&
-    isSnapFrame(safeFrame);
+    !isSettling &&
+    isSnapFrame(displayedFrame);
+  const showApartmentMeshes = !isDragging && !isSettling && isSnapFrame(displayedFrame);
+  const showTrackingDebug =
+    ENABLE_TRACKING_DEBUG &&
+    selectedTower !== "Tower B" &&
+    !isDragging &&
+    !isSettling;
   const activeHoveredApartmentId = allowHover ? hoveredApartmentId : null;
   const hoveredApartment = formatApartmentLabel(
     activeHoveredApartmentId,
@@ -1052,108 +2253,152 @@ export default function MasterPlanFrameHoverStage({
     inventoryError,
   );
 
-  const updateTooltipPosition = (pointerPosition: PointerPosition | null) => {
-    if (!pointerPosition || !sectionRef.current || !tooltipRef.current) {
-      return;
-    }
+  const updateTooltipPosition = useCallback(
+    (pointerPosition: PointerPosition | null) => {
+      if (!pointerPosition || !sectionRef.current || !tooltipRef.current) {
+        return;
+      }
 
-    const rect = sectionRef.current.getBoundingClientRect();
-    const tooltipWidth = 180;
-    const tooltipHeight = 62;
-    const offsetX = 16;
-    const offsetY = 16;
+      const rect = sectionRef.current.getBoundingClientRect();
+      const tooltipWidth = 180;
+      const tooltipHeight = 62;
+      const offsetX = 16;
+      const offsetY = 16;
 
-    const nextLeft = Math.min(
-      Math.max(pointerPosition.x + offsetX, 12),
-      Math.max(rect.width - tooltipWidth - 12, 12),
-    );
-    const nextTop = Math.min(
-      Math.max(pointerPosition.y + offsetY, 12),
-      Math.max(rect.height - tooltipHeight - 12, 12),
-    );
+      const nextLeft = Math.min(
+        Math.max(pointerPosition.x - rect.left + offsetX, 12),
+        Math.max(rect.width - tooltipWidth - 12, 12),
+      );
+      const nextTop = Math.min(
+        Math.max(pointerPosition.y - rect.top + offsetY, 12),
+        Math.max(rect.height - tooltipHeight - 12, 12),
+      );
 
-    tooltipRef.current.style.left = `${nextLeft}px`;
-    tooltipRef.current.style.top = `${nextTop}px`;
-  };
+      tooltipRef.current.style.left = `${nextLeft}px`;
+      tooltipRef.current.style.top = `${nextTop}px`;
+    },
+    [],
+  );
+
+  const handleApartmentHover = useCallback(
+    (apartmentId: string | null, pointerPosition: PointerPosition | null) => {
+      if (!allowHover) {
+        return;
+      }
+
+      updateTooltipPosition(pointerPosition);
+
+      if (hoveredApartmentIdRef.current === apartmentId) {
+        return;
+      }
+
+      hoveredApartmentIdRef.current = apartmentId;
+      setHoveredApartmentId(apartmentId);
+    },
+    [allowHover, updateTooltipPosition],
+  );
+
+  const handleCanvasInvalidateReady = useCallback((invalidateCanvas: () => void) => {
+    canvasInvalidateRef.current = invalidateCanvas;
+  }, []);
 
   return (
     <section
       ref={sectionRef}
       className="absolute inset-0 overflow-hidden bg-black"
     >
-      <canvas
-        ref={canvasRef}
-        aria-label={`Master plan frame ${displayedFrame}`}
-        className="pointer-events-none absolute inset-0 h-full w-full"
+      <div
+        className={`absolute inset-0 bg-cover bg-center transition-opacity duration-300 ${
+          isVideoReady ? "opacity-0" : "opacity-100"
+        }`}
+        style={{ backgroundImage: "url('/FALLBACK.png')" }}
       />
 
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 overflow-hidden">
         <div
-          onPointerDownCapture={(event) => {
-            if (event.pointerType !== "touch" && event.button !== 0) {
-              return;
-            }
-
-            stopSnapAnimation();
-            dragStateRef.current = {
-              didDrag: false,
-              lastFrame: safeFrame,
-              pointerId: event.pointerId,
-              startFrame: safeFrame,
-              startX: event.clientX,
-            };
+          className="absolute"
+          style={{
+            height: `${coverViewport.height}px`,
+            left: `${coverViewport.left}px`,
+            top: `${coverViewport.top}px`,
+            width: `${coverViewport.width}px`,
           }}
-          onPointerLeave={() => {
-            hoveredApartmentIdRef.current = null;
-            setHoveredApartmentId(null);
-          }}
-          onPointerCancel={() => {
-            dragStateRef.current = null;
-            setIsDragging(false);
-            stopSnapAnimation();
-            hoveredApartmentIdRef.current = null;
-            setHoveredApartmentId(null);
-          }}
-          className={`h-full w-full touch-none select-none ${
-            allowHover && activeHoveredApartmentId
-              ? "cursor-pointer"
-              : isDragging
-                ? "cursor-ew-resize"
-                : "cursor-[grab] active:cursor-[grabbing]"
-          }`}
         >
-          <Canvas
-            dpr={1}
-            frameloop="demand"
-            performance={{ min: 0.8 }}
-            gl={{
-              alpha: true,
-              antialias: false,
-              powerPreference: "high-performance",
+          <video
+            ref={videoRef}
+            aria-label={`Master plan scrub view ${displayedFrame}`}
+            className={`pointer-events-none h-full w-full transition-opacity duration-300 ${
+              isVideoReady ? "opacity-100" : "opacity-0"
+            }`}
+            muted
+            playsInline
+            preload="auto"
+            disablePictureInPicture
+          />
+
+          <div
+            onPointerDownCapture={(event) => {
+              if (event.pointerType !== "touch" && event.button !== 0) {
+                return;
+              }
+
+              stopMotionAnimation();
+              stopDragLoop();
+              dragTargetProgressRef.current = displayProgressRef.current;
+              dragStateRef.current = {
+                didDrag: false,
+                pointerId: event.pointerId,
+                startProgress: displayProgressRef.current,
+                startX: event.clientX,
+              };
             }}
+            onPointerLeave={() => {
+              hoveredApartmentIdRef.current = null;
+              setHoveredApartmentId(null);
+            }}
+            onPointerCancel={() => {
+              dragStateRef.current = null;
+              setIsDragging(false);
+              stopDragLoop();
+              stopMotionAnimation();
+              hoveredApartmentIdRef.current = null;
+              setHoveredApartmentId(null);
+            }}
+            className={`absolute inset-0 touch-none select-none ${
+              allowHover && activeHoveredApartmentId
+                ? "cursor-pointer"
+                : isDragging
+                  ? "cursor-ew-resize"
+                  : "cursor-[grab] active:cursor-[grabbing]"
+            }`}
           >
-            <Suspense fallback={<LoadingState />}>
-              <TowerScene
-                allowHover={allowHover}
-                currentFrame={safeFrame}
-                hoveredApartmentId={activeHoveredApartmentId}
-                onApartmentHover={(apartmentId, pointerPosition) => {
-                  if (!allowHover) {
-                    return;
-                  }
-
-                  updateTooltipPosition(pointerPosition);
-
-                  if (hoveredApartmentIdRef.current === apartmentId) {
-                    return;
-                  }
-
-                  hoveredApartmentIdRef.current = apartmentId;
-                  setHoveredApartmentId(apartmentId);
-                }}
-              />
-            </Suspense>
-          </Canvas>
+            <Canvas
+              dpr={[0.8, 1]}
+              frameloop="demand"
+              performance={{ min: 0.6, debounce: 200 }}
+              gl={{
+                alpha: true,
+                antialias: false,
+                depth: true,
+                powerPreference: "high-performance",
+                stencil: false,
+              }}
+            >
+              <Suspense fallback={<LoadingState />}>
+                <TowerScene
+                  filteredApartments={filteredApartments}
+                  allowHover={allowHover}
+                  onInvalidateReady={handleCanvasInvalidateReady}
+                  hoveredApartmentId={activeHoveredApartmentId}
+                  onApartmentHover={handleApartmentHover}
+                  rotationProgressRef={displayProgressRef}
+                  selectedTower={selectedTower}
+                  showApartmentMeshes={showApartmentMeshes}
+                  showTrackingDebug={showTrackingDebug}
+                />
+              </Suspense>
+            </Canvas>
+          </div>
         </div>
       </div>
 
@@ -1170,7 +2415,7 @@ export default function MasterPlanFrameHoverStage({
               </span>
               <div
                 className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] ${statusMeta.badgeClassName}`}
-              >
+              >                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
                 <span
                   className={`inline-flex h-2 w-2 rounded-full ${statusMeta.dotClassName}`}
                 />
