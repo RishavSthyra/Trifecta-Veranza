@@ -54,9 +54,10 @@ const SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
 const DRAG_THRESHOLD_PX = 8;
 const DRAG_PIXELS_PER_FRAME = 12;
 const DRAG_MAX_LEAD_FRAMES = 8;
-const DRAG_PROGRESS_LERP_FORWARD = 0.24;
-const DRAG_PROGRESS_LERP_BACKWARD = 0.3;
-const DRAG_PROGRESS_DIRECT_COMMIT_THRESHOLD = 0.016;
+const DRAG_MAX_POINTER_PIXELS_PER_MS = 1.1;
+const DRAG_PROGRESS_DAMPING_FORWARD = 15;
+const DRAG_PROGRESS_DAMPING_BACKWARD = 18;
+const DRAG_MAX_CATCH_UP_FRAMES_PER_SECOND = 24;
 const DRAG_PROGRESS_EPSILON = 0.00008;
 const SNAP_ANIMATION_MIN_DURATION_MS = 240;
 const SNAP_ANIMATION_MAX_DURATION_MS = 460;
@@ -102,7 +103,10 @@ type PreparedTowerModel = {
 };
 
 type DragState = {
+  clampedDeltaX: number;
   didDrag: boolean;
+  lastClientX: number;
+  lastTimestamp: number;
   pointerId: number;
   startProgress: number;
   startX: number;
@@ -1914,8 +1918,15 @@ export default function MasterPlanFrameHoverStage({
       return;
     }
 
-    const step = () => {
+    let previousTimestamp = 0;
+
+    const step = (timestamp: number) => {
       dragFrameRef.current = null;
+      const deltaSeconds =
+        previousTimestamp === 0
+          ? 1 / MASTER_PLAN_SCRUB_VIDEO_FPS
+          : Math.min((timestamp - previousTimestamp) / 1000, 0.05);
+      previousTimestamp = timestamp;
 
       const delta = getShortestProgressDelta(
         displayProgressRef.current,
@@ -1927,16 +1938,18 @@ export default function MasterPlanFrameHoverStage({
         return;
       }
 
-      if (Math.abs(delta) >= DRAG_PROGRESS_DIRECT_COMMIT_THRESHOLD) {
-        commitProgress(dragTargetProgressRef.current);
-        dragFrameRef.current = window.requestAnimationFrame(step);
-        return;
-      }
+      const damping =
+        delta < 0
+          ? DRAG_PROGRESS_DAMPING_BACKWARD
+          : DRAG_PROGRESS_DAMPING_FORWARD;
+      const lerpAmount = 1 - Math.exp(-damping * deltaSeconds);
+      const maxStepProgress =
+        (DRAG_MAX_CATCH_UP_FRAMES_PER_SECOND / TOTAL_FRAMES) * deltaSeconds;
+      const nextStep =
+        Math.sign(delta) *
+        Math.min(Math.abs(delta) * lerpAmount, maxStepProgress);
 
-      const dragLerp =
-        delta < 0 ? DRAG_PROGRESS_LERP_BACKWARD : DRAG_PROGRESS_LERP_FORWARD;
-
-      commitProgress(displayProgressRef.current + delta * dragLerp);
+      commitProgress(displayProgressRef.current + nextStep);
       dragFrameRef.current = window.requestAnimationFrame(step);
     };
 
@@ -2149,9 +2162,21 @@ export default function MasterPlanFrameHoverStage({
       }
 
       event.preventDefault();
+      const elapsedMs = Math.max(event.timeStamp - dragState.lastTimestamp, 1);
+      const rawDeltaX = event.clientX - dragState.lastClientX;
+      const maxDeltaX = DRAG_MAX_POINTER_PIXELS_PER_MS * elapsedMs;
+      const clampedIncrement = Math.max(
+        -maxDeltaX,
+        Math.min(maxDeltaX, rawDeltaX),
+      );
+
+      dragState.clampedDeltaX += clampedIncrement;
+      dragState.lastClientX = event.clientX;
+      dragState.lastTimestamp = event.timeStamp;
+
       const rawTargetProgress = wrapProgress(
         dragState.startProgress +
-          deltaX / (DRAG_PIXELS_PER_FRAME * TOTAL_FRAMES),
+          dragState.clampedDeltaX / (DRAG_PIXELS_PER_FRAME * TOTAL_FRAMES),
       );
       dragTargetProgressRef.current = clampProgressLead(
         displayProgressRef.current,
@@ -2346,7 +2371,10 @@ export default function MasterPlanFrameHoverStage({
               stopDragLoop();
               dragTargetProgressRef.current = displayProgressRef.current;
               dragStateRef.current = {
+                clampedDeltaX: 0,
                 didDrag: false,
+                lastClientX: event.clientX,
+                lastTimestamp: event.timeStamp,
                 pointerId: event.pointerId,
                 startProgress: displayProgressRef.current,
                 startX: event.clientX,
