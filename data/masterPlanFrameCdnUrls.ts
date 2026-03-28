@@ -1,7 +1,13 @@
 export const TOTAL_MASTER_PLAN_FRAMES = 360;
 
 const MASTER_PLAN_FRAME_CDN_BASE_URL =
-  "https://res.cloudinary.com/dlhfbu3kh/image/upload/";
+  "https://res.cloudinary.com/dlhfbu3kh/image/upload";
+
+const MASTER_PLAN_FRAME_CDN_TRANSFORM =
+  "f_auto/q_auto:low/c_limit,w_768";
+
+// const MASTER_PLAN_FRAME_CDN_TRANSFORM =
+//   "f_auto/q_auto:eco/c_limit,w_960";
 
 export function wrapMasterPlanFrame(frame: number) {
   return (
@@ -10,7 +16,7 @@ export function wrapMasterPlanFrame(frame: number) {
 }
 
 export function getMasterPlanFrameCdnUrl(frame: number) {
-  return `${MASTER_PLAN_FRAME_CDN_BASE_URL}/frame_${String(wrapMasterPlanFrame(frame)).padStart(5, "0")}.jpg`;
+  return `${MASTER_PLAN_FRAME_CDN_BASE_URL}/${MASTER_PLAN_FRAME_CDN_TRANSFORM}/frame_${String(wrapMasterPlanFrame(frame)).padStart(5, "0")}.jpg`;
 }
 
 export function getMasterPlanFramePreloadSequence(

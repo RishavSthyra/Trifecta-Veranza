@@ -41,7 +41,9 @@ const bhkOptions = ["All", "2", "3"] as const;
 const INVENTORY_REFRESH_INTERVAL = 15000;
 const TOTAL_MASTER_PLAN_FRAMES = 360;
 const MASTER_PLAN_SNAP_FRAMES = [1, 90, 180, 270, 360] as const;
-const HOTSPOT_ANIMATION_FRAME_MS = 14;
+const HOTSPOT_ANIMATION_MIN_DURATION_MS = 220;
+const HOTSPOT_ANIMATION_MAX_DURATION_MS = 420;
+const HOTSPOT_ANIMATION_MS_PER_FRAME = 4.5;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
@@ -95,6 +97,10 @@ const itemAnim: Variants = {
   },
 };
 
+function easeOutCubic(progress: number) {
+  return 1 - (1 - progress) ** 3;
+}
+
 type MasterPlanLayoutProps = {
   initialApartments?: InventoryApartment[];
 };
@@ -140,7 +146,7 @@ export default function MasterPlanLayout({
   const inventorySignatureRef = useRef(getApartmentSignature(initialApartments));
   const currentFrameRef = useRef(1);
   const hotspotAnimationFrameRef = useRef<number | null>(null);
-  const hotspotAnimationLastTickRef = useRef(0);
+  const hotspotAnimationStartTimeRef = useRef(0);
 
   const [search, setSearch] = useState("");
   const [selectedTower, setSelectedTower] = useState<TowerType | null>(null);
@@ -339,7 +345,7 @@ export default function MasterPlanLayout({
         window.cancelAnimationFrame(hotspotAnimationFrameRef.current);
         hotspotAnimationFrameRef.current = null;
       }
-      hotspotAnimationLastTickRef.current = 0;
+      hotspotAnimationStartTimeRef.current = 0;
       setCurrentFrame(wrapFrame(frame));
     },
     [wrapFrame],
@@ -351,7 +357,7 @@ export default function MasterPlanLayout({
       hotspotAnimationFrameRef.current = null;
     }
 
-    hotspotAnimationLastTickRef.current = 0;
+    hotspotAnimationStartTimeRef.current = 0;
   }, []);
 
   const getNextHotspotFrame = useCallback(
@@ -380,28 +386,50 @@ export default function MasterPlanLayout({
 
       stopHotspotAnimation();
       const targetFrame = getNextHotspotFrame(currentFrameRef.current, direction);
+      const startFrame = currentFrameRef.current;
 
-      if (targetFrame === currentFrameRef.current) {
+      if (targetFrame === startFrame) {
         return;
       }
 
+      const totalFrames =
+        direction === 1
+          ? (targetFrame - startFrame + TOTAL_MASTER_PLAN_FRAMES) %
+            TOTAL_MASTER_PLAN_FRAMES
+          : (startFrame - targetFrame + TOTAL_MASTER_PLAN_FRAMES) %
+            TOTAL_MASTER_PLAN_FRAMES;
+      const duration = Math.min(
+        HOTSPOT_ANIMATION_MAX_DURATION_MS,
+        Math.max(
+          HOTSPOT_ANIMATION_MIN_DURATION_MS,
+          totalFrames * HOTSPOT_ANIMATION_MS_PER_FRAME,
+        ),
+      );
+
       const animateToHotspot = (timestamp: number) => {
-        if (hotspotAnimationLastTickRef.current === 0) {
-          hotspotAnimationLastTickRef.current = timestamp;
+        if (hotspotAnimationStartTimeRef.current === 0) {
+          hotspotAnimationStartTimeRef.current = timestamp;
         }
 
-        const elapsed = timestamp - hotspotAnimationLastTickRef.current;
+        const elapsed = timestamp - hotspotAnimationStartTimeRef.current;
+        const progress = Math.min(elapsed / duration, 1);
+        const easedProgress = easeOutCubic(progress);
+        const travelledFrames = Math.min(
+          totalFrames,
+          Math.round(totalFrames * easedProgress),
+        );
+        const nextFrame = wrapFrame(startFrame + travelledFrames * direction);
 
-        if (elapsed >= HOTSPOT_ANIMATION_FRAME_MS) {
-          hotspotAnimationLastTickRef.current = timestamp;
-          const nextFrame = wrapFrame(currentFrameRef.current + direction);
+        if (currentFrameRef.current !== nextFrame) {
           currentFrameRef.current = nextFrame;
           setCurrentFrame(nextFrame);
+        }
 
-          if (nextFrame === targetFrame) {
-            stopHotspotAnimation();
-            return;
-          }
+        if (progress >= 1 || nextFrame === targetFrame) {
+          currentFrameRef.current = targetFrame;
+          setCurrentFrame(targetFrame);
+          stopHotspotAnimation();
+          return;
         }
 
         hotspotAnimationFrameRef.current =

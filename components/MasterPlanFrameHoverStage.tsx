@@ -49,11 +49,14 @@ const TARGET_MODEL_HEIGHT = 10;
 const TOTAL_FRAMES = TOTAL_MASTER_PLAN_FRAMES;
 const SNAP_FRAMES = [1, 90, 180, 270, 360] as const;
 const DRAG_THRESHOLD_PX = 8;
-const DRAG_PIXELS_PER_FRAME = 10;
-const SNAP_ANIMATION_FRAME_MS = 14;
-const NEARBY_PRELOAD_FRAME_COUNT = 15;
-const BACKGROUND_PRELOAD_FRAME_COUNT = 120;
-const BACKGROUND_PRELOAD_BATCH_SIZE = 4;
+const DRAG_PIXELS_PER_FRAME = 8;
+const DRAG_FRAME_STEP = 2;
+const SNAP_ANIMATION_MIN_DURATION_MS = 180;
+const SNAP_ANIMATION_MAX_DURATION_MS = 420;
+const SNAP_ANIMATION_MS_PER_FRAME = 4.5;
+const NEARBY_PRELOAD_FRAME_COUNT = 12;
+const BACKGROUND_PRELOAD_FRAME_COUNT = 72;
+const BACKGROUND_PRELOAD_BATCH_SIZE = 2;
 
 // Placeholder alignment until Unreal tracking data is available.
 const BASE_CAMERA_POSITION: [number, number, number] = [10.5, 7.25, 13.5];
@@ -121,7 +124,7 @@ function drawFrameToCanvas(
 
   const width = Math.max(Math.round(container.clientWidth), 1);
   const height = Math.max(Math.round(container.clientHeight), 1);
-  const devicePixelRatio = window.devicePixelRatio || 1;
+  const devicePixelRatio = Math.min(window.devicePixelRatio || 1, 1);
   const targetWidth = Math.max(Math.round(width * devicePixelRatio), 1);
   const targetHeight = Math.max(Math.round(height * devicePixelRatio), 1);
 
@@ -194,6 +197,25 @@ function getShortestSnapStep(currentFrame: number, targetFrame: number) {
     (normalizedCurrent - normalizedTarget + TOTAL_FRAMES) % TOTAL_FRAMES;
 
   return forwardDistance <= backwardDistance ? 1 : -1;
+}
+
+function getDirectionalFrameDistance(
+  startFrame: number,
+  targetFrame: number,
+  direction: 1 | -1,
+) {
+  const normalizedStart = wrapFrame(startFrame);
+  const normalizedTarget = wrapFrame(targetFrame);
+
+  if (direction === 1) {
+    return (normalizedTarget - normalizedStart + TOTAL_FRAMES) % TOTAL_FRAMES;
+  }
+
+  return (normalizedStart - normalizedTarget + TOTAL_FRAMES) % TOTAL_FRAMES;
+}
+
+function easeOutCubic(progress: number) {
+  return 1 - (1 - progress) ** 3;
 }
 
 function inferTowerFromApartmentId(
@@ -693,7 +715,7 @@ export default function MasterPlanFrameHoverStage({
   const paintedFrameRef = useRef<number | null>(null);
   const frameSwapRequestRef = useRef(0);
   const snapAnimationFrameRef = useRef<number | null>(null);
-  const snapAnimationLastTickRef = useRef(0);
+  const snapAnimationStartTimeRef = useRef(0);
   const hoveredApartmentIdRef = useRef<string | null>(null);
   const [hoveredApartmentId, setHoveredApartmentId] = useState<string | null>(
     null,
@@ -725,7 +747,7 @@ export default function MasterPlanFrameHoverStage({
       window.cancelAnimationFrame(snapAnimationFrameRef.current);
       snapAnimationFrameRef.current = null;
     }
-    snapAnimationLastTickRef.current = 0;
+    snapAnimationStartTimeRef.current = 0;
     setIsSnapping(false);
   };
 
@@ -761,8 +783,8 @@ export default function MasterPlanFrameHoverStage({
 
     framesToPreload.forEach((frame, index) => {
       preloadMasterPlanFrame(frame, {
-        decode: index < 3,
-        fetchPriority: index < 2 ? "high" : "low",
+        decode: index < 2,
+        fetchPriority: index < 1 ? "high" : "low",
       });
     });
   }, [safeFrame]);
@@ -777,8 +799,8 @@ export default function MasterPlanFrameHoverStage({
       ),
       {
         batchSize: BACKGROUND_PRELOAD_BATCH_SIZE,
-        decode: true,
-        initialHighPriorityCount: 10,
+        decode: false,
+        initialHighPriorityCount: 8,
       },
     );
   }, []);
@@ -895,7 +917,13 @@ export default function MasterPlanFrameHoverStage({
         setHoveredApartmentId(null);
       }
 
-      const frameDelta = Math.round(deltaX / DRAG_PIXELS_PER_FRAME);
+      const rawFrameDelta = Math.round(deltaX / DRAG_PIXELS_PER_FRAME);
+      const frameDelta =
+        Math.abs(rawFrameDelta) <= DRAG_FRAME_STEP
+          ? rawFrameDelta
+          : rawFrameDelta >= 0
+            ? Math.floor(rawFrameDelta / DRAG_FRAME_STEP) * DRAG_FRAME_STEP
+            : Math.ceil(rawFrameDelta / DRAG_FRAME_STEP) * DRAG_FRAME_STEP;
 
       if (frameDelta === 0) {
         return;
@@ -934,25 +962,46 @@ export default function MasterPlanFrameHoverStage({
       stopSnapAnimation();
       setIsSnapping(true);
 
-      const stepDirection = getShortestSnapStep(releaseFrame, snappedFrame);
+      const startFrame = dragState.lastFrame;
+      const stepDirection = getShortestSnapStep(startFrame, snappedFrame);
+      const totalFrames = getDirectionalFrameDistance(
+        startFrame,
+        snappedFrame,
+        stepDirection,
+      );
+      const duration = Math.min(
+        SNAP_ANIMATION_MAX_DURATION_MS,
+        Math.max(
+          SNAP_ANIMATION_MIN_DURATION_MS,
+          totalFrames * SNAP_ANIMATION_MS_PER_FRAME,
+        ),
+      );
 
       const animateSnap = (timestamp: number) => {
-        if (snapAnimationLastTickRef.current === 0) {
-          snapAnimationLastTickRef.current = timestamp;
+        if (snapAnimationStartTimeRef.current === 0) {
+          snapAnimationStartTimeRef.current = timestamp;
         }
 
-        const elapsed = timestamp - snapAnimationLastTickRef.current;
+        const elapsed = timestamp - snapAnimationStartTimeRef.current;
+        const progress = Math.min(elapsed / duration, 1);
+        const easedProgress = easeOutCubic(progress);
+        const travelledFrames = Math.min(
+          totalFrames,
+          Math.round(totalFrames * easedProgress),
+        );
+        const nextFrame = wrapFrame(
+          startFrame + travelledFrames * stepDirection,
+        );
 
-        if (elapsed >= SNAP_ANIMATION_FRAME_MS) {
-          snapAnimationLastTickRef.current = timestamp;
-          const nextFrame = wrapFrame(dragState.lastFrame + stepDirection);
+        if (dragState.lastFrame !== nextFrame) {
           dragState.lastFrame = nextFrame;
           onSetFrame(nextFrame);
+        }
 
-          if (nextFrame === wrapFrame(snappedFrame)) {
-            stopSnapAnimation();
-            return;
-          }
+        if (progress >= 1 || nextFrame === wrapFrame(snappedFrame)) {
+          onSetFrame(wrapFrame(snappedFrame));
+          stopSnapAnimation();
+          return;
         }
 
         snapAnimationFrameRef.current = window.requestAnimationFrame(animateSnap);

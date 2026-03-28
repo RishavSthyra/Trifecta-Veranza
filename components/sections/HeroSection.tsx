@@ -20,7 +20,7 @@ type IdleCapableWindow = Window &
   };
 
 type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
-const HERO_MASTER_PLAN_PRELOAD_COUNT = 24;
+const HERO_MASTER_PLAN_PRELOAD_COUNT = 36;
 
 export default function HeroSection() {
   const router = useRouter();
@@ -122,10 +122,10 @@ export default function HeroSection() {
     ensureMasterPlanFrameConnectionHints();
     warmFramesCleanupRef.current?.();
     warmFramesCleanupRef.current = preloadMasterPlanFrameWindow(1, {
-      batchSize: 4,
+      batchSize: 3,
       count: HERO_MASTER_PLAN_PRELOAD_COUNT,
-      decode: true,
-      initialHighPriorityCount: 6,
+      decode: false,
+      initialHighPriorityCount: 8,
     });
   }, []);
 
