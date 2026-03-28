@@ -568,35 +568,28 @@ export default function MasterPlanLayout({
       ) : null}
 
       {!isLeaving ? (
-        <div className="pointer-events-none absolute inset-x-0 top-16 z-40 flex justify-center md:top-18">
-          <div className="pointer-events-auto inline-flex items-center gap-3 rounded-full border border-white/60 bg-white/82 px-3 py-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.18)] backdrop-blur-xl dark:border-white/10 dark:bg-black/42">
+        <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-4 sm:top-28 md:top-30">
+          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.42),rgba(255,255,255,0.14))] p-2 shadow-[0_18px_46px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(20,20,24,0.46),rgba(20,20,24,0.2))]">
             <button
               type="button"
               onClick={() => goToHotspot(-1)}
               onContextMenu={(event) => event.preventDefault()}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white text-zinc-900 transition hover:scale-[1.03] hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+              className="group inline-flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-white/45 bg-white/72 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_24px_rgba(15,23,42,0.12)] transition duration-300 hover:-translate-x-0.5 hover:bg-white/88 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/10 dark:text-white dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_24px_rgba(0,0,0,0.22)] dark:hover:bg-white/14 sm:h-11 sm:w-11"
               aria-label="Previous master plan hotspot"
             >
-              <ArrowLeft className="h-4 w-4" />
+              <ArrowLeft className="h-4 w-4 transition duration-300 group-hover:-translate-x-0.5" />
             </button>
 
-            <div className="hidden text-center sm:block">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-zinc-500 dark:text-white/45">
-                Master Plan Hotspots
-              </div>
-              <div className="mt-1 text-[11px] font-medium text-zinc-700 dark:text-white/78">
-                Drag anywhere to scrub, or use the arrows to jump between the main views
-              </div>
-            </div>
+            <div className="h-7 w-px bg-gradient-to-b from-white/0 via-white/35 to-white/0 dark:via-white/12 sm:h-8" />
 
             <button
               type="button"
               onClick={() => goToHotspot(1)}
               onContextMenu={(event) => event.preventDefault()}
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-zinc-200/80 bg-white text-zinc-900 transition hover:scale-[1.03] hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+              className="group inline-flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-white/45 bg-white/72 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_24px_rgba(15,23,42,0.12)] transition duration-300 hover:translate-x-0.5 hover:bg-white/88 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/10 dark:text-white dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_24px_rgba(0,0,0,0.22)] dark:hover:bg-white/14 sm:h-11 sm:w-11"
               aria-label="Next master plan hotspot"
             >
-              <ArrowRight className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4 transition duration-300 group-hover:translate-x-0.5" />
             </button>
           </div>
         </div>
