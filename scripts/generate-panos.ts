@@ -5,9 +5,15 @@ import sharp from "sharp"
 const INPUT = "./raw-panos"
 const OUTPUT = "./public/panos"
 
-const TILE_SIZE = 512
 const PREVIEW_WIDTH = 2000
 const TILE_CONCURRENCY = 8
+
+// Photo Sphere Viewer tiled adapter needs power-of-2 grid.
+// For 24576 x 12288, 64 x 32 is perfect:
+// 24576 / 64 = 384
+// 12288 / 32 = 384
+const TARGET_COLS = 64
+const TARGET_ROWS = 32
 
 const SHARP_INPUT_OPTIONS = {
   limitInputPixels: false,
@@ -53,8 +59,30 @@ async function processImage(file: string): Promise<void> {
 
   const fullWidth = meta.width
   const fullHeight = meta.height
-  const cols = Math.ceil(fullWidth / TILE_SIZE)
-  const rows = Math.ceil(fullHeight / TILE_SIZE)
+
+  const cols = TARGET_COLS
+  const rows = TARGET_ROWS
+
+  if (fullWidth % cols !== 0 || fullHeight % rows !== 0) {
+    throw new Error(
+      [
+        `Panorama "${file}" is not evenly divisible by the target PSV grid.`,
+        `Image size: ${fullWidth} x ${fullHeight}`,
+        `Target grid: ${cols} x ${rows}`,
+        `Remainders: width % cols = ${fullWidth % cols}, height % rows = ${fullHeight % rows}`,
+        `Use a different TARGET_COLS / TARGET_ROWS or resize/pad the source panorama first.`,
+      ].join("\n")
+    )
+  }
+
+  const tileWidth = fullWidth / cols
+  const tileHeight = fullHeight / rows
+
+  if (tileWidth !== tileHeight) {
+    console.warn(
+      `Warning: tiles are not square for ${file}. tileWidth=${tileWidth}, tileHeight=${tileHeight}`
+    )
+  }
 
   await baseImage
     .clone()
@@ -79,16 +107,11 @@ async function processImage(file: string): Promise<void> {
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      const left = col * TILE_SIZE
-      const top = row * TILE_SIZE
-      const tileWidth = Math.min(TILE_SIZE, fullWidth - left)
-      const tileHeight = Math.min(TILE_SIZE, fullHeight - top)
-
       tileJobs.push({
         row,
         col,
-        left,
-        top,
+        left: col * tileWidth,
+        top: row * tileHeight,
         width: tileWidth,
         height: tileHeight,
       })
@@ -116,7 +139,7 @@ async function processImage(file: string): Promise<void> {
     height: fullHeight,
     cols,
     rows,
-    tileSize: TILE_SIZE,
+    tileSize: tileWidth, // 384 for 24576x12288 with 64x32 grid
     preview: "preview.jpg",
     tileFormat: "jpg",
     tileUrl: "tiles/tile_{col}_{row}.jpg",
@@ -128,7 +151,12 @@ async function processImage(file: string): Promise<void> {
     "utf8"
   )
 
-  console.log("done:", file, metaJson)
+  console.log("done:", file, {
+    ...metaJson,
+    tileWidth,
+    tileHeight,
+    totalTiles: cols * rows,
+  })
 }
 
 async function run(): Promise<void> {

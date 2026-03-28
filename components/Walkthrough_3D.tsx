@@ -16,6 +16,7 @@ import {
   Mesh,
   MeshBuilder,
   Quaternion,
+  Ray,
   Scene,
   SceneLoader,
   ShaderMaterial,
@@ -51,6 +52,7 @@ type NavPoint = {
 
 type MappedNavPoint = {
   nav: NavPoint;
+  baseWorldPosition: Vector3;
   worldPosition: Vector3;
   projectionPosition: Vector3;
   worldForward: Vector3;
@@ -69,8 +71,12 @@ type PanoMeta = {
   height: number;
   cols: number;
   rows: number;
+  actualCols?: number;
+  actualRows?: number;
   tileSize: number;
   preview: string;
+  tileFormat?: string;
+  tileUrl?: string;
   tiles?: Array<{
     col: number;
     row: number;
@@ -92,6 +98,16 @@ type DebugInfo = {
   activeNavWorldUp: null | { x: number; y: number; z: number };
 };
 
+type NavMarkerVisual = {
+  point: MappedNavPoint;
+  root: Mesh;
+  fill: Mesh;
+  outline: Mesh;
+  fillMaterial: StandardMaterial;
+  outlineMaterial: StandardMaterial;
+  normal: Vector3;
+};
+
 type Bounds3 = {
   minX: number;
   maxX: number;
@@ -101,25 +117,25 @@ type Bounds3 = {
   maxZ: number;
 };
 
-const SOURCE_TOP_LEFT = {
-  x: 700.305939,
-  y: -7958.95784,
-  z: 10799.99902,
+const SOURCE_BOTTOM_LEFT = {
+  x: 1899.143896,
+  y: -7958.955338,
+  z: 10799.999023,
 };
 
-const SOURCE_BOTTOM_RIGHT = {
-  x: 1729,
-  y: -9052.565005,
-  z:  11084.998992,
+const SOURCE_TOP_RIGHT = {
+  x: 581.121048,
+  y: -9052.578353,
+  z: 11084.998992,
 };
 
 const SOURCE_COORDINATE_BOUNDS: Bounds3 = {
-  minX: SOURCE_TOP_LEFT.x,
-  maxX: SOURCE_BOTTOM_RIGHT.x,
-  minY: SOURCE_BOTTOM_RIGHT.y,
-  maxY: SOURCE_TOP_LEFT.y,
-  minZ: SOURCE_TOP_LEFT.z,
-  maxZ: SOURCE_BOTTOM_RIGHT.z,
+  minX: Math.min(SOURCE_BOTTOM_LEFT.x, SOURCE_TOP_RIGHT.x),
+  maxX: Math.max(SOURCE_BOTTOM_LEFT.x, SOURCE_TOP_RIGHT.x),
+  minY: Math.min(SOURCE_BOTTOM_LEFT.y, SOURCE_TOP_RIGHT.y),
+  maxY: Math.max(SOURCE_BOTTOM_LEFT.y, SOURCE_TOP_RIGHT.y),
+  minZ: Math.min(SOURCE_BOTTOM_LEFT.z, SOURCE_TOP_RIGHT.z),
+  maxZ: Math.max(SOURCE_BOTTOM_LEFT.z, SOURCE_TOP_RIGHT.z),
 };
 
 const ROOM_LABELS: Record<string, string> = {
@@ -243,6 +259,7 @@ export default function ApartmentTour({
 }: ApartmentTourProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const moveToNavRef = useRef<((id: string) => void) | null>(null);
+  const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
 
   const NAV_POINTS = useMemo(() => navData as NavPoint[], []);
   const START_NAV_ID = "BP_panoPath_Interior_F0010";
@@ -300,6 +317,12 @@ export default function ApartmentTour({
     const ORIENTATION_FLIP_X = POSITION_FLIP_X;
     const ORIENTATION_FLIP_Y = POSITION_FLIP_Y;
     const MAX_TEXTURE_CACHE = 4;
+    const MAX_PROJECTED_PANO_WIDTH = 8192;
+    const NAV_MARKER_RADIUS = 0.17;
+    const NAV_MARKER_HEIGHT_OFFSET = 0.06;
+    const MAX_VISIBLE_NAV_MARKERS = 4;
+    const CLICK_MOVE_THRESHOLD_PX = 8;
+    const NAV_TRANSITION_DURATION_MS = 650;
     const PANO_PROJECTION_Y_OFFSET = 0;
     const SHOW_DEBUG_COORDS = showDebug;
     const PANO_YAW_OFFSET_DEG = 0;
@@ -412,8 +435,14 @@ export default function ApartmentTour({
     const debugPlanes: Mesh[] = [];
     const debugTextures: DynamicTexture[] = [];
     const debugMarkers: Mesh[] = [];
+    const navMarkerVisuals: NavMarkerVisual[] = [];
+    const navMarkerMeshLookup = new Map<number, NavMarkerVisual>();
 
     let mappedNavPoints: MappedNavPoint[] = [];
+    let hoveredNavMarkerId: string | null = null;
+    let pointerDownCanvasPos: { x: number; y: number } | null = null;
+    let navTransitionRunId = 0;
+    let navMoveRequestId = 0;
 
     const touchTexture = (id: string) => {
       const idx = textureUseOrder.indexOf(id);
@@ -849,17 +878,40 @@ export default function ApartmentTour({
         }));
       }
 
+      const cols = meta.actualCols ?? meta.cols;
+      const rows = meta.actualRows ?? meta.rows;
+      const tileTemplate =
+        meta.tileUrl ?? `tiles/tile_{col}_{row}.${meta.tileFormat ?? "jpg"}`;
       const list: Array<{ col: number; row: number; url: string }> = [];
-      for (let row = 0; row < meta.rows; row++) {
-        for (let col = 0; col < meta.cols; col++) {
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
           list.push({
             col,
             row,
-            url: `${panoBasePath}${panoId}/tiles/tile_${col}_${row}.jpg`,
+            url: `${panoBasePath}${panoId}/${tileTemplate
+              .replace("{col}", String(col))
+              .replace("{row}", String(row))}`,
           });
         }
       }
       return list;
+    };
+
+    const getProjectedPanoSize = (meta: PanoMeta) => {
+      const gpuMaxTextureSize = engine.getCaps().maxTextureSize || meta.width;
+      const maxWidth = Math.min(
+        meta.width,
+        gpuMaxTextureSize,
+        MAX_PROJECTED_PANO_WIDTH,
+      );
+      const scale = maxWidth / meta.width;
+
+      return {
+        width: Math.max(1, Math.round(meta.width * scale)),
+        height: Math.max(1, Math.round(meta.height * scale)),
+        scaleX: Math.max(1, Math.round(meta.width * scale)) / meta.width,
+        scaleY: Math.max(1, Math.round(meta.height * scale)) / meta.height,
+      };
     };
 
     let lastCursorNormal = Vector3.Forward();
@@ -892,6 +944,266 @@ export default function ApartmentTour({
       return modelMeshes.includes(mesh);
     };
 
+    const isNavMarkerMesh = (mesh?: AbstractMesh | null) => {
+      if (!mesh) return false;
+      return navMarkerMeshLookup.has(mesh.uniqueId);
+    };
+
+    const getActiveMappedNavPoint = () => {
+      return (
+        mappedNavPoints.find((point) => point.nav.id === activeRoomIdRef.current) ??
+        null
+      );
+    };
+
+    const projectPointToModelSurface = (point: Vector3) => {
+      const rayStart = point.add(new Vector3(0, 0.2, 0));
+      const rayLength = Math.max(6, rayStart.y - sceneMin.y + 2);
+      const ray = new Ray(
+        rayStart,
+        Vector3.Down(),
+        rayLength,
+      );
+      const picks = scene.multiPickWithRay(
+        ray,
+        (mesh) => isModelMesh(mesh as AbstractMesh),
+      ) ?? [];
+
+      const floorCandidate = picks
+        .filter((pick) => pick?.hit && !!pick.pickedPoint)
+        .map((pick) => ({
+          pick,
+          point: pick.pickedPoint!,
+          normal: pick.getNormal(true)?.normalize() ?? Vector3.Up(),
+        }))
+        .filter(
+          (entry) =>
+            entry.point.y <= rayStart.y + 0.01 && entry.normal.y >= 0.35,
+        )
+        .sort((a, b) => a.point.y - b.point.y)[0];
+
+      if (floorCandidate) {
+        return {
+          position: floorCandidate.point
+            .clone()
+            .add(floorCandidate.normal.scale(NAV_MARKER_HEIGHT_OFFSET)),
+          normal: floorCandidate.normal,
+        };
+      }
+
+      return {
+        position: new Vector3(
+          point.x,
+          sceneMin.y + NAV_MARKER_HEIGHT_OFFSET,
+          point.z,
+        ),
+        normal: Vector3.Up(),
+      };
+    };
+
+    const shouldRenderNavMarker = (point: MappedNavPoint, index: number) => {
+      return index % 2 === 0 || point.nav.id === activeRoomIdRef.current;
+    };
+
+    const isMarkerOccludedFromCamera = (point: Vector3) => {
+      const origin = camera.position.clone();
+      const direction = point.subtract(origin);
+      const distance = direction.length();
+
+      if (distance < 0.001) {
+        return false;
+      }
+
+      direction.scaleInPlace(1 / distance);
+
+      const pick = scene.pickWithRay(
+        new Ray(origin, direction, distance - 0.08),
+        (mesh) => isModelMesh(mesh as AbstractMesh),
+        true,
+      );
+
+      return !!pick?.hit;
+    };
+
+    const getVisibleNavMarkerIds = () => {
+      const activeId = activeRoomIdRef.current;
+      const activePoint = getActiveMappedNavPoint();
+      if (!activePoint) {
+        return new Set<string>();
+      }
+
+      const nearestIds = mappedNavPoints
+        .filter((point, index) => {
+          if (point.nav.id === activeId) return false;
+          return shouldRenderNavMarker(point, index);
+        })
+        .map((point) => ({
+          point,
+          distance: Vector3.Distance(activePoint.worldPosition, point.worldPosition),
+        }))
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, MAX_VISIBLE_NAV_MARKERS)
+        .map(({ point }) => point.nav.id);
+
+      return new Set<string>(nearestIds);
+    };
+
+    const createNavMarkerVisual = (point: MappedNavPoint) => {
+      const { position, normal } = projectPointToModelSurface(
+        point.baseWorldPosition,
+      );
+      const outlineRadius = NAV_MARKER_RADIUS;
+      const fillRadius = outlineRadius;
+      const root = new Mesh(`navMarkerRoot-${point.nav.id}`, scene);
+      root.isPickable = false;
+      root.rotationQuaternion = quaternionFromSurfaceNormal(normal);
+      root.position.copyFrom(position);
+
+      const outline = MeshBuilder.CreateDisc(
+        `navMarkerOutline-${point.nav.id}`,
+        { radius: outlineRadius, tessellation: 64 },
+        scene,
+      );
+      outline.parent = root;
+      outline.position.z = 0.0012;
+      outline.isPickable = true;
+      outline.alwaysSelectAsActiveMesh = true;
+
+      const outlineMaterial = new StandardMaterial(
+        `navMarkerOutlineMat-${point.nav.id}`,
+        scene,
+      );
+      outlineMaterial.diffuseColor = new Color3(1, 1, 1);
+      outlineMaterial.emissiveColor = new Color3(0.18, 0.18, 0.18);
+      outlineMaterial.alpha = 0.3;
+      outlineMaterial.backFaceCulling = false;
+      outlineMaterial.disableLighting = true;
+      outline.material = outlineMaterial;
+
+      const fill = MeshBuilder.CreateDisc(
+        `navMarkerFill-${point.nav.id}`,
+        { radius: fillRadius, tessellation: 56 },
+        scene,
+      );
+      fill.parent = root;
+      fill.position.z = 0.0026;
+      fill.isPickable = true;
+      fill.alwaysSelectAsActiveMesh = true;
+
+      const fillMaterial = new StandardMaterial(
+        `navMarkerFillMat-${point.nav.id}`,
+        scene,
+      );
+      fillMaterial.diffuseColor = new Color3(1, 1, 1);
+      fillMaterial.emissiveColor = new Color3(0.18, 0.18, 0.18);
+      fillMaterial.alpha = 0.3;
+      fillMaterial.backFaceCulling = false;
+      fillMaterial.disableLighting = true;
+      fill.material = fillMaterial;
+
+      const visual: NavMarkerVisual = {
+        point,
+        root,
+        fill,
+        outline,
+        fillMaterial,
+        outlineMaterial,
+        normal,
+      };
+
+      navMarkerVisuals.push(visual);
+      navMarkerMeshLookup.set(fill.uniqueId, visual);
+      navMarkerMeshLookup.set(outline.uniqueId, visual);
+      return visual;
+    };
+
+    const disposeNavMarkers = () => {
+      navMarkerMeshLookup.clear();
+
+      while (navMarkerVisuals.length > 0) {
+        const visual = navMarkerVisuals.pop();
+        visual?.fillMaterial.dispose();
+        visual?.outlineMaterial.dispose();
+        visual?.root.dispose(false);
+      }
+
+      hoveredNavMarkerId = null;
+    };
+
+    const syncNavMarkerVisuals = () => {
+      const visibleIds = getVisibleNavMarkerIds();
+
+      for (const visual of navMarkerVisuals) {
+        const isActive = visual.point.nav.id === activeRoomIdRef.current;
+        const isHovered = visual.point.nav.id === hoveredNavMarkerId;
+        const scale = isActive ? 1.18 : isHovered ? 1.1 : 1;
+        const isVisible =
+          visibleIds.has(visual.point.nav.id) &&
+          !isMarkerOccludedFromCamera(visual.root.position);
+
+        visual.root.setEnabled(isVisible);
+        if (!isVisible) {
+          continue;
+        }
+
+        visual.root.scaling.setAll(scale);
+
+        if (isActive) {
+          visual.fillMaterial.diffuseColor.copyFromFloats(1, 1, 1);
+          visual.fillMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
+          visual.fillMaterial.alpha = 0.3;
+          visual.outlineMaterial.diffuseColor.copyFromFloats(1, 1, 1);
+          visual.outlineMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
+          visual.outlineMaterial.alpha = 0.3;
+        } else if (isHovered) {
+          visual.fillMaterial.diffuseColor.copyFromFloats(1, 1, 1);
+          visual.fillMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
+          visual.fillMaterial.alpha = 0.3;
+          visual.outlineMaterial.diffuseColor.copyFromFloats(1, 1, 1);
+          visual.outlineMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
+          visual.outlineMaterial.alpha = 0.3;
+        } else {
+          visual.fillMaterial.diffuseColor.copyFromFloats(1, 1, 1);
+          visual.fillMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
+          visual.fillMaterial.alpha = 0.3;
+          visual.outlineMaterial.diffuseColor.copyFromFloats(1, 1, 1);
+          visual.outlineMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
+          visual.outlineMaterial.alpha = 0.3;
+        }
+      }
+    };
+
+    const setTransitionOverlayOpacity = (value: number) => {
+      const overlay = transitionOverlayRef.current;
+      if (!overlay) return;
+      overlay.style.opacity = String(Math.max(0, Math.min(1, value)));
+    };
+
+    const rebuildNavMarkers = () => {
+      disposeNavMarkers();
+      mappedNavPoints.forEach((point, index) => {
+        if (!shouldRenderNavMarker(point, index)) return;
+        createNavMarkerVisual(point);
+      });
+      syncNavMarkerVisuals();
+    };
+
+    const getHoveredNavMarkerAtPointer = (pointerX: number, pointerY: number) => {
+      const pick = scene.pick(
+        pointerX,
+        pointerY,
+        (mesh) => isNavMarkerMesh(mesh as AbstractMesh),
+        false,
+        camera,
+      );
+
+      if (!pick?.hit || !pick.pickedMesh) {
+        return null;
+      }
+
+      return navMarkerMeshLookup.get(pick.pickedMesh.uniqueId) ?? null;
+    };
+
     const buildMappedNavPoints = (): MappedNavPoint[] => {
       return NAV_POINTS.map((nav) => {
         const forward = mapForwardVectorToWorld(nav);
@@ -907,6 +1219,7 @@ export default function ApartmentTour({
 
         return {
           nav,
+          baseWorldPosition: baseWorldPos,
           worldPosition: worldPos,
           projectionPosition,
           worldForward: forward,
@@ -916,7 +1229,78 @@ export default function ApartmentTour({
       });
     };
 
+    const getDirectionalNavTarget = (pickedPoint: Vector3) => {
+      const activePoint = getActiveMappedNavPoint();
+      if (!activePoint) return null;
+
+      let desiredDirection = pickedPoint.subtract(activePoint.worldPosition);
+      desiredDirection.y = 0;
+
+      if (desiredDirection.lengthSquared() < 0.01) {
+        desiredDirection = camera.getForwardRay(1).direction.clone();
+        desiredDirection.y = 0;
+      }
+
+      if (desiredDirection.lengthSquared() < 0.0001) {
+        return null;
+      }
+
+      desiredDirection.normalize();
+
+      let bestMatch: {
+        point: MappedNavPoint;
+        forwardDistance: number;
+        lateralDistance: number;
+      } | null = null;
+
+      for (const point of mappedNavPoints) {
+        if (point.nav.id === activePoint.nav.id) continue;
+
+        const delta = point.worldPosition.subtract(activePoint.worldPosition);
+        delta.y = 0;
+
+        const forwardDistance = Vector3.Dot(delta, desiredDirection);
+        if (forwardDistance <= 0.2) continue;
+
+        const lateralVector = delta.subtract(
+          desiredDirection.scale(forwardDistance),
+        );
+        const lateralDistance = lateralVector.length();
+        const maxAllowedLateral = Math.max(0.9, forwardDistance * 0.45);
+
+        if (lateralDistance > maxAllowedLateral) continue;
+
+        if (
+          !bestMatch ||
+          forwardDistance < bestMatch.forwardDistance - 0.01 ||
+          (
+            Math.abs(forwardDistance - bestMatch.forwardDistance) <= 0.01 &&
+            lateralDistance < bestMatch.lateralDistance
+          )
+        ) {
+          bestMatch = {
+            point,
+            forwardDistance,
+            lateralDistance,
+          };
+        }
+      }
+
+      return bestMatch?.point ?? null;
+    };
+
     const updateHoverCursor = () => {
+      const hoveredMarker = getHoveredNavMarkerAtPointer(
+        scene.pointerX,
+        scene.pointerY,
+      );
+      const nextHoveredMarkerId = hoveredMarker?.point.nav.id ?? null;
+
+      if (hoveredNavMarkerId !== nextHoveredMarkerId) {
+        hoveredNavMarkerId = nextHoveredMarkerId;
+        syncNavMarkerVisuals();
+      }
+
       const pick = scene.pick(
         scene.pointerX,
         scene.pointerY,
@@ -927,9 +1311,51 @@ export default function ApartmentTour({
 
       const cameraNav = worldToNavSpace(camera.position);
 
+      if (hoveredMarker) {
+        lastCursorNormal = Vector3.Lerp(
+          lastCursorNormal,
+          hoveredMarker.normal,
+          0.35,
+        ).normalize();
+
+        hoverCursorRoot.position.copyFrom(hoveredMarker.root.position);
+        hoverCursorRoot.rotationQuaternion =
+          hoveredMarker.root.rotationQuaternion?.clone() ??
+          quaternionFromSurfaceNormal(lastCursorNormal);
+        hoverCursorRoot.setEnabled(true);
+        canvas.style.cursor = "pointer";
+
+        setDebugInfo((prev) => ({
+          ...prev,
+          cameraWorld: {
+            x: camera.position.x,
+            y: camera.position.y,
+            z: camera.position.z,
+          },
+          cameraNav: {
+            x: cameraNav.x,
+            y: cameraNav.y,
+            z: cameraNav.z,
+          },
+          hoverPointWorld: {
+            x: hoveredMarker.root.position.x,
+            y: hoveredMarker.root.position.y,
+            z: hoveredMarker.root.position.z,
+          },
+          hoverPointNav: worldToNavSpace(hoveredMarker.root.position),
+          hoverNormal: {
+            x: hoveredMarker.normal.x,
+            y: hoveredMarker.normal.y,
+            z: hoveredMarker.normal.z,
+          },
+        }));
+        return;
+      }
+
       if (!pick?.hit || !pick.pickedPoint || !pick.pickedMesh) {
         hoverCursorRoot.setEnabled(false);
         lastCursorNormal = Vector3.Forward();
+        canvas.style.cursor = "grab";
 
         setDebugInfo((prev) => ({
           ...prev,
@@ -954,6 +1380,7 @@ export default function ApartmentTour({
       if (!normal) {
         hoverCursorRoot.setEnabled(false);
         lastCursorNormal = Vector3.Forward();
+        canvas.style.cursor = "grab";
 
         setDebugInfo((prev) => ({
           ...prev,
@@ -976,6 +1403,7 @@ export default function ApartmentTour({
 
       const n = normal.normalize();
       lastCursorNormal = Vector3.Lerp(lastCursorNormal, n, 0.35).normalize();
+      canvas.style.cursor = "grab";
 
       const pos = pick.pickedPoint.add(lastCursorNormal.scale(0.03));
       hoverCursorRoot.position.copyFrom(pos);
@@ -1093,6 +1521,122 @@ export default function ApartmentTour({
       }
     };
 
+    const setProjectionOpacity = (value: number) => {
+      const clamped = Math.max(0, Math.min(1, value));
+      for (const material of projectionMaterials.values()) {
+        material.setFloat("opacity", clamped);
+      }
+    };
+
+    const easeInOutCubic = (t: number) => {
+      return t < 0.5
+        ? 4 * t * t * t
+        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    };
+
+    const animateMoveBetweenNavPoints = async (
+      fromPoint: MappedNavPoint | null,
+      toPoint: MappedNavPoint,
+      nextTexture: Texture | null,
+    ) => {
+      if (!fromPoint) {
+        if (nextTexture && showProjectionRef.current) {
+          applyProjectionToMeshes(nextTexture, toPoint);
+          setProjectionOpacity(1);
+        }
+        camera.position.copyFrom(toPoint.worldPosition);
+        camera.cameraDirection.set(0, 0, 0);
+        camera.setTarget(toPoint.worldPosition.add(toPoint.worldForward));
+        setTransitionOverlayOpacity(0);
+        return;
+      }
+
+      const transitionId = ++navTransitionRunId;
+      const startPos = camera.position.clone();
+      const startTarget = camera.getTarget().clone();
+      const startForward = startTarget
+        .subtract(startPos)
+        .normalize();
+      if (startForward.lengthSquared() < 0.0001) {
+        startForward.copyFrom(fromPoint.worldForward);
+      }
+      const endPos = toPoint.worldPosition.clone();
+      const endForward = toPoint.worldForward.clone();
+      const travelDistance = Vector3.Distance(startPos, endPos);
+      const overshoot = Math.min(1.1, Math.max(0.18, travelDistance * 0.16));
+      const travelDirection = endPos.subtract(startPos).normalize();
+      if (travelDirection.lengthSquared() < 0.0001) {
+        travelDirection.copyFrom(endForward);
+      }
+      const midPos = startPos.add(travelDirection.scale(overshoot));
+      let switchedProjection = false;
+
+      await new Promise<void>((resolve) => {
+        const startTime = performance.now();
+
+        const step = (now: number) => {
+          if (disposed || transitionId !== navTransitionRunId) {
+            resolve();
+            return;
+          }
+
+          const rawProgress = Math.min(
+            1,
+            (now - startTime) / NAV_TRANSITION_DURATION_MS,
+          );
+          const eased = easeInOutCubic(rawProgress);
+          const firstHalf = Math.min(1, eased / 0.52);
+          const secondHalf = Math.max(0, (eased - 0.52) / 0.48);
+
+          const animatedPos =
+            eased < 0.52
+              ? Vector3.Lerp(startPos, midPos, firstHalf)
+              : Vector3.Lerp(midPos, endPos, secondHalf);
+          const animatedForward = Vector3.Lerp(
+            startForward,
+            endForward,
+            eased,
+          ).normalize();
+
+          camera.position.copyFrom(animatedPos);
+          camera.cameraDirection.set(0, 0, 0);
+          camera.setTarget(animatedPos.add(animatedForward));
+
+          const overlayOpacity = Math.sin(rawProgress * Math.PI) * 0.34;
+          setTransitionOverlayOpacity(overlayOpacity);
+
+          if (!switchedProjection && rawProgress >= 0.48) {
+            if (nextTexture && showProjectionRef.current) {
+              applyProjectionToMeshes(nextTexture, toPoint);
+              setProjectionOpacity(0.78);
+            }
+            switchedProjection = true;
+          }
+
+          if (showProjectionRef.current) {
+            const tailOpacity = switchedProjection
+              ? 0.78 + secondHalf * 0.22
+              : 1 - firstHalf * 0.22;
+            setProjectionOpacity(tailOpacity);
+          }
+
+          if (rawProgress >= 1) {
+            camera.position.copyFrom(endPos);
+            camera.cameraDirection.set(0, 0, 0);
+            camera.setTarget(endPos.add(endForward));
+            setProjectionOpacity(1);
+            setTransitionOverlayOpacity(0);
+            resolve();
+            return;
+          }
+
+          requestAnimationFrame(step);
+        };
+
+        requestAnimationFrame(step);
+      });
+    };
+
     const loadPanoTextureFromTiles = async (imageFilename: string) => {
       const panoId = panoIdFromFilename(imageFilename);
 
@@ -1114,10 +1658,11 @@ export default function ApartmentTour({
         }
 
         const meta = (await metaRes.json()) as PanoMeta;
+        const projectedSize = getProjectedPanoSize(meta);
 
         const drawCanvas = document.createElement("canvas");
-        drawCanvas.width = meta.width;
-        drawCanvas.height = meta.height;
+        drawCanvas.width = projectedSize.width;
+        drawCanvas.height = projectedSize.height;
 
         const ctx = drawCanvas.getContext("2d");
         if (!ctx) {
@@ -1128,7 +1673,16 @@ export default function ApartmentTour({
 
         const previewUrl = `${panoBasePath}${panoId}/${meta.preview}`;
         const previewImg = await loadImage(previewUrl);
-        ctx.drawImage(previewImg, 0, 0, meta.width, meta.height);
+        ctx.drawImage(previewImg, 0, 0, projectedSize.width, projectedSize.height);
+
+        if (
+          projectedSize.width !== meta.width ||
+          projectedSize.height !== meta.height
+        ) {
+          console.info(
+            `[PANO ${panoId}] Downscaling projection texture from ${meta.width}x${meta.height} to ${projectedSize.width}x${projectedSize.height} to stay within GPU limits.`,
+          );
+        }
 
         const dynamicTexture = new DynamicTexture(
           `pano-dynamic-${panoId}`,
@@ -1152,10 +1706,14 @@ export default function ApartmentTour({
             chunk.map(async ({ col, row, url }) => {
               const img = await loadImage(url);
 
-              const left = col * meta.tileSize;
-              const top = row * meta.tileSize;
-              const drawW = Math.min(meta.tileSize, meta.width - left);
-              const drawH = Math.min(meta.tileSize, meta.height - top);
+              const sourceLeft = col * meta.tileSize;
+              const sourceTop = row * meta.tileSize;
+              const sourceW = Math.min(meta.tileSize, meta.width - sourceLeft);
+              const sourceH = Math.min(meta.tileSize, meta.height - sourceTop);
+              const left = Math.round(sourceLeft * projectedSize.scaleX);
+              const top = Math.round(sourceTop * projectedSize.scaleY);
+              const drawW = Math.max(1, Math.round(sourceW * projectedSize.scaleX));
+              const drawH = Math.max(1, Math.round(sourceH * projectedSize.scaleY));
 
               if (drawW > 0 && drawH > 0) {
                 ctx.drawImage(
@@ -1229,18 +1787,25 @@ export default function ApartmentTour({
       }
     };
 
-    const moveToNavPoint = async (navId: string) => {
+    const moveToNavPoint = async (
+      navId: string,
+      options?: { animate?: boolean },
+    ) => {
       const navPoint = mappedNavPoints.find((p) => p.nav.id === navId);
       if (!navPoint) return;
+      const moveRequestId = ++navMoveRequestId;
 
       try {
         const panoId = panoIdFromFilename(navPoint.nav.image_filename);
+        const currentPoint = getActiveMappedNavPoint();
+        const shouldAnimate =
+          options?.animate ?? (currentPoint != null && currentPoint.nav.id !== navId);
+        let texture: Texture | null = null;
 
         if (showProjectionRef.current) {
-          const texture = await loadPanoTextureFromTiles(
+          texture = await loadPanoTextureFromTiles(
             navPoint.nav.image_filename,
           );
-          applyProjectionToMeshes(texture, navPoint);
           touchTexture(panoId);
           evictOldTextures([panoId]);
           void preloadNearestPanos(navPoint.nav.id);
@@ -1248,14 +1813,22 @@ export default function ApartmentTour({
           restoreOriginalMaterials();
         }
 
-        const cameraPos = navPoint.worldPosition.clone();
+        if (shouldAnimate) {
+          await animateMoveBetweenNavPoints(currentPoint, navPoint, texture);
+        } else {
+          await animateMoveBetweenNavPoints(null, navPoint, texture);
+        }
 
-        camera.position.copyFrom(cameraPos);
-        camera.cameraDirection.set(0, 0, 0);
-        camera.setTarget(cameraPos.add(navPoint.worldForward));
+        if (moveRequestId !== navMoveRequestId) {
+          return;
+        }
+
+        const cameraPos = navPoint.worldPosition.clone();
 
         setActiveRoomId(navPoint.nav.id);
         activeRoomIdRef.current = navPoint.nav.id;
+        rebuildNavMarkers();
+        syncNavMarkerVisuals();
 
         rebuildAllCoordinateOverlays();
 
@@ -1291,8 +1864,71 @@ export default function ApartmentTour({
           cameraNav: worldToNavSpace(cameraPos),
         }));
       } catch (error) {
+        if (moveRequestId !== navMoveRequestId) {
+          return;
+        }
+        setTransitionOverlayOpacity(0);
+        setProjectionOpacity(1);
         console.error("Failed to move to pano/nav point:", error);
       }
+    };
+
+    const handleSceneClick = async (pointerX: number, pointerY: number) => {
+      const markerVisual = getHoveredNavMarkerAtPointer(pointerX, pointerY);
+      if (markerVisual) {
+        await moveToNavPoint(markerVisual.point.nav.id);
+        return;
+      }
+
+      const modelPick = scene.pick(
+        pointerX,
+        pointerY,
+        (mesh) => isModelMesh(mesh as AbstractMesh),
+        false,
+        camera,
+      );
+
+      if (!modelPick?.hit || !modelPick.pickedPoint) {
+        return;
+      }
+
+      const targetPoint = getDirectionalNavTarget(modelPick.pickedPoint);
+      if (targetPoint) {
+        await moveToNavPoint(targetPoint.nav.id);
+      }
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      pointerDownCanvasPos = {
+        x: event.offsetX,
+        y: event.offsetY,
+      };
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (!pointerDownCanvasPos) return;
+
+      const dx = event.offsetX - pointerDownCanvasPos.x;
+      const dy = event.offsetY - pointerDownCanvasPos.y;
+      pointerDownCanvasPos = null;
+
+      if (Math.hypot(dx, dy) > CLICK_MOVE_THRESHOLD_PX) {
+        return;
+      }
+
+      void handleSceneClick(event.offsetX, event.offsetY);
+    };
+
+    const handlePointerLeave = () => {
+      pointerDownCanvasPos = null;
+
+      if (hoveredNavMarkerId !== null) {
+        hoveredNavMarkerId = null;
+        syncNavMarkerVisuals();
+      }
+
+      hoverCursorRoot.setEnabled(false);
+      canvas.style.cursor = "grab";
     };
 
     moveToNavRef.current = moveToNavPoint;
@@ -1373,9 +2009,10 @@ export default function ApartmentTour({
         captureModelBounds(visibleMeshes);
 
         mappedNavPoints = buildMappedNavPoints();
+        rebuildNavMarkers();
         rebuildAllCoordinateOverlays();
 
-        await moveToNavPoint(START_NAV_ID);
+        await moveToNavPoint(START_NAV_ID, { animate: false });
       } catch (error) {
         console.error("Failed to load apartment tour:", error);
       }
@@ -1390,18 +2027,27 @@ export default function ApartmentTour({
     engine.runRenderLoop(() => {
       if (disposed) return;
       updateHoverCursor();
+      syncNavMarkerVisuals();
       scene.render();
     });
 
     const handleResize = () => engine.resize();
+    canvas.addEventListener("pointerdown", handlePointerDown);
+    canvas.addEventListener("pointerup", handlePointerUp);
+    canvas.addEventListener("pointerleave", handlePointerLeave);
     window.addEventListener("resize", handleResize);
 
     return () => {
       disposed = true;
       moveToNavRef.current = null;
+      setTransitionOverlayOpacity(0);
+      canvas.removeEventListener("pointerdown", handlePointerDown);
+      canvas.removeEventListener("pointerup", handlePointerUp);
+      canvas.removeEventListener("pointerleave", handlePointerLeave);
       window.removeEventListener("resize", handleResize);
 
       disposeDebugOverlays();
+      disposeNavMarkers();
 
       panoTextures.forEach((t) => t.dispose());
       projectionMaterials.forEach((m) => m.dispose());
@@ -1440,6 +2086,15 @@ export default function ApartmentTour({
           height: "100%",
           display: "block",
           cursor: "grab",
+        }}
+      />
+      <div
+        ref={transitionOverlayRef}
+        className="pointer-events-none absolute inset-0"
+        style={{
+          opacity: 0,
+          background:
+            "radial-gradient(circle at center, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.08) 20%, rgba(18,10,6,0.36) 55%, rgba(8,4,3,0.6) 100%)",
         }}
       />
 

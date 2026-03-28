@@ -46,29 +46,31 @@ import type {
   TowerType,
 } from "@/types/inventory";
 
-const MODEL_PATH = "/models/Towers_Final.glb";
+const MODEL_PATH_A = "/models/Towers_Final.glb";
+const MODEL_PATH_B = "/models/Towers_Final - Copy.glb";
 const APARTMENT_ID_PATTERN = /^(Tower_[A-Z]_\d{2}_\d{3,4})_/;
 const TARGET_MODEL_HEIGHT = 10;
 const TOTAL_FRAMES = TOTAL_MASTER_PLAN_FRAMES;
 const SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
 const DRAG_THRESHOLD_PX = 8;
-const DRAG_PIXELS_PER_FRAME = 12;
-const DRAG_MAX_LEAD_FRAMES = 8;
-const DRAG_MAX_POINTER_PIXELS_PER_MS = 1.1;
-const DRAG_PROGRESS_DAMPING_FORWARD = 15;
-const DRAG_PROGRESS_DAMPING_BACKWARD = 18;
-const DRAG_MAX_CATCH_UP_FRAMES_PER_SECOND = 24;
+const DRAG_PIXELS_PER_FRAME = 10;
+const DRAG_MAX_LEAD_FRAMES = 10;
+const DRAG_MAX_POINTER_PIXELS_PER_MS = 1.2;
+const DRAG_PROGRESS_DAMPING_FORWARD = 18;
+const DRAG_PROGRESS_DAMPING_BACKWARD = 21;
+const DRAG_MAX_CATCH_UP_FRAMES_PER_SECOND = 32;
 const DRAG_PROGRESS_EPSILON = 0.00008;
-const SNAP_ANIMATION_MIN_DURATION_MS = 240;
-const SNAP_ANIMATION_MAX_DURATION_MS = 460;
-const SNAP_ANIMATION_MS_PER_FRAME = 4.5;
-const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 560;
-const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 980;
-const HOTSPOT_NAVIGATION_MS_PER_FRAME = 9.5;
+const SNAP_ANIMATION_MIN_DURATION_MS = 180;
+const SNAP_ANIMATION_MAX_DURATION_MS = 340;
+const SNAP_ANIMATION_MS_PER_FRAME = 3.6;
+const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
+const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;
+const HOTSPOT_NAVIGATION_MS_PER_FRAME = 6.8;
 const TRACKING_VIDEO_ASPECT = 16 / 9;
 const VIDEO_SYNC_THRESHOLD_SECONDS = 1 / (MASTER_PLAN_SCRUB_VIDEO_FPS * 1.5);
 const VIDEO_FAST_SEEK_THRESHOLD_SECONDS = 0.18;
 const ENABLE_TRACKING_DEBUG = false;
+const FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD = 28;
 
 // Placeholder alignment until Unreal tracking data is available.
 const BASE_CAMERA_POSITION: [number, number, number] = [10.5, 7.25, 13.5];
@@ -88,6 +90,8 @@ type HoverMeshData = {
   key: string;
   matrix: Matrix4;
 };
+
+type InventoryApartmentIndex = Map<TowerType, Map<string, InventoryApartment>>;
 
 type PreparedTowerModel = {
   apartments: Map<string, HoverMeshData[]>;
@@ -209,28 +213,6 @@ function resolveApartmentIdFromObject(object: Object3D | null) {
   return null;
 }
 
-function resolveTowerCodeFromObject(object: Object3D | null): TowerCode | null {
-  let current: Object3D | null = object;
-
-  while (current) {
-    const apartmentId = extractApartmentIdFromName(current.name);
-
-    if (apartmentId) {
-      return apartmentId.split("_")[1] === "B" ? "B" : "A";
-    }
-
-    const towerMatch = current.name.match(/Tower_([AB])_/i);
-
-    if (towerMatch) {
-      return towerMatch[1].toUpperCase() === "B" ? "B" : "A";
-    }
-
-    current = current.parent;
-  }
-
-  return null;
-}
-
 function wrapFrame(frame: number) {
   return ((frame - 1 + TOTAL_FRAMES) % TOTAL_FRAMES) + 1;
 }
@@ -277,13 +259,6 @@ function getNearestSnapFrame(frame: number) {
   });
 
   return closestFrame;
-}
-
-function getTrackingHotspotIndex(frame: number) {
-  const snapFrame = getNearestSnapFrame(frame);
-  const index = SNAP_FRAMES.findIndex((candidate) => candidate === snapFrame);
-
-  return index >= 0 ? index : 0;
 }
 
 function getShortestProgressDelta(startProgress: number, endProgress: number) {
@@ -405,6 +380,7 @@ function getTowerFootprintsFromModelDummies(
   scale: number,
   preserveWorldPosition = false,
   includeBaseModelOffset = true,
+  towerCode: TowerCode = "A",
 ): Partial<Record<TowerCode, TowerFootprint>> {
   const modelDummies = collectModelTowerDummies(scene);
 
@@ -412,37 +388,39 @@ function getTowerFootprintsFromModelDummies(
     return {} satisfies Partial<Record<TowerCode, TowerFootprint>>;
   }
 
+  const towerFootprint: TowerFootprint = {
+    ta1: toSceneSpacePosition(
+      modelDummies.ta1,
+      offset,
+      scale,
+      preserveWorldPosition,
+      includeBaseModelOffset,
+    ),
+    ta2: toSceneSpacePosition(
+      modelDummies.ta2,
+      offset,
+      scale,
+      preserveWorldPosition,
+      includeBaseModelOffset,
+    ),
+    ta3: toSceneSpacePosition(
+      modelDummies.ta3,
+      offset,
+      scale,
+      preserveWorldPosition,
+      includeBaseModelOffset,
+    ),
+    ta4: toSceneSpacePosition(
+      modelDummies.ta4,
+      offset,
+      scale,
+      preserveWorldPosition,
+      includeBaseModelOffset,
+    ),
+  };
+
   return {
-    A: {
-      ta1: toSceneSpacePosition(
-        modelDummies.ta1,
-        offset,
-        scale,
-        preserveWorldPosition,
-        includeBaseModelOffset,
-      ),
-      ta2: toSceneSpacePosition(
-        modelDummies.ta2,
-        offset,
-        scale,
-        preserveWorldPosition,
-        includeBaseModelOffset,
-      ),
-      ta3: toSceneSpacePosition(
-        modelDummies.ta3,
-        offset,
-        scale,
-        preserveWorldPosition,
-        includeBaseModelOffset,
-      ),
-      ta4: toSceneSpacePosition(
-        modelDummies.ta4,
-        offset,
-        scale,
-        preserveWorldPosition,
-        includeBaseModelOffset,
-      ),
-    },
+    [towerCode]: towerFootprint,
   } satisfies Partial<Record<TowerCode, TowerFootprint>>;
 }
 
@@ -480,23 +458,24 @@ function getCoverViewport(
   };
 }
 
-function getUnrealTowerADummies() {
+function getUnrealTowerDummies(towerCode: TowerCode) {
   const dummies = trackingData.A1?.dummies;
+  const dummyPrefix = towerCode === "B" ? "dummy_Tb" : "dummy_Ta";
 
   if (
-    !dummies?.dummy_Ta1 ||
-    !dummies.dummy_Ta2 ||
-    !dummies.dummy_Ta3 ||
-    !dummies.dummy_Ta4
+    !dummies?.[`${dummyPrefix}1` as keyof typeof dummies] ||
+    !dummies[`${dummyPrefix}2` as keyof typeof dummies] ||
+    !dummies[`${dummyPrefix}3` as keyof typeof dummies] ||
+    !dummies[`${dummyPrefix}4` as keyof typeof dummies]
   ) {
     return null;
   }
 
   return {
-    ta1: dummies.dummy_Ta1,
-    ta2: dummies.dummy_Ta2,
-    ta3: dummies.dummy_Ta3,
-    ta4: dummies.dummy_Ta4,
+    ta1: dummies[`${dummyPrefix}1` as keyof typeof dummies] as UnrealVector3Like,
+    ta2: dummies[`${dummyPrefix}2` as keyof typeof dummies] as UnrealVector3Like,
+    ta3: dummies[`${dummyPrefix}3` as keyof typeof dummies] as UnrealVector3Like,
+    ta4: dummies[`${dummyPrefix}4` as keyof typeof dummies] as UnrealVector3Like,
   } satisfies Record<keyof TowerFootprint, UnrealVector3Like>;
 }
 
@@ -595,12 +574,15 @@ function unrealEulerToThreeQuaternion(rotation: {
   return new Quaternion().setFromEuler(euler);
 }
 
-function getTowerATrackingTransform(modelTowerDummies: TowerFootprint | null) {
+function getTowerTrackingTransform(
+  modelTowerDummies: TowerFootprint | null,
+  towerCode: TowerCode,
+) {
   if (!modelTowerDummies) {
     return null;
   }
 
-  const unrealDummies = getUnrealTowerADummies();
+  const unrealDummies = getUnrealTowerDummies(towerCode);
 
   if (!unrealDummies) {
     return null;
@@ -614,8 +596,8 @@ function getTowerATrackingTransform(modelTowerDummies: TowerFootprint | null) {
   });
 }
 
-function getUnrealTowerAFootprintInThreeSpace() {
-  const unrealDummies = getUnrealTowerADummies();
+function getUnrealTowerFootprintInThreeSpace(towerCode: TowerCode) {
+  const unrealDummies = getUnrealTowerDummies(towerCode);
 
   if (!unrealDummies) {
     return null;
@@ -629,7 +611,7 @@ function getUnrealTowerAFootprintInThreeSpace() {
   } satisfies TowerFootprint;
 }
 
-function getTowerATrackingCameraPath(
+function getTowerTrackingCameraPath(
   trackingTransform: SimilarityTransform | null,
   aspect: number,
 ) {
@@ -887,8 +869,33 @@ function buildFlatCandidates(
   );
 }
 
-function findInventoryApartment(
+function buildInventoryApartmentIndex(
   apartments: InventoryApartment[],
+): InventoryApartmentIndex {
+  const index: InventoryApartmentIndex = new Map();
+
+  apartments.forEach((apartment) => {
+    const towerIndex = index.get(apartment.tower) ?? new Map<string, InventoryApartment>();
+
+    index.set(apartment.tower, towerIndex);
+
+    const flatToken = normalizeFlatToken(apartment.flatNumber);
+    const titleToken = normalizeFlatToken(apartment.title);
+
+    if (flatToken && !towerIndex.has(flatToken)) {
+      towerIndex.set(flatToken, apartment);
+    }
+
+    if (titleToken && !towerIndex.has(titleToken)) {
+      towerIndex.set(titleToken, apartment);
+    }
+  });
+
+  return index;
+}
+
+function findInventoryApartmentInIndex(
+  apartmentIndex: InventoryApartmentIndex,
   apartmentId: string | null,
   fallbackTower: TowerType | null,
 ) {
@@ -896,20 +903,24 @@ function findInventoryApartment(
     return null;
   }
 
-  const candidates = buildFlatCandidates(apartmentId, fallbackTower);
   const tower = inferTowerFromApartmentId(apartmentId, fallbackTower);
+  const towerIndex = apartmentIndex.get(tower);
 
-  return (
-    apartments.find((apartment) => {
-      if (apartment.tower !== tower) {
-        return false;
-      }
+  if (!towerIndex) {
+    return null;
+  }
 
-      const flatToken = normalizeFlatToken(apartment.flatNumber);
-      const titleToken = normalizeFlatToken(apartment.title);
-      return candidates.has(flatToken) || candidates.has(titleToken);
-    }) ?? null
-  );
+  const candidates = buildFlatCandidates(apartmentId, fallbackTower);
+
+  for (const candidate of candidates) {
+    const apartment = towerIndex.get(candidate);
+
+    if (apartment) {
+      return apartment;
+    }
+  }
+
+  return null;
 }
 
 function getStatusMeta(
@@ -974,6 +985,7 @@ function prepareTowerScene(
   sourceScene: Object3D,
   selectedTower: TowerType | null,
   showDebugModel: boolean,
+  forcedTowerCode: TowerCode = "A",
 ) {
   const scene = cloneSkeleton(sourceScene) as Group;
   const modelTowerDummies = collectModelTowerDummies(scene);
@@ -995,7 +1007,7 @@ function prepareTowerScene(
     const materials = Array.isArray(object.material)
       ? object.material
       : [object.material];
-    const towerCode = resolveTowerCodeFromObject(object);
+    const towerCode = forcedTowerCode;
 
     const shouldShowDebugMaterial =
       showDebugModel &&
@@ -1043,28 +1055,32 @@ function prepareTowerScene(
     }
 
     const apartmentId = resolveApartmentIdFromObject(object);
+    const normalizedApartmentId =
+      apartmentId && forcedTowerCode
+        ? apartmentId.replace(/^Tower_[AB]_/, `Tower_${forcedTowerCode}_`)
+        : apartmentId;
 
-    if (!apartmentId) {
+    if (!normalizedApartmentId) {
       return;
     }
 
     if (
       selectedTowerCode &&
-      resolveTowerCodeFromObject(object) !== selectedTowerCode
+      towerCode !== selectedTowerCode
     ) {
       return;
     }
 
-    object.userData.apartmentId = apartmentId;
+    object.userData.apartmentId = normalizedApartmentId;
     pickableMeshes.push(object);
 
-    const meshEntry = apartments.get(apartmentId) ?? [];
+    const meshEntry = apartments.get(normalizedApartmentId) ?? [];
     meshEntry.push({
       geometry: object.geometry,
       key: object.uuid,
       matrix: object.matrixWorld.clone(),
     });
-    apartments.set(apartmentId, meshEntry);
+    apartments.set(normalizedApartmentId, meshEntry);
   });
 
   const bounds = new Box3().setFromObject(scene);
@@ -1073,7 +1089,7 @@ function prepareTowerScene(
   const scale = TARGET_MODEL_HEIGHT / Math.max(size.y, 1);
   const offset = [-center.x, -bounds.min.y, -center.z] as [number, number, number];
   const towerFootprints: Partial<Record<TowerCode, TowerFootprint>> =
-    getTowerFootprintsFromModelDummies(scene, offset, scale);
+    getTowerFootprintsFromModelDummies(scene, offset, scale, false, true, forcedTowerCode);
   const trackedTowerFootprints: Partial<Record<TowerCode, TowerFootprint>> =
     getTowerFootprintsFromModelDummies(
       scene,
@@ -1081,6 +1097,7 @@ function prepareTowerScene(
       scale,
       false,
       false,
+      forcedTowerCode,
     );
 
   towerBounds.forEach((towerBoundsEntry, towerCode) => {
@@ -1175,12 +1192,29 @@ const HighlightOverlay = memo(function HighlightOverlay({
   hoveredApartmentId: string | null;
   apartments: PreparedTowerModel["apartments"];
 }) {
-  const hoveredMeshes = hoveredApartmentId
-    ? apartments.get(hoveredApartmentId) ?? []
-    : [];
-  const filteredMeshes = Array.from(filteredApartmentIds).flatMap((apartmentId) =>
-    apartmentId === hoveredApartmentId ? [] : apartments.get(apartmentId) ?? [],
+  const hoveredMeshes = useMemo(
+    () => (hoveredApartmentId ? apartments.get(hoveredApartmentId) ?? [] : []),
+    [apartments, hoveredApartmentId],
   );
+  const filteredMeshes = useMemo(() => {
+    const next: HoverMeshData[] = [];
+
+    filteredApartmentIds.forEach((apartmentId) => {
+      if (apartmentId === hoveredApartmentId) {
+        return;
+      }
+
+      const apartmentMeshes = apartments.get(apartmentId);
+
+      if (apartmentMeshes?.length) {
+        next.push(...apartmentMeshes);
+      }
+    });
+
+    return next;
+  }, [apartments, filteredApartmentIds, hoveredApartmentId]);
+  const shouldSimplifyFilteredEdges =
+    filteredMeshes.length >= FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD;
 
   if (!hoveredMeshes.length && filteredMeshes.length === 0) {
     return null;
@@ -1216,13 +1250,15 @@ const HighlightOverlay = memo(function HighlightOverlay({
             scaleMultiplier={1.006}
             thickness={2}
           />
-          <HighlightEdgeLines
-            color="#f0fdf4"
-            geometry={meshData.geometry}
-            matrix={meshData.matrix}
-            renderOrder={12}
-            thickness={3}
-          />
+          {!shouldSimplifyFilteredEdges ? (
+            <HighlightEdgeLines
+              color="#f0fdf4"
+              geometry={meshData.geometry}
+              matrix={meshData.matrix}
+              renderOrder={12}
+              thickness={3}
+            />
+          ) : null}
         </group>
       ))}
 
@@ -1512,43 +1548,87 @@ const TowerScene = memo(function TowerScene({
   showTrackingDebug: boolean;
 }) {
   const { invalidate, size } = useThree();
-  const gltf = useGLTF(MODEL_PATH);
+  const towerAGltf = useGLTF(MODEL_PATH_A);
+  const towerBGltf = useGLTF(MODEL_PATH_B);
   const cameraRef = useRef<ThreePerspectiveCamera | null>(null);
   const fallbackGroupRef = useRef<Group | null>(null);
   const trackingDebugLoggedRef = useRef(false);
-  const useTowerATracking = selectedTower !== "Tower B";
-  const preparedModel = useMemo(
-    () => prepareTowerScene(gltf.scene, selectedTower, false),
-    [gltf.scene, selectedTower],
+  const activeTowerCode = towerTypeToCode(selectedTower) ?? "A";
+  const preparedTowerA = useMemo(
+    () => prepareTowerScene(towerAGltf.scene, selectedTower, false, "A"),
+    [selectedTower, towerAGltf.scene],
   );
-  const cameraTargetY = preparedModel.scaledHeight * 0.52;
+  const preparedTowerB = useMemo(
+    () => prepareTowerScene(towerBGltf.scene, selectedTower, false, "B"),
+    [selectedTower, towerBGltf.scene],
+  );
+  const primaryPreparedModel =
+    activeTowerCode === "B" ? preparedTowerB : preparedTowerA;
+  const cameraTargetY = primaryPreparedModel.scaledHeight * 0.52;
   const towerATrackingTransform = useMemo(
     () =>
-      useTowerATracking
-        ? getTowerATrackingTransform(preparedModel.trackedTowerFootprints.A ?? null)
-        : null,
-    [preparedModel.trackedTowerFootprints.A, useTowerATracking],
+      getTowerTrackingTransform(
+        preparedTowerA.trackedTowerFootprints.A ?? null,
+        "A",
+      ),
+    [preparedTowerA.trackedTowerFootprints],
   );
-  const towerATrackingPath = useMemo(
+  const towerBTrackingTransform = useMemo(
     () =>
-      useTowerATracking
-        ? getTowerATrackingCameraPath(towerATrackingTransform, size.width / size.height)
+      getTowerTrackingTransform(
+        preparedTowerB.trackedTowerFootprints.B ?? null,
+        "B",
+      ),
+    [preparedTowerB.trackedTowerFootprints],
+  );
+  const towerTrackingTransform =
+    activeTowerCode === "B" ? towerBTrackingTransform : towerATrackingTransform;
+  const towerTrackingPath = useMemo(
+    () =>
+      getTowerTrackingCameraPath(towerTrackingTransform, size.width / size.height),
+    [size.height, size.width, towerTrackingTransform],
+  );
+  const unrealTowerDummies = useMemo(
+    () =>
+      showTrackingDebug
+        ? getUnrealTowerFootprintInThreeSpace(activeTowerCode)
         : null,
-    [size.height, size.width, towerATrackingTransform, useTowerATracking],
+    [activeTowerCode, showTrackingDebug],
   );
-  const unrealTowerADummies = useMemo(
-    () => (showTrackingDebug ? getUnrealTowerAFootprintInThreeSpace() : null),
-    [showTrackingDebug],
-  );
-  const transformedTrackedTowerADummies = useMemo(
+  const transformedTrackedTowerDummies = useMemo(
     () =>
       showTrackingDebug
         ? transformTowerFootprint(
-            preparedModel.trackedTowerFootprints.A,
-            towerATrackingTransform,
+            primaryPreparedModel.trackedTowerFootprints[activeTowerCode],
+            towerTrackingTransform,
           )
         : null,
-    [preparedModel.trackedTowerFootprints.A, showTrackingDebug, towerATrackingTransform],
+    [
+      activeTowerCode,
+      primaryPreparedModel.trackedTowerFootprints,
+      showTrackingDebug,
+      towerTrackingTransform,
+    ],
+  );
+  const combinedApartments = useMemo(() => {
+    const next = new Map<string, HoverMeshData[]>();
+
+    preparedTowerA.apartments.forEach((value, key) => {
+      next.set(key, value);
+    });
+    preparedTowerB.apartments.forEach((value, key) => {
+      next.set(key, value);
+    });
+
+    return next;
+  }, [preparedTowerA.apartments, preparedTowerB.apartments]);
+  const combinedPickableMeshes = useMemo(
+    () => [...preparedTowerA.pickableMeshes, ...preparedTowerB.pickableMeshes],
+    [preparedTowerA.pickableMeshes, preparedTowerB.pickableMeshes],
+  );
+  const filteredApartmentIndex = useMemo(
+    () => buildInventoryApartmentIndex(filteredApartments),
+    [filteredApartments],
   );
   const filteredApartmentIds = useMemo(() => {
     if (!showApartmentMeshes || !filteredApartments.length) {
@@ -1556,42 +1636,57 @@ const TowerScene = memo(function TowerScene({
     }
 
     return new Set(
-      Array.from(preparedModel.apartments.keys()).filter((apartmentId) =>
-        Boolean(findInventoryApartment(filteredApartments, apartmentId, selectedTower)),
+      Array.from(combinedApartments.keys()).filter((apartmentId) =>
+        Boolean(
+          findInventoryApartmentInIndex(
+            filteredApartmentIndex,
+            apartmentId,
+            selectedTower,
+          ),
+        ),
       ),
     );
-  }, [filteredApartments, preparedModel.apartments, selectedTower, showApartmentMeshes]);
-  const towerADebugPoints = useMemo(() => {
+  }, [
+    combinedApartments,
+    filteredApartmentIndex,
+    filteredApartments.length,
+    selectedTower,
+    showApartmentMeshes,
+  ]);
+  const towerDebugPoints = useMemo(() => {
     if (!showTrackingDebug) {
       return [];
     }
 
-    if (towerATrackingTransform && transformedTrackedTowerADummies && unrealTowerADummies) {
+    const activeFootprint = primaryPreparedModel.towerFootprints[activeTowerCode];
+
+    if (towerTrackingTransform && transformedTrackedTowerDummies && unrealTowerDummies) {
       return [
         ...getTrackingDebugPoints(
-          transformedTrackedTowerADummies,
+          transformedTrackedTowerDummies,
           "rgba(245, 158, 11, 0.95)",
           "Model ",
         ),
         ...getTrackingDebugPoints(
-          unrealTowerADummies,
+          unrealTowerDummies,
           "rgba(14, 165, 233, 0.95)",
           "Track ",
         ),
       ];
     }
 
-    return getTrackingDebugPoints(preparedModel.towerFootprints.A);
+    return getTrackingDebugPoints(activeFootprint);
   }, [
-    preparedModel.towerFootprints.A,
+    activeTowerCode,
+    primaryPreparedModel.towerFootprints,
     showTrackingDebug,
-    towerATrackingTransform,
-    transformedTrackedTowerADummies,
-    unrealTowerADummies,
+    towerTrackingTransform,
+    transformedTrackedTowerDummies,
+    unrealTowerDummies,
   ]);
   const trackingCameraRays = useMemo(
-    () => getTrackingCameraRays(towerATrackingPath),
-    [towerATrackingPath],
+    () => getTrackingCameraRays(towerTrackingPath),
+    [towerTrackingPath],
   );
   useEffect(() => {
     if (!showTrackingDebug) {
@@ -1601,39 +1696,31 @@ const TowerScene = memo(function TowerScene({
 
     if (
       trackingDebugLoggedRef.current ||
-      !transformedTrackedTowerADummies ||
-      !unrealTowerADummies
+      !transformedTrackedTowerDummies ||
+      !unrealTowerDummies
     ) {
       return;
     }
 
-    console.groupCollapsed("Tower A tracking debug: A1 dummy comparison");
+    console.groupCollapsed(`Tower ${activeTowerCode} tracking debug`);
     console.table({
-      modelTa1: vectorToDebugRow(transformedTrackedTowerADummies.ta1),
-      modelTa2: vectorToDebugRow(transformedTrackedTowerADummies.ta2),
-      modelTa3: vectorToDebugRow(transformedTrackedTowerADummies.ta3),
-      modelTa4: vectorToDebugRow(transformedTrackedTowerADummies.ta4),
-      unrealTa1: vectorToDebugRow(unrealTowerADummies.ta1),
-      unrealTa2: vectorToDebugRow(unrealTowerADummies.ta2),
-      unrealTa3: vectorToDebugRow(unrealTowerADummies.ta3),
-      unrealTa4: vectorToDebugRow(unrealTowerADummies.ta4),
+      modelTa1: vectorToDebugRow(transformedTrackedTowerDummies.ta1),
+      modelTa2: vectorToDebugRow(transformedTrackedTowerDummies.ta2),
+      modelTa3: vectorToDebugRow(transformedTrackedTowerDummies.ta3),
+      modelTa4: vectorToDebugRow(transformedTrackedTowerDummies.ta4),
+      unrealTa1: vectorToDebugRow(unrealTowerDummies.ta1),
+      unrealTa2: vectorToDebugRow(unrealTowerDummies.ta2),
+      unrealTa3: vectorToDebugRow(unrealTowerDummies.ta3),
+      unrealTa4: vectorToDebugRow(unrealTowerDummies.ta4),
     });
     console.groupEnd();
     trackingDebugLoggedRef.current = true;
-  }, [showTrackingDebug, transformedTrackedTowerADummies, unrealTowerADummies]);
+  }, [activeTowerCode, showTrackingDebug, transformedTrackedTowerDummies, unrealTowerDummies]);
   const trackingViewLabel = useMemo(() => {
-    if (!towerATrackingPath?.length) {
-      return "Tower A Tracking";
-    }
-
-    const index =
-      Math.round(
-        wrapProgress(rotationProgressRef.current) * towerATrackingPath.length,
-      ) %
-      towerATrackingPath.length;
-
-    return `Tower A ${TOWER_A_TRACKING_KEYS[index]}`;
-  }, [rotationProgressRef, towerATrackingPath]);
+    return towerTrackingPath?.length
+      ? `Tower ${activeTowerCode} Tracking`
+      : `Tower ${activeTowerCode} Tracking`;
+  }, [activeTowerCode, towerTrackingPath]);
   const fallbackScenePosition = BASE_MODEL_OFFSET;
   const trackedScenePosition: [number, number, number] = [0, 0, 0];
   const shouldShowHighlightOverlay =
@@ -1651,9 +1738,9 @@ const TowerScene = memo(function TowerScene({
       return;
     }
 
-    if (towerATrackingPath?.length) {
+    if (towerTrackingPath?.length) {
       const trackingView = interpolateTrackingCameraView(
-        towerATrackingPath,
+        towerTrackingPath,
         rotationProgressRef.current,
       );
 
@@ -1690,7 +1777,7 @@ const TowerScene = memo(function TowerScene({
       <PerspectiveCamera
         ref={cameraRef}
         makeDefault
-        far={towerATrackingPath?.length ? 100000 : 400}
+        far={towerTrackingPath?.length ? 100000 : 400}
         fov={34}
         near={0.01}
         position={BASE_CAMERA_POSITION}
@@ -1705,52 +1792,70 @@ const TowerScene = memo(function TowerScene({
           quaternion={towerATrackingTransform.quaternion.toArray()}
           scale={towerATrackingTransform.scale}
         >
-          <group position={trackedScenePosition} scale={preparedModel.scale}>
-            <group position={preparedModel.offset}>
-              <primitive object={preparedModel.scene} />
+          <group position={trackedScenePosition} scale={preparedTowerA.scale}>
+            <group position={preparedTowerA.offset}>
+              <primitive object={preparedTowerA.scene} />
               {shouldShowHighlightOverlay ? (
                 <HighlightOverlay
-                  apartments={preparedModel.apartments}
+                  apartments={preparedTowerA.apartments}
                   filteredApartmentIds={filteredApartmentIds}
                   hoveredApartmentId={hoveredApartmentId}
                 />
               ) : null}
             </group>
-            {showTrackingDebug && useTowerATracking ? (
-              null
-            ) : null}
           </group>
         </group>
-      ) : (
+      ) : null}
+      {towerBTrackingTransform ? (
+        <group
+          position={towerBTrackingTransform.position.toArray()}
+          quaternion={towerBTrackingTransform.quaternion.toArray()}
+          scale={towerBTrackingTransform.scale}
+        >
+          <group position={trackedScenePosition} scale={preparedTowerB.scale}>
+            <group position={preparedTowerB.offset}>
+              <primitive object={preparedTowerB.scene} />
+              {shouldShowHighlightOverlay ? (
+                <HighlightOverlay
+                  apartments={preparedTowerB.apartments}
+                  filteredApartmentIds={filteredApartmentIds}
+                  hoveredApartmentId={hoveredApartmentId}
+                />
+              ) : null}
+            </group>
+          </group>
+        </group>
+      ) : null}
+      {!towerATrackingTransform && !towerBTrackingTransform ? (
         <group
           ref={fallbackGroupRef}
           position={fallbackScenePosition}
-          scale={preparedModel.scale}
+          scale={primaryPreparedModel.scale}
         >
-          <group position={preparedModel.offset}>
-            <primitive object={preparedModel.scene} />
+          <group position={primaryPreparedModel.offset}>
+            <primitive object={primaryPreparedModel.scene} />
             {shouldShowHighlightOverlay ? (
               <HighlightOverlay
-                apartments={preparedModel.apartments}
+                apartments={primaryPreparedModel.apartments}
                 filteredApartmentIds={filteredApartmentIds}
                 hoveredApartmentId={hoveredApartmentId}
               />
             ) : null}
           </group>
         </group>
-      )}
+      ) : null}
 
       <HoverTracker
         allowHover={allowHover}
         onHoverChange={onApartmentHover}
-        pickableMeshes={preparedModel.pickableMeshes}
+        pickableMeshes={combinedPickableMeshes}
       />
 
-      {showTrackingDebug && useTowerATracking ? (
+      {showTrackingDebug ? (
         <TrackingDebugOverlay
           currentViewLabel={trackingViewLabel}
           rays={trackingCameraRays}
-          points={towerADebugPoints}
+          points={towerDebugPoints}
         />
       ) : null}
     </>
@@ -2252,16 +2357,19 @@ export default function MasterPlanFrameHoverStage({
   const showApartmentMeshes = !isDragging && !isSettling && isSnapFrame(displayedFrame);
   const showTrackingDebug =
     ENABLE_TRACKING_DEBUG &&
-    selectedTower !== "Tower B" &&
     !isDragging &&
     !isSettling;
   const activeHoveredApartmentId = allowHover ? hoveredApartmentId : null;
+  const apartmentIndex = useMemo(
+    () => buildInventoryApartmentIndex(apartments),
+    [apartments],
+  );
   const hoveredApartment = formatApartmentLabel(
     activeHoveredApartmentId,
     selectedTower,
   );
-  const hoveredInventoryApartment = findInventoryApartment(
-    apartments,
+  const hoveredInventoryApartment = findInventoryApartmentInIndex(
+    apartmentIndex,
     activeHoveredApartmentId,
     selectedTower,
   );
@@ -2457,4 +2565,5 @@ export default function MasterPlanFrameHoverStage({
   );
 }
 
-useGLTF.preload(MODEL_PATH);
+useGLTF.preload(MODEL_PATH_A);
+useGLTF.preload(MODEL_PATH_B);

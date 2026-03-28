@@ -4,8 +4,8 @@ import PanoViewer from "@/components/PanoViewer"
 export default function Page() {
   return (
     <main className="h-dvh w-full bg-[#0a0a0a]">
-      {/* <Walkthrough3D modelUrl="/models/Flat.glb" className="h-full w-full" /> */}
-      <PanoViewer />
+      <Walkthrough3D modelUrl="/models/Flat.glb" className="h-full w-full" />
+      {/* <PanoViewer /> */}
     </main>
   );
 }

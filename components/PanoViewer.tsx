@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Viewer } from "@photo-sphere-viewer/core";
+import { EquirectangularAdapter, Viewer } from "@photo-sphere-viewer/core";
 import { VirtualTourPlugin } from "@photo-sphere-viewer/virtual-tour-plugin";
 import { MarkersPlugin } from "@photo-sphere-viewer/markers-plugin";
 import { AutorotatePlugin } from "@photo-sphere-viewer/autorotate-plugin";
@@ -29,8 +29,17 @@ type PanoMeta = {
   height: number;
   cols: number;
   rows: number;
+  actualCols?: number;
+  actualRows?: number;
   tileSize: number;
   preview: string;
+  tileFormat?: string;
+  tileUrl?: string;
+  tiles?: Array<{
+    col: number;
+    row: number;
+    file: string;
+  }>;
 };
 
 type InfoMarker = {
@@ -49,13 +58,15 @@ type BuiltNode = {
   id: string;
   name: string;
   thumbnail: string;
-  panorama: {
-    width: number;
-    cols: number;
-    rows: number;
-    baseUrl: string;
-    tileUrl: (col: number, row: number) => string;
-  };
+  panorama:
+    | string
+    | {
+        width: number;
+        cols: number;
+        rows: number;
+        baseUrl: string;
+        tileUrl: (col: number, row: number) => string | null;
+      };
   links: Array<{
     nodeId: string;
     position: {
@@ -77,30 +88,66 @@ type TabItem = {
 };
 
 const ROOM_LABELS: Record<string, string> = {
-  LS_Bp_panoPath_interiorBP_panoPath4interior_F0000: "Living Room",
-  LS_Bp_panoPath_interiorBP_panoPath4interior_F0001: "Bedroom 1",
-  LS_Bp_panoPath_interiorBP_panoPath3interior_F0002: "Bedroom 2",
-  LS_Bp_panoPath_interiorBP_panoPath3interior_F0003: "Bathroom 1",
-  LS_Bp_panoPath_interiorBP_panoPath3interior_F0004: "Bathroom 2",
-  LS_Bp_panoPath_interiorBP_panoPath3interior_F0005: "Bathroom 3",
-  LS_Bp_panoPath_interiorBP_panoPath3interior_F0006: "Bathroom 4",
-  LS_Bp_panoPath_interiorBP_panoPath3interior_F0007: "Kitchen",
-  LS_Bp_panoPath_interiorBP_panoPath5interior_F0008: "Maid Room",
-  LS_Bp_panoPath_interiorBP_panoPath5interior_F0009: "Master Bedroom",
-  LS_Bp_panoPath_interiorBP_panoPath2interior_F0010: "Dining Room",
-  LS_Bp_panoPath_interiorBP_panoPath2interior_F0011: "Hall 1",
-  LS_Bp_panoPath_interiorBP_panoPath2interior_F0012: "Hall 2",
-  LS_Bp_panoPath_interiorBP_panoPath2interior_F0013: "Hall 3",
-  LS_Bp_panoPath_interiorBP_panoPath6interior_F0014: "Passage 1",
-  LS_Bp_panoPath_interiorBP_panoPath6interior2_F0015: "Passage 2",
-  LS_Bp_panoPath_interiorBP_panoPath6interior2_F0016: "Passage 3",
-  LS_Bp_panoPath_interiorBP_panoPath6interior2_F0017: "Passage 4",
-  LS_Bp_panoPath_interiorBP_panoPath6interior2_F0018: "Passage 5",
-  LS_Bp_panoPath_interiorBP_panoPath6interior2_F0019: "Passage 6",
+  LS_BP_panoPath_Interior_F0000: "Living Room",
+  LS_BP_panoPath_Interior_F0001: "Bedroom 1",
+  LS_BP_panoPath_Interior_F0002: "Bedroom 2",
+  LS_BP_panoPath_Interior_F0003: "Bathroom 1",
+  LS_BP_panoPath_Interior_F0004: "Bathroom 2",
+  LS_BP_panoPath_Interior_F0005: "Bathroom 3",
+  LS_BP_panoPath_Interior_F0006: "Bathroom 4",
+  LS_BP_panoPath_Interior_F0007: "Kitchen",
+  LS_BP_panoPath_Interior_F0008: "Maid Room",
+  LS_BP_panoPath_Interior_F0009: "Master Bedroom",
+  LS_BP_panoPath_Interior_F0010: "Dining Room",
+  LS_BP_panoPath_Interior_F0011: "Hall 1",
+  LS_BP_panoPath_Interior_F0012: "Hall 2",
+  LS_BP_panoPath_Interior2_F0013: "Hall 3",
+  LS_BP_panoPath_Interior2_F0014: "Passage 1",
+  LS_BP_panoPath_Interior2_F0015: "Passage 2",
+  LS_BP_panoPath_Interior2_F0016: "Passage 3",
+  LS_BP_panoPath_Interior3_F0017: "Passage 4",
+  LS_BP_panoPath_Interior3_F0018: "Passage 5",
+  LS_BP_panoPath_Interior3_F0019: "Passage 6",
 };
 
 function imageToPanoId(imageFilename: string) {
   return imageFilename.replace(/\.[^.]+$/, "");
+}
+
+function isPowerOfTwo(value: number) {
+  return value > 0 && (value & (value - 1)) === 0;
+}
+
+function canUseTiledPanorama(meta: PanoMeta) {
+  return isPowerOfTwo(meta.cols) && isPowerOfTwo(meta.rows);
+}
+
+function getPreviewUrl(panoId: string, meta: PanoMeta) {
+  return `/panos/${panoId}/${meta.preview}`;
+}
+
+function getTileUrl(panoId: string, meta: PanoMeta, col: number, row: number) {
+  const actualCols = meta.actualCols ?? meta.cols;
+  const actualRows = meta.actualRows ?? meta.rows;
+
+  if (col < 0 || row < 0 || col >= actualCols || row >= actualRows) {
+    return null;
+  }
+
+  const explicitTile = meta.tiles?.find(
+    (tile) => tile.col === col && tile.row === row,
+  );
+
+  if (explicitTile) {
+    return `/panos/${panoId}/tiles/${explicitTile.file}`;
+  }
+
+  const template =
+    meta.tileUrl ?? `tiles/tile_{col}_{row}.${meta.tileFormat ?? "jpg"}`;
+
+  return `/panos/${panoId}/${template
+    .replace("{col}", String(col))
+    .replace("{row}", String(row))}`;
 }
 
 function distance(a: NavItem, b: NavItem) {
@@ -131,7 +178,7 @@ function getLinkYaw(source: NavItem, target: NavItem) {
   return normalizeAngle(worldYaw - cameraHeading);
 }
 
-async function buildNodes(items: NavItem[]): Promise<BuiltNode[]> {
+async function buildNodes(items: NavItem[]) {
   const metaEntries = await Promise.all(
     items.map(async (item) => {
       const panoId = imageToPanoId(item.image_filename);
@@ -143,7 +190,12 @@ async function buildNodes(items: NavItem[]): Promise<BuiltNode[]> {
       }
 
       const meta: PanoMeta = await res.json();
-      return { item, meta, panoId };
+      return {
+        item,
+        meta,
+        panoId,
+        supportsTiles: canUseTiledPanorama(meta),
+      };
     }),
   );
 
@@ -151,9 +203,13 @@ async function buildNodes(items: NavItem[]): Promise<BuiltNode[]> {
     item: NavItem;
     meta: PanoMeta;
     panoId: string;
+    supportsTiles: boolean;
   }[];
 
-  return valid.map(({ item, meta, panoId }) => {
+  const usesTiledAdapter =
+    valid.length > 0 && valid.every((entry) => entry.supportsTiles);
+
+  const nodes = valid.map(({ item, meta, panoId }) => {
     const neighbors = valid
       .map((v) => v.item)
       .filter((other) => other.id !== item.id)
@@ -165,15 +221,17 @@ async function buildNodes(items: NavItem[]): Promise<BuiltNode[]> {
     return {
       id: item.id,
       name: label,
-      thumbnail: `/panos/${panoId}/${meta.preview}`,
-      panorama: {
-        width: meta.width,
-        cols: meta.cols,
-        rows: meta.rows,
-        baseUrl: `/panos/${panoId}/${meta.preview}`,
-        tileUrl: (col: number, row: number) =>
-          `/panos/${panoId}/tiles/tile_${col}_${row}.jpg`,
-      },
+      thumbnail: getPreviewUrl(panoId, meta),
+      panorama: usesTiledAdapter
+        ? {
+            width: meta.width,
+            cols: meta.cols,
+            rows: meta.rows,
+            baseUrl: getPreviewUrl(panoId, meta),
+            tileUrl: (col: number, row: number) =>
+              getTileUrl(panoId, meta, col, row),
+          }
+        : getPreviewUrl(panoId, meta),
       links: neighbors.map((target) => ({
         nodeId: target.id,
         position: {
@@ -188,10 +246,26 @@ async function buildNodes(items: NavItem[]): Promise<BuiltNode[]> {
       },
     };
   });
+
+  if (!usesTiledAdapter && valid.length > 0) {
+    console.warn(
+      "PanoViewer: falling back to preview panoramas because the current tile export is not compatible with Photo Sphere Viewer tiled adapter.",
+      valid.map(({ panoId, meta }) => ({
+        panoId,
+        cols: meta.cols,
+        rows: meta.rows,
+      })),
+    );
+  }
+
+  return {
+    nodes,
+    usesTiledAdapter,
+  };
 }
 
 const infoMarkersByPano: Record<string, InfoMarker[]> = {
-  LS_Bp_panoPath_interiorBP_panoPath2interior_F0010: [
+  LS_BP_panoPath_Interior_F0010: [
     {
       id: "wall-info-f0010",
       yaw: 1.55,
@@ -251,14 +325,12 @@ export default function PanoViewer() {
     let cancelled = false;
 
     (async () => {
-      const nodes = await buildNodes(navData as NavItem[]);
+      const { nodes, usesTiledAdapter } = await buildNodes(navData as NavItem[]);
       if (cancelled || nodes.length === 0) return;
 
       const startNode =
         nodes.find(
-          (node) =>
-            node.data.panoId ===
-            "LS_Bp_panoPath_interiorBP_panoPath2interior_F0010",
+          (node) => node.id === "BP_panoPath_Interior_F0010",
         ) ?? nodes[0];
 
       setTabs(
@@ -273,7 +345,15 @@ export default function PanoViewer() {
 
       const viewer = new Viewer({
         container: viewerRef.current!,
-        adapter: EquirectangularTilesAdapter,
+        adapter: usesTiledAdapter
+          ? EquirectangularTilesAdapter.withConfig({
+              resolution: 64,
+              showErrorTile: true,
+              baseBlur: true,
+            })
+          : EquirectangularAdapter.withConfig({
+              resolution: 64,
+            }),
         navbar: false,
         plugins: [
           MarkersPlugin.withConfig({
@@ -300,6 +380,9 @@ export default function PanoViewer() {
       });
 
       viewerInstanceRef.current = viewer;
+      viewer.addEventListener("panorama-error", ({ error }: any) => {
+        console.error("PanoViewer panorama load error:", error);
+      });
 
       const markersPlugin = viewer.getPlugin(MarkersPlugin) as MarkersPlugin;
       const virtualTourPlugin = viewer.getPlugin(
