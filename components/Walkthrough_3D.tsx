@@ -1,7 +1,14 @@
 "use client";
 
+import { Cormorant_Garamond, Manrope } from "next/font/google";
 import NextImage from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import navData from "@/data/nav.json";
 import {
   AbstractMesh,
@@ -26,6 +33,16 @@ import {
   Vector3,
 } from "@babylonjs/core";
 import "@babylonjs/loaders/glTF";
+
+const editorialFont = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
+const uiFont = Manrope({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
 
 type ApartmentTourProps = {
   modelUrl: string;
@@ -258,6 +275,7 @@ export default function ApartmentTour({
   className,
 }: ApartmentTourProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const tabsScrollerRef = useRef<HTMLDivElement | null>(null);
   const moveToNavRef = useRef<((id: string) => void) | null>(null);
   const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
 
@@ -283,7 +301,7 @@ export default function ApartmentTour({
 
   const [activeRoomId, setActiveRoomId] = useState<string>(START_NAV_ID);
   const [showProjection, setShowProjection] = useState(true);
-  const [showDebug, setShowDebug] = useState(true);
+  const showDebug = false;
 
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({
     cameraWorld: { x: 0, y: 0, z: 0 },
@@ -308,6 +326,57 @@ export default function ApartmentTour({
     activeRoomIdRef.current = activeRoomId;
   }, [activeRoomId]);
 
+  const activeRoomTab = useMemo(
+    () => tabs.find((tab) => tab.id === activeRoomId) ?? tabs[0] ?? null,
+    [activeRoomId, tabs],
+  );
+
+  const moveCarouselBy = useCallback(
+    (direction: -1 | 1) => {
+      if (tabs.length === 0) {
+        return;
+      }
+
+      const currentIndex = Math.max(
+        tabs.findIndex((tab) => tab.id === activeRoomIdRef.current),
+        0,
+      );
+      const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
+      const nextTab = tabs[nextIndex];
+
+      if (!nextTab) {
+        return;
+      }
+
+      moveToNavRef.current?.(nextTab.id);
+    },
+    [tabs],
+  );
+
+  useEffect(() => {
+    const scroller = tabsScrollerRef.current;
+
+    if (!scroller) {
+      return;
+    }
+
+    const activeCard = scroller.querySelector<HTMLElement>(
+      `[data-room-id="${activeRoomId}"]`,
+    );
+
+    if (!activeCard) {
+      return;
+    }
+
+    const targetLeft =
+      activeCard.offsetLeft - scroller.clientWidth / 2 + activeCard.clientWidth / 2;
+
+    scroller.scrollTo({
+      left: Math.max(0, targetLeft),
+      behavior: "smooth",
+    });
+  }, [activeRoomId, tabs]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -316,13 +385,13 @@ export default function ApartmentTour({
     const POSITION_FLIP_Y = false;
     const ORIENTATION_FLIP_X = POSITION_FLIP_X;
     const ORIENTATION_FLIP_Y = POSITION_FLIP_Y;
-    const MAX_TEXTURE_CACHE = 4;
+    const MAX_TEXTURE_CACHE = 6;
     const MAX_PROJECTED_PANO_WIDTH = 8192;
     const NAV_MARKER_RADIUS = 0.17;
     const NAV_MARKER_HEIGHT_OFFSET = 0.06;
     const MAX_VISIBLE_NAV_MARKERS = 4;
     const CLICK_MOVE_THRESHOLD_PX = 8;
-    const NAV_TRANSITION_DURATION_MS = 650;
+    const NAV_TRANSITION_DURATION_MS = 560;
     const PANO_PROJECTION_Y_OFFSET = 0;
     const SHOW_DEBUG_COORDS = showDebug;
     const PANO_YAW_OFFSET_DEG = 0;
@@ -339,10 +408,12 @@ export default function ApartmentTour({
     const PANO_LABEL_HEIGHT = 0.28;
 
     const engine = new Engine(canvas, true, {
-      preserveDrawingBuffer: true,
-      stencil: true,
+      preserveDrawingBuffer: false,
+      stencil: false,
       adaptToDeviceRatio: true,
+      powerPreference: "high-performance",
     });
+    engine.setHardwareScalingLevel(window.devicePixelRatio >= 2 ? 1.2 : 1);
 
     const scene = new Scene(engine);
     scene.clearColor = new Color4(0.95, 0.95, 0.97, 1);
@@ -359,7 +430,7 @@ export default function ApartmentTour({
     camera.minZ = 0.1;
     camera.maxZ = 500;
     camera.speed = 0;
-    camera.inertia = 0.65;
+    camera.inertia = 0.52;
     camera.angularSensibility = 2500;
     camera.applyGravity = false;
     camera.checkCollisions = false;
@@ -429,6 +500,7 @@ export default function ApartmentTour({
     const textureUseOrder: string[] = [];
 
     const modelMeshes: AbstractMesh[] = [];
+    const modelMeshIds = new Set<number>();
     const originalMaterials = new Map<AbstractMesh, Material | null>();
     const projectionMaterials = new Map<AbstractMesh, ShaderMaterial>();
 
@@ -443,6 +515,7 @@ export default function ApartmentTour({
     let pointerDownCanvasPos: { x: number; y: number } | null = null;
     let navTransitionRunId = 0;
     let navMoveRequestId = 0;
+    let lastNavMarkerVisualSyncAt = 0;
 
     const touchTexture = (id: string) => {
       const idx = textureUseOrder.indexOf(id);
@@ -941,7 +1014,7 @@ export default function ApartmentTour({
 
     const isModelMesh = (mesh?: AbstractMesh | null) => {
       if (!mesh) return false;
-      return modelMeshes.includes(mesh);
+      return modelMeshIds.has(mesh.uniqueId);
     };
 
     const isNavMarkerMesh = (mesh?: AbstractMesh | null) => {
@@ -1130,7 +1203,13 @@ export default function ApartmentTour({
       hoveredNavMarkerId = null;
     };
 
-    const syncNavMarkerVisuals = () => {
+    const syncNavMarkerVisuals = (force = false) => {
+      const now = performance.now();
+      if (!force && now - lastNavMarkerVisualSyncAt < 90) {
+        return;
+      }
+
+      lastNavMarkerVisualSyncAt = now;
       const visibleIds = getVisibleNavMarkerIds();
 
       for (const visual of navMarkerVisuals) {
@@ -1185,7 +1264,7 @@ export default function ApartmentTour({
         if (!shouldRenderNavMarker(point, index)) return;
         createNavMarkerVisual(point);
       });
-      syncNavMarkerVisuals();
+      syncNavMarkerVisuals(true);
     };
 
     const getHoveredNavMarkerAtPointer = (pointerX: number, pointerY: number) => {
@@ -1289,6 +1368,14 @@ export default function ApartmentTour({
       return bestMatch?.point ?? null;
     };
 
+    const syncDebugInfoState = (updater: (prev: DebugInfo) => DebugInfo) => {
+      if (!SHOW_DEBUG_COORDS) {
+        return;
+      }
+
+      setDebugInfo(updater);
+    };
+
     const updateHoverCursor = () => {
       const hoveredMarker = getHoveredNavMarkerAtPointer(
         scene.pointerX,
@@ -1298,7 +1385,7 @@ export default function ApartmentTour({
 
       if (hoveredNavMarkerId !== nextHoveredMarkerId) {
         hoveredNavMarkerId = nextHoveredMarkerId;
-        syncNavMarkerVisuals();
+        syncNavMarkerVisuals(true);
       }
 
       const pick = scene.pick(
@@ -1325,7 +1412,7 @@ export default function ApartmentTour({
         hoverCursorRoot.setEnabled(true);
         canvas.style.cursor = "pointer";
 
-        setDebugInfo((prev) => ({
+        syncDebugInfoState((prev) => ({
           ...prev,
           cameraWorld: {
             x: camera.position.x,
@@ -1357,7 +1444,7 @@ export default function ApartmentTour({
         lastCursorNormal = Vector3.Forward();
         canvas.style.cursor = "grab";
 
-        setDebugInfo((prev) => ({
+        syncDebugInfoState((prev) => ({
           ...prev,
           cameraWorld: {
             x: camera.position.x,
@@ -1382,7 +1469,7 @@ export default function ApartmentTour({
         lastCursorNormal = Vector3.Forward();
         canvas.style.cursor = "grab";
 
-        setDebugInfo((prev) => ({
+        syncDebugInfoState((prev) => ({
           ...prev,
           cameraWorld: {
             x: camera.position.x,
@@ -1413,7 +1500,7 @@ export default function ApartmentTour({
 
       const hoverNav = worldToNavSpace(pick.pickedPoint);
 
-      setDebugInfo((prev) => ({
+      syncDebugInfoState((prev) => ({
         ...prev,
         cameraWorld: {
           x: camera.position.x,
@@ -1780,7 +1867,7 @@ export default function ApartmentTour({
           return { id: n.id, d2: dx * dx + dy * dy, image: n.image_filename };
         })
         .sort((a, b) => a.d2 - b.d2)
-        .slice(0, 2);
+        .slice(0, 3);
 
       for (const item of nearest) {
         void loadPanoTextureFromTiles(item.image);
@@ -1828,11 +1915,11 @@ export default function ApartmentTour({
         setActiveRoomId(navPoint.nav.id);
         activeRoomIdRef.current = navPoint.nav.id;
         rebuildNavMarkers();
-        syncNavMarkerVisuals();
+        syncNavMarkerVisuals(true);
 
         rebuildAllCoordinateOverlays();
 
-        setDebugInfo((prev) => ({
+        syncDebugInfoState((prev) => ({
           ...prev,
           activeNavId: navPoint.nav.id,
           activeNavRaw: {
@@ -1924,7 +2011,7 @@ export default function ApartmentTour({
 
       if (hoveredNavMarkerId !== null) {
         hoveredNavMarkerId = null;
-        syncNavMarkerVisuals();
+        syncNavMarkerVisuals(true);
       }
 
       hoverCursorRoot.setEnabled(false);
@@ -2000,6 +2087,7 @@ export default function ApartmentTour({
           mesh.checkCollisions = false;
           mesh.alwaysSelectAsActiveMesh = true;
           modelMeshes.push(mesh);
+          modelMeshIds.add(mesh.uniqueId);
           originalMaterials.set(mesh, mesh.material ?? null);
         });
 
@@ -2098,152 +2186,224 @@ export default function ApartmentTour({
         }}
       />
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-5 pb-5 pt-8">
-        <div className="pointer-events-auto mx-auto max-w-[1400px]">
-          <h2 className="mb-4 text-2xl font-bold text-white">Interior</h2>
-
-          <div className="mb-4 flex items-center gap-3">
-            <button
-              onClick={() => setShowProjection((prev) => !prev)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                showProjection
-                  ? "bg-white/20 text-white hover:bg-white/30"
-                  : "bg-yellow-400 text-black hover:bg-yellow-300"
-              }`}
-            >
-              {showProjection ? "Show GLB Only" : "Show Pano Projection"}
-            </button>
-
-            <div className="text-sm text-white/80">
-              Switch between the raw GLB and the stitched pano projection.
-            </div>
-
-            <button
-              onClick={() => setShowDebug((prev) => !prev)}
-              className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                showDebug
-                  ? "bg-emerald-400 text-black hover:bg-emerald-300"
-                  : "bg-white/10 text-white hover:bg-white/20"
-              }`}
-            >
-              {showDebug ? "Hide Debug" : "Show Debug"}
-            </button>
-          </div>
-
-          {showDebug ? (
-            <div className="mb-4 grid gap-3 rounded-2xl border border-white/15 bg-black/35 p-4 text-xs text-white/85 backdrop-blur">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <span className="font-semibold text-white">
-                  Active: {debugInfo.activeNavId}
-                </span>
-                <span
-                  className={
-                    activeNavIsOutsideSourceBounds
-                      ? "text-red-300"
-                      : "text-emerald-300"
-                  }
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 px-3 pb-4 sm:px-6 sm:pb-6">
+        <div className="mx-auto max-w-[1640px]">
+          <div className="relative">
+            <div className="mb-4 flex items-start justify-between gap-4 px-1 sm:mb-5 sm:px-2">
+              <div className="pointer-events-none min-w-0">
+                <h2
+                  className={`${editorialFont.className} text-[2.1rem] font-semibold leading-none tracking-[-0.05em] text-white [text-shadow:0_10px_28px_rgba(0,0,0,0.28)] sm:text-[2.7rem]`}
                 >
-                  {activeNavIsOutsideSourceBounds
-                    ? "Outside source bounds"
-                    : "Inside source bounds"}
-                </span>
-                <span className="text-white/60">
-                  Source Z range: {fmtUi(SOURCE_COORDINATE_BOUNDS.minZ)} to{" "}
-                  {fmtUi(SOURCE_COORDINATE_BOUNDS.maxZ)}
-                </span>
+                  Interior
+                </h2>
+                <p
+                  className={`${uiFont.className} mt-1 truncate text-[11px] font-medium tracking-[0.14em] text-white/72 sm:text-[12px]`}
+                >
+                  {activeRoomTab?.label ?? "Select a room"}
+                </p>
               </div>
 
-              <div className="grid gap-1 md:grid-cols-2">
-                <div>
-                  Raw nav:
-                  {" "}
-                  x {fmtUi(debugInfo.activeNavRaw?.x)}, y{" "}
-                  {fmtUi(debugInfo.activeNavRaw?.y)}, z{" "}
-                  {fmtUi(debugInfo.activeNavRaw?.z)}
-                </div>
-                <div>
-                  Inverse-mapped nav:
-                  {" "}
-                  x {fmtUi(debugInfo.activeNavMapped?.x)}, y{" "}
-                  {fmtUi(debugInfo.activeNavMapped?.y)}, z{" "}
-                  {fmtUi(debugInfo.activeNavMapped?.z)}
-                </div>
-                <div>
-                  Camera world:
-                  {" "}
-                  x {fmtUi(debugInfo.cameraWorld.x)}, y{" "}
-                  {fmtUi(debugInfo.cameraWorld.y)}, z{" "}
-                  {fmtUi(debugInfo.cameraWorld.z)}
-                </div>
-                <div>
-                  Camera nav:
-                  {" "}
-                  x {fmtUi(debugInfo.cameraNav.x)}, y{" "}
-                  {fmtUi(debugInfo.cameraNav.y)}, z{" "}
-                  {fmtUi(debugInfo.cameraNav.z)}
-                </div>
-                <div>
-                  Forward:
-                  {" "}
-                  x {fmtUi(debugInfo.activeNavWorldForward?.x)}, y{" "}
-                  {fmtUi(debugInfo.activeNavWorldForward?.y)}, z{" "}
-                  {fmtUi(debugInfo.activeNavWorldForward?.z)}
-                </div>
-                <div>
-                  Right:
-                  {" "}
-                  x {fmtUi(debugInfo.activeNavWorldRight?.x)}, y{" "}
-                  {fmtUi(debugInfo.activeNavWorldRight?.y)}, z{" "}
-                  {fmtUi(debugInfo.activeNavWorldRight?.z)}
-                </div>
-                <div>
-                  Up:
-                  {" "}
-                  x {fmtUi(debugInfo.activeNavWorldUp?.x)}, y{" "}
-                  {fmtUi(debugInfo.activeNavWorldUp?.y)}, z{" "}
-                  {fmtUi(debugInfo.activeNavWorldUp?.z)}
-                </div>
-                <div>
-                  Hover nav:
-                  {" "}
-                  x {fmtUi(debugInfo.hoverPointNav?.x)}, y{" "}
-                  {fmtUi(debugInfo.hoverPointNav?.y)}, z{" "}
-                  {fmtUi(debugInfo.hoverPointNav?.z)}
+              <div className="pointer-events-none shrink-0">
+                <div className="pointer-events-auto">
+                <button
+                  onClick={() => setShowProjection((prev) => !prev)}
+                  className={`rounded-full border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] transition duration-300 sm:px-5 sm:text-[11px] ${
+                    showProjection
+                      ? "border-white/14 bg-black/10 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-[8px] hover:bg-white/[0.08]"
+                      : "border-[#d9b56f]/34 bg-[linear-gradient(135deg,rgba(231,199,129,0.92),rgba(180,129,53,0.76))] text-[#23170d] shadow-[0_10px_24px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,247,222,0.42)] hover:brightness-105"
+                  }`}
+                >
+                  {showProjection ? "Show GLB Only" : "Show Pano Projection"}
+                </button>
+
+                {/*
+                <button
+                  onClick={() => setShowDebug((prev) => !prev)}
+                  className={`rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition duration-300 sm:px-5 ${
+                    showDebug
+                      ? "border-emerald-300/35 bg-[linear-gradient(135deg,rgba(110,231,183,0.92),rgba(16,185,129,0.82))] text-[#082118] shadow-[0_10px_24px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(220,252,231,0.5)] hover:brightness-105"
+                      : "border-white/14 bg-white/[0.08] text-white/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] hover:bg-white/[0.14]"
+                  }`}
+                >
+                  {showDebug ? "Hide Debug" : "Show Debug"}
+                </button>
+                */}
                 </div>
               </div>
             </div>
-          ) : null}
 
-          <div className="overflow-x-auto custom-scrollbar">
-            <div className="flex gap-3 pb-2">
-              {tabs.map((tab) => {
-                const active = tab.id === activeRoomId;
-
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => moveToNavRef.current?.(tab.id)}
-                    className={`min-w-[110px] shrink-0 rounded-2xl border p-1 text-white transition ${
-                      active
-                        ? "border-white bg-white/15"
-                        : "border-white/20 bg-white/5 hover:bg-white/10"
-                    }`}
+            {showDebug ? (
+              <div className="pointer-events-auto absolute inset-x-0 top-16 z-10 mx-auto mt-4 max-w-[1480px] rounded-[24px] border border-white/10 bg-black/30 p-4 text-xs text-white/85 backdrop-blur">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="font-semibold text-white">
+                    Active: {debugInfo.activeNavId}
+                  </span>
+                  <span
+                    className={
+                      activeNavIsOutsideSourceBounds
+                        ? "text-red-300"
+                        : "text-emerald-300"
+                    }
                   >
-                    <div className="relative mb-2 h-[64px] w-[100px] overflow-hidden rounded-xl bg-black/20">
-                      <NextImage
-                        src={tab.image}
-                        alt={tab.label}
-                        fill
-                        sizes="100px"
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="truncate text-center text-sm font-medium">
-                      {tab.label}
-                    </div>
-                  </button>
-                );
-              })}
+                    {activeNavIsOutsideSourceBounds
+                      ? "Outside source bounds"
+                      : "Inside source bounds"}
+                  </span>
+                  <span className="text-white/60">
+                    Source Z range: {fmtUi(SOURCE_COORDINATE_BOUNDS.minZ)} to{" "}
+                    {fmtUi(SOURCE_COORDINATE_BOUNDS.maxZ)}
+                  </span>
+                </div>
+
+                <div className="grid gap-1 md:grid-cols-2">
+                  <div>
+                    Raw nav:
+                    {" "}
+                    x {fmtUi(debugInfo.activeNavRaw?.x)}, y{" "}
+                    {fmtUi(debugInfo.activeNavRaw?.y)}, z{" "}
+                    {fmtUi(debugInfo.activeNavRaw?.z)}
+                  </div>
+                  <div>
+                    Inverse-mapped nav:
+                    {" "}
+                    x {fmtUi(debugInfo.activeNavMapped?.x)}, y{" "}
+                    {fmtUi(debugInfo.activeNavMapped?.y)}, z{" "}
+                    {fmtUi(debugInfo.activeNavMapped?.z)}
+                  </div>
+                  <div>
+                    Camera world:
+                    {" "}
+                    x {fmtUi(debugInfo.cameraWorld.x)}, y{" "}
+                    {fmtUi(debugInfo.cameraWorld.y)}, z{" "}
+                    {fmtUi(debugInfo.cameraWorld.z)}
+                  </div>
+                  <div>
+                    Camera nav:
+                    {" "}
+                    x {fmtUi(debugInfo.cameraNav.x)}, y{" "}
+                    {fmtUi(debugInfo.cameraNav.y)}, z{" "}
+                    {fmtUi(debugInfo.cameraNav.z)}
+                  </div>
+                  <div>
+                    Forward:
+                    {" "}
+                    x {fmtUi(debugInfo.activeNavWorldForward?.x)}, y{" "}
+                    {fmtUi(debugInfo.activeNavWorldForward?.y)}, z{" "}
+                    {fmtUi(debugInfo.activeNavWorldForward?.z)}
+                  </div>
+                  <div>
+                    Right:
+                    {" "}
+                    x {fmtUi(debugInfo.activeNavWorldRight?.x)}, y{" "}
+                    {fmtUi(debugInfo.activeNavWorldRight?.y)}, z{" "}
+                    {fmtUi(debugInfo.activeNavWorldRight?.z)}
+                  </div>
+                  <div>
+                    Up:
+                    {" "}
+                    x {fmtUi(debugInfo.activeNavWorldUp?.x)}, y{" "}
+                    {fmtUi(debugInfo.activeNavWorldUp?.y)}, z{" "}
+                    {fmtUi(debugInfo.activeNavWorldUp?.z)}
+                  </div>
+                  <div>
+                    Hover nav:
+                    {" "}
+                    x {fmtUi(debugInfo.hoverPointNav?.x)}, y{" "}
+                    {fmtUi(debugInfo.hoverPointNav?.y)}, z{" "}
+                    {fmtUi(debugInfo.hoverPointNav?.z)}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="relative rounded-[28px] bg-transparent px-4 pb-2 pt-4 sm:px-5 sm:pb-3 sm:pt-5">
+              {/* <div className="pointer-events-none absolute inset-x-[18%] top-0 h-12 rounded-[100%] bg-[radial-gradient(circle_at_center,rgba(214,183,121,0.1),rgba(214,183,121,0.02)_52%,transparent_78%)] blur-2xl" /> */}
+              <div className="relative flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => moveCarouselBy(-1)}
+                  className={`${uiFont.className} pointer-events-auto hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-lg text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:bg-white/[0.06] sm:inline-flex`}
+                  aria-label="Previous room"
+                >
+                  &#8249;
+                </button>
+
+                <div
+                  ref={tabsScrollerRef}
+                  className="pointer-events-auto flex min-w-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-3"
+                  onWheel={(event) => {
+                    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    event.currentTarget.scrollBy({
+                      left: event.deltaY,
+                    });
+                  }}
+                >
+                  {tabs.map((tab) => {
+                    const isActive = tab.id === activeRoomId;
+
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        data-room-id={tab.id}
+                        onClick={() => moveToNavRef.current?.(tab.id)}
+                        className={`group relative block w-[160px] shrink-0 snap-center text-left transition duration-300 sm:w-[178px] ${
+                          isActive
+                            ? "translate-y-[-3px]"
+                            : "opacity-90 hover:-translate-y-[1px] hover:opacity-100"
+                        }`}
+                      >
+                        <div
+                          className={`relative overflow-hidden rounded-[22px] transition duration-300 `}
+                        >
+                          <div className="pointer-events-none absolute inset-x-4 top-0 h-8 rounded-b-[999px] opacity-80" />
+                          <div className="relative m-[3px] aspect-[100/64] overflow-hidden rounded-[18px]">
+                            <NextImage
+                              src={tab.image}
+                              alt={tab.label}
+                              fill
+                              sizes="(max-width: 640px) 160px, 178px"
+                              quality={64}
+                              loading="lazy"
+                              draggable={false}
+                              className={`object-cover transition duration-500 ${
+                                isActive
+                                  ? "scale-[1.015]"
+                                  : "scale-100 group-hover:scale-[1.03]"
+                              }`}
+                            />
+                            {/* <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0)_30%,rgba(0,0,0,0.1)_100%)]" /> */}
+                            {/* <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/8" /> */}
+                          </div>
+                        </div>
+                        <div className="px-2 pt-2.5">
+                          <p
+                            className={`${uiFont.className} truncate text-[12px] font-semibold leading-none tracking-[-0.01em] text-white/95 sm:text-[13px]`}
+                          >
+                            {tab.label}
+                          </p>
+                          {/* <p className={`${uiFont.className} mt-1 text-[10px] font-medium tracking-[0.16em] text-white/38`}>
+                            {tab.id.split("_").pop()}
+                          </p> */}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => moveCarouselBy(1)}
+                  className={`${uiFont.className} pointer-events-auto hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-lg text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:bg-white/[0.06] sm:inline-flex`}
+                  aria-label="Next room"
+                >
+                  &#8250;
+                </button>
+              </div>
             </div>
           </div>
         </div>

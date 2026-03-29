@@ -3,8 +3,10 @@
 import {
   Suspense,
   memo,
+  startTransition,
   type MutableRefObject,
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -12,6 +14,7 @@ import {
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
+  AdaptiveDpr,
   Html,
   Line,
   PerspectiveCamera,
@@ -66,6 +69,9 @@ const SNAP_ANIMATION_MS_PER_FRAME = 3.6;
 const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
 const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;
 const HOTSPOT_NAVIGATION_MS_PER_FRAME = 6.8;
+const DRAG_VIDEO_SYNC_FRAME_STEP = 3;
+const HOVER_COOLDOWN_MS = 180;
+const TOWER_MESH_PREWARM_FRAMES = 6;
 const TRACKING_VIDEO_ASPECT = 16 / 9;
 const VIDEO_SYNC_THRESHOLD_SECONDS = 1 / (MASTER_PLAN_SCRUB_VIDEO_FPS * 1.5);
 const VIDEO_FAST_SEEK_THRESHOLD_SECONDS = 0.18;
@@ -240,12 +246,13 @@ function isSnapFrame(frame: number) {
   return SNAP_FRAMES.includes(wrapFrame(frame) as (typeof SNAP_FRAMES)[number]);
 }
 
-function getNearestSnapFrame(frame: number) {
+function getNearestSnapFrameInfo(frame: number) {
   const normalizedFrame = wrapFrame(frame);
-  let closestFrame = 1;
+  let closestFrame: number = SNAP_FRAMES[0];
+  let closestIndex = 0;
   let closestDistance = Number.POSITIVE_INFINITY;
 
-  SNAP_FRAMES.forEach((snapFrame) => {
+  SNAP_FRAMES.forEach((snapFrame, index) => {
     const distance = Math.min(
       Math.abs(normalizedFrame - snapFrame),
       Math.abs(normalizedFrame - (snapFrame + TOTAL_FRAMES)),
@@ -255,10 +262,23 @@ function getNearestSnapFrame(frame: number) {
     if (distance < closestDistance) {
       closestDistance = distance;
       closestFrame = snapFrame;
+      closestIndex = index;
     }
   });
 
-  return closestFrame;
+  return {
+    distance: closestDistance,
+    frame: closestFrame,
+    index: closestIndex,
+  };
+}
+
+function getNearestSnapFrame(frame: number) {
+  return getNearestSnapFrameInfo(frame).frame;
+}
+
+function isFrameWithinSnapWindow(frame: number, frameWindow: number) {
+  return getNearestSnapFrameInfo(frame).distance <= frameWindow;
 }
 
 function getShortestProgressDelta(startProgress: number, endProgress: number) {
@@ -653,31 +673,16 @@ function getTowerTrackingCameraPath(
   });
 }
 
-function interpolateTrackingCameraView(
+function getTrackingCameraViewForFrame(
   path: TrackingCameraView[],
-  progress: number,
+  frame: number,
 ) {
   if (path.length === 0) {
     return null;
   }
 
-  const wrapped = wrapProgress(progress) * path.length;
-  const fromIndex = Math.floor(wrapped) % path.length;
-  const toIndex = (fromIndex + 1) % path.length;
-  const blend = wrapped - Math.floor(wrapped);
-  const from = path[fromIndex];
-  const to = path[toIndex];
-
-  return {
-    fov: MathUtils.lerp(from.fov, to.fov, blend),
-    position: new Vector3().lerpVectors(from.position, to.position, blend),
-    quaternion: new Quaternion().slerpQuaternions(
-      from.quaternion,
-      to.quaternion,
-      blend,
-    ),
-    target: new Vector3().lerpVectors(from.target, to.target, blend),
-  } satisfies TrackingCameraView;
+  const nearestSnap = getNearestSnapFrameInfo(frame);
+  return path[nearestSnap.index] ?? path[0];
 }
 
 function getTrackingDebugPoints(
@@ -981,6 +986,54 @@ function getStatusMeta(
   };
 }
 
+type ApartmentHighlightMode = "filter" | "hover";
+
+type ApartmentHighlightPalette = {
+  fill: string;
+  fillOpacity: number;
+  innerEdge: string;
+  outerEdge: string;
+};
+
+function getApartmentHighlightPalette(
+  status: InventoryStatus | null | undefined,
+  mode: ApartmentHighlightMode,
+): ApartmentHighlightPalette {
+  if (status === "Sold") {
+    return {
+      fill: "#fb7185",
+      fillOpacity: mode === "hover" ? 0.18 : 0.2,
+      innerEdge: "#f43f5e",
+      outerEdge: "#ffe4e6",
+    };
+  }
+
+  if (status === "Reserved") {
+    return {
+      fill: "#facc15",
+      fillOpacity: mode === "hover" ? 0.18 : 0.2,
+      innerEdge: "#f59e0b",
+      outerEdge: "#fef3c7",
+    };
+  }
+
+  if (mode === "hover") {
+    return {
+      fill: "#ffffff",
+      fillOpacity: 0.16,
+      innerEdge: "#d1d5db",
+      outerEdge: "#ffffff",
+    };
+  }
+
+  return {
+    fill: "#86efac",
+    fillOpacity: 0.22,
+    innerEdge: "#4ade80",
+    outerEdge: "#f0fdf4",
+  };
+}
+
 function prepareTowerScene(
   sourceScene: Object3D,
   selectedTower: TowerType | null,
@@ -1185,19 +1238,37 @@ const HighlightEdgeLines = memo(function HighlightEdgeLines({
 
 const HighlightOverlay = memo(function HighlightOverlay({
   filteredApartmentIds,
+  getApartmentStatus,
   hoveredApartmentId,
   apartments,
 }: {
   filteredApartmentIds: Set<string>;
+  getApartmentStatus: (
+    apartmentId: string | null,
+  ) => InventoryStatus | null | undefined;
   hoveredApartmentId: string | null;
   apartments: PreparedTowerModel["apartments"];
 }) {
-  const hoveredMeshes = useMemo(
-    () => (hoveredApartmentId ? apartments.get(hoveredApartmentId) ?? [] : []),
-    [apartments, hoveredApartmentId],
-  );
+  const hoveredMeshes = useMemo(() => {
+    if (!hoveredApartmentId) {
+      return [];
+    }
+
+    const palette = getApartmentHighlightPalette(
+      getApartmentStatus(hoveredApartmentId),
+      "hover",
+    );
+
+    return (apartments.get(hoveredApartmentId) ?? []).map((meshData) => ({
+      meshData,
+      palette,
+    }));
+  }, [apartments, getApartmentStatus, hoveredApartmentId]);
   const filteredMeshes = useMemo(() => {
-    const next: HoverMeshData[] = [];
+    const next: Array<{
+      meshData: HoverMeshData;
+      palette: ApartmentHighlightPalette;
+    }> = [];
 
     filteredApartmentIds.forEach((apartmentId) => {
       if (apartmentId === hoveredApartmentId) {
@@ -1205,14 +1276,23 @@ const HighlightOverlay = memo(function HighlightOverlay({
       }
 
       const apartmentMeshes = apartments.get(apartmentId);
+      const palette = getApartmentHighlightPalette(
+        getApartmentStatus(apartmentId),
+        "filter",
+      );
 
       if (apartmentMeshes?.length) {
-        next.push(...apartmentMeshes);
+        apartmentMeshes.forEach((meshData) => {
+          next.push({
+            meshData,
+            palette,
+          });
+        });
       }
     });
 
     return next;
-  }, [apartments, filteredApartmentIds, hoveredApartmentId]);
+  }, [apartments, filteredApartmentIds, getApartmentStatus, hoveredApartmentId]);
   const shouldSimplifyFilteredEdges =
     filteredMeshes.length >= FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD;
 
@@ -1223,38 +1303,38 @@ const HighlightOverlay = memo(function HighlightOverlay({
   return (
     <group>
       {filteredMeshes.map((meshData) => (
-        <group key={`filter-${meshData.key}`}>
+        <group key={`filter-${meshData.meshData.key}`}>
           <mesh
             frustumCulled={false}
-            geometry={meshData.geometry}
-            matrix={meshData.matrix}
+            geometry={meshData.meshData.geometry}
+            matrix={meshData.meshData.matrix}
             matrixAutoUpdate={false}
             raycast={() => null}
             renderOrder={10}
           >
             <meshBasicMaterial
-              color="#86efac"
+              color={meshData.palette.fill}
               depthTest={false}
               depthWrite={false}
-              opacity={0.22}
+              opacity={meshData.palette.fillOpacity}
               side={DoubleSide}
               toneMapped={false}
               transparent
             />
           </mesh>
           <HighlightEdgeLines
-            color="#4ade80"
-            geometry={meshData.geometry}
-            matrix={meshData.matrix}
+            color={meshData.palette.innerEdge}
+            geometry={meshData.meshData.geometry}
+            matrix={meshData.meshData.matrix}
             renderOrder={11}
             scaleMultiplier={1.006}
             thickness={2}
           />
           {!shouldSimplifyFilteredEdges ? (
             <HighlightEdgeLines
-              color="#f0fdf4"
-              geometry={meshData.geometry}
-              matrix={meshData.matrix}
+              color={meshData.palette.outerEdge}
+              geometry={meshData.meshData.geometry}
+              matrix={meshData.meshData.matrix}
               renderOrder={12}
               thickness={3}
             />
@@ -1263,37 +1343,37 @@ const HighlightOverlay = memo(function HighlightOverlay({
       ))}
 
       {hoveredMeshes.map((meshData) => (
-        <group key={`hover-${meshData.key}`}>
+        <group key={`hover-${meshData.meshData.key}`}>
           <mesh
             frustumCulled={false}
-            geometry={meshData.geometry}
-            matrix={meshData.matrix}
+            geometry={meshData.meshData.geometry}
+            matrix={meshData.meshData.matrix}
             matrixAutoUpdate={false}
             raycast={() => null}
             renderOrder={12}
           >
             <meshBasicMaterial
-              color="#ffffff"
+              color={meshData.palette.fill}
               depthTest={false}
               depthWrite={false}
-              opacity={0.16}
+              opacity={meshData.palette.fillOpacity}
               side={DoubleSide}
               toneMapped={false}
               transparent
             />
           </mesh>
           <HighlightEdgeLines
-            color="#d1d5db"
-            geometry={meshData.geometry}
-            matrix={meshData.matrix}
+            color={meshData.palette.innerEdge}
+            geometry={meshData.meshData.geometry}
+            matrix={meshData.meshData.matrix}
             renderOrder={13}
             scaleMultiplier={1.008}
             thickness={2}
           />
           <HighlightEdgeLines
-            color="#ffffff"
-            geometry={meshData.geometry}
-            matrix={meshData.matrix}
+            color={meshData.palette.outerEdge}
+            geometry={meshData.meshData.geometry}
+            matrix={meshData.meshData.matrix}
             renderOrder={14}
             thickness={4}
           />
@@ -1524,19 +1604,24 @@ function TrackingDebugOverlay({
 }
 
 const TowerScene = memo(function TowerScene({
+  currentFrame,
   filteredApartments,
+  getApartmentStatus,
   onInvalidateReady,
-  hoveredApartmentId,
   allowHover,
   onApartmentHover,
   rotationProgressRef,
   selectedTower,
   showApartmentMeshes,
+  showTowerMeshes,
   showTrackingDebug,
 }: {
+  currentFrame: number;
   filteredApartments: InventoryApartment[];
+  getApartmentStatus: (
+    apartmentId: string | null,
+  ) => InventoryStatus | null | undefined;
   onInvalidateReady?: (invalidateCanvas: () => void) => void;
-  hoveredApartmentId: string | null;
   allowHover: boolean;
   onApartmentHover: (
     apartmentId: string | null,
@@ -1545,14 +1630,19 @@ const TowerScene = memo(function TowerScene({
   rotationProgressRef: MutableRefObject<number>;
   selectedTower: TowerType | null;
   showApartmentMeshes: boolean;
+  showTowerMeshes: boolean;
   showTrackingDebug: boolean;
 }) {
-  const { invalidate, size } = useThree();
+  const { invalidate } = useThree();
   const towerAGltf = useGLTF(MODEL_PATH_A);
   const towerBGltf = useGLTF(MODEL_PATH_B);
   const cameraRef = useRef<ThreePerspectiveCamera | null>(null);
   const fallbackGroupRef = useRef<Group | null>(null);
+  const hoveredApartmentIdRef = useRef<string | null>(null);
   const trackingDebugLoggedRef = useRef(false);
+  const [hoveredApartmentId, setHoveredApartmentId] = useState<string | null>(
+    null,
+  );
   const activeTowerCode = towerTypeToCode(selectedTower) ?? "A";
   const preparedTowerA = useMemo(
     () => prepareTowerScene(towerAGltf.scene, selectedTower, false, "A"),
@@ -1584,9 +1674,12 @@ const TowerScene = memo(function TowerScene({
   const towerTrackingTransform =
     activeTowerCode === "B" ? towerBTrackingTransform : towerATrackingTransform;
   const towerTrackingPath = useMemo(
-    () =>
-      getTowerTrackingCameraPath(towerTrackingTransform, size.width / size.height),
-    [size.height, size.width, towerTrackingTransform],
+    () => getTowerTrackingCameraPath(towerTrackingTransform, TRACKING_VIDEO_ASPECT),
+    [towerTrackingTransform],
+  );
+  const trackingCameraView = useMemo(
+    () => getTrackingCameraViewForFrame(towerTrackingPath ?? [], currentFrame),
+    [currentFrame, towerTrackingPath],
   );
   const unrealTowerDummies = useMemo(
     () =>
@@ -1626,12 +1719,13 @@ const TowerScene = memo(function TowerScene({
     () => [...preparedTowerA.pickableMeshes, ...preparedTowerB.pickableMeshes],
     [preparedTowerA.pickableMeshes, preparedTowerB.pickableMeshes],
   );
+  const deferredFilteredApartments = useDeferredValue(filteredApartments);
   const filteredApartmentIndex = useMemo(
-    () => buildInventoryApartmentIndex(filteredApartments),
-    [filteredApartments],
+    () => buildInventoryApartmentIndex(deferredFilteredApartments),
+    [deferredFilteredApartments],
   );
   const filteredApartmentIds = useMemo(() => {
-    if (!showApartmentMeshes || !filteredApartments.length) {
+    if (!showApartmentMeshes || !deferredFilteredApartments.length) {
       return new Set<string>();
     }
 
@@ -1648,8 +1742,8 @@ const TowerScene = memo(function TowerScene({
     );
   }, [
     combinedApartments,
+    deferredFilteredApartments.length,
     filteredApartmentIndex,
-    filteredApartments.length,
     selectedTower,
     showApartmentMeshes,
   ]);
@@ -1723,13 +1817,44 @@ const TowerScene = memo(function TowerScene({
   }, [activeTowerCode, towerTrackingPath]);
   const fallbackScenePosition = BASE_MODEL_OFFSET;
   const trackedScenePosition: [number, number, number] = [0, 0, 0];
+  const shouldRenderTowerProxies = showTowerMeshes || showTrackingDebug;
+  const activeHoveredApartmentId = allowHover ? hoveredApartmentId : null;
   const shouldShowHighlightOverlay =
     showApartmentMeshes &&
-    (hoveredApartmentId !== null || filteredApartmentIds.size > 0);
+    (activeHoveredApartmentId !== null || filteredApartmentIds.size > 0);
 
   useEffect(() => {
     onInvalidateReady?.(invalidate);
   }, [invalidate, onInvalidateReady]);
+
+  const handleSceneHover = useCallback(
+    (apartmentId: string | null, pointerPosition: PointerPosition | null) => {
+      if (hoveredApartmentIdRef.current !== apartmentId) {
+        hoveredApartmentIdRef.current = apartmentId;
+        setHoveredApartmentId(apartmentId);
+      }
+
+      onApartmentHover(apartmentId, pointerPosition);
+    },
+    [onApartmentHover],
+  );
+
+  useEffect(() => {
+    const camera = cameraRef.current;
+
+    if (!camera || !trackingCameraView) {
+      return;
+    }
+
+    if (Math.abs(camera.fov - trackingCameraView.fov) > 0.001) {
+      camera.fov = trackingCameraView.fov;
+      camera.updateProjectionMatrix();
+    }
+
+    camera.position.copy(trackingCameraView.position);
+    camera.quaternion.copy(trackingCameraView.quaternion);
+    invalidate();
+  }, [invalidate, trackingCameraView]);
 
   useFrame(() => {
     const camera = cameraRef.current;
@@ -1739,22 +1864,6 @@ const TowerScene = memo(function TowerScene({
     }
 
     if (towerTrackingPath?.length) {
-      const trackingView = interpolateTrackingCameraView(
-        towerTrackingPath,
-        rotationProgressRef.current,
-      );
-
-      if (!trackingView) {
-        return;
-      }
-
-      if (Math.abs(camera.fov - trackingView.fov) > 0.001) {
-        camera.fov = trackingView.fov;
-        camera.updateProjectionMatrix();
-      }
-
-      camera.position.copy(trackingView.position);
-      camera.quaternion.copy(trackingView.quaternion);
       return;
     }
 
@@ -1786,7 +1895,7 @@ const TowerScene = memo(function TowerScene({
       <ambientLight intensity={1.75} />
       <directionalLight color="#fff7d8" intensity={2.85} position={[12, 16, 8]} />
       <directionalLight color="#d9ecff" intensity={1.2} position={[-10, 10, -10]} />
-      {towerATrackingTransform ? (
+      {shouldRenderTowerProxies && towerATrackingTransform ? (
         <group
           position={towerATrackingTransform.position.toArray()}
           quaternion={towerATrackingTransform.quaternion.toArray()}
@@ -1799,14 +1908,15 @@ const TowerScene = memo(function TowerScene({
                 <HighlightOverlay
                   apartments={preparedTowerA.apartments}
                   filteredApartmentIds={filteredApartmentIds}
-                  hoveredApartmentId={hoveredApartmentId}
+                  getApartmentStatus={getApartmentStatus}
+                  hoveredApartmentId={activeHoveredApartmentId}
                 />
               ) : null}
             </group>
           </group>
         </group>
       ) : null}
-      {towerBTrackingTransform ? (
+      {shouldRenderTowerProxies && towerBTrackingTransform ? (
         <group
           position={towerBTrackingTransform.position.toArray()}
           quaternion={towerBTrackingTransform.quaternion.toArray()}
@@ -1819,14 +1929,15 @@ const TowerScene = memo(function TowerScene({
                 <HighlightOverlay
                   apartments={preparedTowerB.apartments}
                   filteredApartmentIds={filteredApartmentIds}
-                  hoveredApartmentId={hoveredApartmentId}
+                  getApartmentStatus={getApartmentStatus}
+                  hoveredApartmentId={activeHoveredApartmentId}
                 />
               ) : null}
             </group>
           </group>
         </group>
       ) : null}
-      {!towerATrackingTransform && !towerBTrackingTransform ? (
+      {shouldRenderTowerProxies && !towerATrackingTransform && !towerBTrackingTransform ? (
         <group
           ref={fallbackGroupRef}
           position={fallbackScenePosition}
@@ -1838,7 +1949,8 @@ const TowerScene = memo(function TowerScene({
               <HighlightOverlay
                 apartments={primaryPreparedModel.apartments}
                 filteredApartmentIds={filteredApartmentIds}
-                hoveredApartmentId={hoveredApartmentId}
+                getApartmentStatus={getApartmentStatus}
+                hoveredApartmentId={activeHoveredApartmentId}
               />
             ) : null}
           </group>
@@ -1847,7 +1959,7 @@ const TowerScene = memo(function TowerScene({
 
       <HoverTracker
         allowHover={allowHover}
-        onHoverChange={onApartmentHover}
+        onHoverChange={handleSceneHover}
         pickableMeshes={combinedPickableMeshes}
       />
 
@@ -1888,7 +2000,10 @@ export default function MasterPlanFrameHoverStage({
   const animationFrameRef = useRef<number | null>(null);
   const canvasInvalidateRef = useRef<(() => void) | null>(null);
   const dragFrameRef = useRef<number | null>(null);
+  const hoverCooldownTimeoutRef = useRef<number | null>(null);
   const displayedFrameRef = useRef(wrapFrame(currentFrame));
+  const displayedFrameStateRef = useRef(wrapFrame(currentFrame));
+  const isSettlingRef = useRef(false);
   const lastSyncedVideoFrameRef = useRef<number | null>(null);
   const progressFrameRef = useRef<number | null>(null);
   const pendingProgressRef = useRef<number | null>(null);
@@ -1902,6 +2017,7 @@ export default function MasterPlanFrameHoverStage({
   const [isDragging, setIsDragging] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
+  const [isHoverCoolingDown, setIsHoverCoolingDown] = useState(false);
   const [supportsPreciseHover, setSupportsPreciseHover] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [sectionSize, setSectionSize] = useState(() => ({
@@ -1918,6 +2034,9 @@ export default function MasterPlanFrameHoverStage({
       ),
     [sectionSize.height, sectionSize.width],
   );
+  const invalidateCanvas = useCallback(() => {
+    canvasInvalidateRef.current?.();
+  }, []);
 
   const stopScheduledProgress = useCallback(() => {
     if (progressFrameRef.current !== null) {
@@ -1933,15 +2052,71 @@ export default function MasterPlanFrameHoverStage({
     }
   }, []);
 
+  const clearHoverCooldown = useCallback(() => {
+    if (hoverCooldownTimeoutRef.current !== null) {
+      window.clearTimeout(hoverCooldownTimeoutRef.current);
+      hoverCooldownTimeoutRef.current = null;
+    }
+
+    setIsHoverCoolingDown(false);
+  }, []);
+
+  const startHoverCooldown = useCallback(() => {
+    clearHoverCooldown();
+    setIsHoverCoolingDown(true);
+    hoverCooldownTimeoutRef.current = window.setTimeout(() => {
+      hoverCooldownTimeoutRef.current = null;
+      setIsHoverCoolingDown(false);
+    }, HOVER_COOLDOWN_MS);
+  }, [clearHoverCooldown]);
+
+  const syncDisplayedFrameState = useCallback(
+    (nextFrame: number, urgent = false) => {
+      const wrappedFrame = wrapFrame(nextFrame);
+
+      if (displayedFrameStateRef.current === wrappedFrame) {
+        return;
+      }
+
+      displayedFrameStateRef.current = wrappedFrame;
+
+      if (urgent) {
+        setDisplayedFrame(wrappedFrame);
+        return;
+      }
+
+      startTransition(() => {
+        setDisplayedFrame(wrappedFrame);
+      });
+    },
+    [],
+  );
+
   const syncVideoTime = useCallback(
-    (video: HTMLVideoElement | null, progress: number) => {
+    (
+      video: HTMLVideoElement | null,
+      progress: number,
+      { force = false }: { force?: boolean } = {},
+    ) => {
       if (!video || !Number.isFinite(video.duration) || video.duration <= 0) {
         return;
       }
 
       const targetFrame = progressToFrame(progress);
+      const previousFrame = lastSyncedVideoFrameRef.current;
+      const minimumFrameDelta =
+        !force && dragStateRef.current
+          ? DRAG_VIDEO_SYNC_FRAME_STEP
+          : 1;
 
-      if (lastSyncedVideoFrameRef.current === targetFrame) {
+      if (
+        previousFrame !== null &&
+        Math.abs(
+          getShortestProgressDelta(frameToProgress(previousFrame), progress),
+        ) *
+          TOTAL_FRAMES <
+          minimumFrameDelta
+      ) {
         return;
       }
 
@@ -1983,16 +2158,23 @@ export default function MasterPlanFrameHoverStage({
       const wrappedProgress = wrapProgress(nextProgress);
       displayProgressRef.current = wrappedProgress;
       const nextDisplayedFrame = progressToFrame(wrappedProgress);
+      const previousDisplayedFrame = displayedFrameRef.current;
 
       if (displayedFrameRef.current !== nextDisplayedFrame) {
         displayedFrameRef.current = nextDisplayedFrame;
-        setDisplayedFrame(nextDisplayedFrame);
+        syncDisplayedFrameState(nextDisplayedFrame);
       }
 
       syncVisibleVideoTime(wrappedProgress);
-      canvasInvalidateRef.current?.();
+
+      if (
+        isFrameWithinSnapWindow(previousDisplayedFrame, TOWER_MESH_PREWARM_FRAMES) ||
+        isFrameWithinSnapWindow(nextDisplayedFrame, TOWER_MESH_PREWARM_FRAMES)
+      ) {
+        canvasInvalidateRef.current?.();
+      }
     },
-    [syncVisibleVideoTime],
+    [syncDisplayedFrameState, syncVisibleVideoTime],
   );
 
   const scheduleProgress = useCallback(
@@ -2067,6 +2249,7 @@ export default function MasterPlanFrameHoverStage({
       animationFrameRef.current = null;
     }
 
+    isSettlingRef.current = false;
     setIsSettling(false);
   }, []);
 
@@ -2088,10 +2271,13 @@ export default function MasterPlanFrameHoverStage({
 
       if (Math.abs(progressDelta) < 0.0005) {
         scheduleProgress(targetProgress);
+        syncVideoTime(videoRef.current, targetProgress, { force: true });
+        invalidateCanvas();
         onComplete?.();
         return;
       }
 
+      isSettlingRef.current = true;
       setIsSettling(true);
       let startTime = 0;
 
@@ -2109,7 +2295,10 @@ export default function MasterPlanFrameHoverStage({
         if (progress >= 1) {
           dragTargetProgressRef.current = wrapProgress(targetProgress);
           scheduleProgress(targetProgress);
+          syncVideoTime(videoRef.current, targetProgress, { force: true });
           stopMotionAnimation();
+          syncDisplayedFrameState(progressToFrame(targetProgress), true);
+          invalidateCanvas();
           onComplete?.();
           return;
         }
@@ -2119,7 +2308,14 @@ export default function MasterPlanFrameHoverStage({
 
       animationFrameRef.current = window.requestAnimationFrame(animate);
     },
-    [scheduleProgress, stopDragLoop, stopMotionAnimation],
+    [
+      invalidateCanvas,
+      scheduleProgress,
+      stopDragLoop,
+      stopMotionAnimation,
+      syncDisplayedFrameState,
+      syncVideoTime,
+    ],
   );
 
   useEffect(() => {
@@ -2194,7 +2390,7 @@ export default function MasterPlanFrameHoverStage({
     const syncVideoState = () => {
       video.pause();
       lastSyncedVideoFrameRef.current = null;
-      syncVisibleVideoTime(displayProgressRef.current);
+      syncVideoTime(video, displayProgressRef.current, { force: true });
       setIsVideoReady(true);
     };
 
@@ -2208,7 +2404,7 @@ export default function MasterPlanFrameHoverStage({
     return () => {
       cleanup();
     };
-  }, [syncVisibleVideoTime]);
+  }, [syncVideoTime]);
 
   useEffect(() => {
     if (dragStateRef.current) {
@@ -2223,6 +2419,7 @@ export default function MasterPlanFrameHoverStage({
 
     if (frameDistance < 0.5) {
       scheduleProgress(targetProgress);
+      syncVideoTime(videoRef.current, targetProgress, { force: true });
       return;
     }
 
@@ -2235,13 +2432,18 @@ export default function MasterPlanFrameHoverStage({
     );
 
     const animationId = window.requestAnimationFrame(() => {
-      animateToProgress(targetProgress, duration, undefined, easeInOutCubic);
+      animateToProgress(
+        targetProgress,
+        duration,
+        startHoverCooldown,
+        easeInOutCubic,
+      );
     });
 
     return () => {
       window.cancelAnimationFrame(animationId);
     };
-  }, [animateToProgress, safeFrame, scheduleProgress]);
+  }, [animateToProgress, safeFrame, scheduleProgress, startHoverCooldown, syncVideoTime]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -2259,6 +2461,7 @@ export default function MasterPlanFrameHoverStage({
 
       if (!dragState.didDrag) {
         dragState.didDrag = true;
+        clearHoverCooldown();
         setIsDragging(true);
         stopDragLoop();
         stopMotionAnimation();
@@ -2323,6 +2526,7 @@ export default function MasterPlanFrameHoverStage({
       );
 
       animateToProgress(targetProgress, duration, () => {
+        startHoverCooldown();
         onSetFrame(snappedFrame);
       });
     };
@@ -2338,31 +2542,60 @@ export default function MasterPlanFrameHoverStage({
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [animateToProgress, onSetFrame, startDragLoop, stopDragLoop, stopMotionAnimation]);
+  }, [
+    animateToProgress,
+    clearHoverCooldown,
+    onSetFrame,
+    startDragLoop,
+    startHoverCooldown,
+    stopDragLoop,
+    stopMotionAnimation,
+  ]);
 
   useEffect(() => {
     return () => {
+      clearHoverCooldown();
       stopDragLoop();
       stopMotionAnimation();
       stopScheduledProgress();
     };
-  }, [stopDragLoop, stopMotionAnimation, stopScheduledProgress]);
+  }, [clearHoverCooldown, stopDragLoop, stopMotionAnimation, stopScheduledProgress]);
 
   const allowHover =
     supportsPreciseHover &&
     !prefersReducedMotion &&
     !isDragging &&
     !isSettling &&
+    !isHoverCoolingDown &&
     isSnapFrame(displayedFrame);
-  const showApartmentMeshes = !isDragging && !isSettling && isSnapFrame(displayedFrame);
+  const showTowerMeshes = isFrameWithinSnapWindow(
+    displayedFrame,
+    TOWER_MESH_PREWARM_FRAMES,
+  );
+  const showApartmentMeshes =
+    !isDragging && !isSettling && !isHoverCoolingDown && isSnapFrame(displayedFrame);
   const showTrackingDebug =
     ENABLE_TRACKING_DEBUG &&
     !isDragging &&
     !isSettling;
+  const showVideo = isVideoReady;
+  const canvasDpr: [number, number] = supportsPreciseHover
+    ? [0.7, 1]
+    : [0.5, 0.85];
+  const trackingFrame = getNearestSnapFrame(displayedFrame);
   const activeHoveredApartmentId = allowHover ? hoveredApartmentId : null;
   const apartmentIndex = useMemo(
     () => buildInventoryApartmentIndex(apartments),
     [apartments],
+  );
+  const getApartmentStatus = useCallback(
+    (apartmentId: string | null) =>
+      findInventoryApartmentInIndex(
+        apartmentIndex,
+        apartmentId,
+        selectedTower,
+      )?.status ?? null,
+    [apartmentIndex, selectedTower],
   );
   const hoveredApartment = formatApartmentLabel(
     activeHoveredApartmentId,
@@ -2426,7 +2659,10 @@ export default function MasterPlanFrameHoverStage({
       }
 
       hoveredApartmentIdRef.current = apartmentId;
-      setHoveredApartmentId(apartmentId);
+
+      startTransition(() => {
+        setHoveredApartmentId(apartmentId);
+      });
     },
     [allowHover, updateTooltipPosition],
   );
@@ -2434,6 +2670,20 @@ export default function MasterPlanFrameHoverStage({
   const handleCanvasInvalidateReady = useCallback((invalidateCanvas: () => void) => {
     canvasInvalidateRef.current = invalidateCanvas;
   }, []);
+
+  useEffect(() => {
+    syncVideoTime(videoRef.current, displayProgressRef.current, { force: true });
+    if (showTowerMeshes || allowHover || showTrackingDebug) {
+      invalidateCanvas();
+    }
+  }, [
+    allowHover,
+    currentFrame,
+    invalidateCanvas,
+    showTowerMeshes,
+    showTrackingDebug,
+    syncVideoTime,
+  ]);
 
   return (
     <section
@@ -2460,8 +2710,8 @@ export default function MasterPlanFrameHoverStage({
           <video
             ref={videoRef}
             aria-label={`Master plan scrub view ${displayedFrame}`}
-            className={`pointer-events-none h-full w-full transition-opacity duration-300 ${
-              isVideoReady ? "opacity-100" : "opacity-0"
+            className={`pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-200 ${
+              showVideo ? "opacity-100" : "opacity-0"
             }`}
             muted
             playsInline
@@ -2475,8 +2725,13 @@ export default function MasterPlanFrameHoverStage({
                 return;
               }
 
+              clearHoverCooldown();
               stopMotionAnimation();
               stopDragLoop();
+              syncVideoTime(videoRef.current, displayProgressRef.current, {
+                force: true,
+              });
+              invalidateCanvas();
               dragTargetProgressRef.current = displayProgressRef.current;
               dragStateRef.current = {
                 clampedDeltaX: 0,
@@ -2509,9 +2764,9 @@ export default function MasterPlanFrameHoverStage({
             }`}
           >
             <Canvas
-              dpr={[0.8, 1]}
+              dpr={canvasDpr}
               frameloop="demand"
-              performance={{ min: 0.6, debounce: 200 }}
+              performance={{ min: 0.45, debounce: 120 }}
               gl={{
                 alpha: true,
                 antialias: false,
@@ -2521,15 +2776,18 @@ export default function MasterPlanFrameHoverStage({
               }}
             >
               <Suspense fallback={<LoadingState />}>
+                <AdaptiveDpr />
                 <TowerScene
+                  currentFrame={trackingFrame}
                   filteredApartments={filteredApartments}
+                  getApartmentStatus={getApartmentStatus}
                   allowHover={allowHover}
                   onInvalidateReady={handleCanvasInvalidateReady}
-                  hoveredApartmentId={activeHoveredApartmentId}
                   onApartmentHover={handleApartmentHover}
                   rotationProgressRef={displayProgressRef}
                   selectedTower={selectedTower}
                   showApartmentMeshes={showApartmentMeshes}
+                  showTowerMeshes={showTowerMeshes}
                   showTrackingDebug={showTrackingDebug}
                 />
               </Suspense>

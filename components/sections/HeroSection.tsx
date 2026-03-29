@@ -244,7 +244,7 @@ export default function HeroSection() {
         preload="auto"
       >
         <source
-          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328995/HERO_BG_2_jz6mka.mp4"
+          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774781281/Trifeccta_Hero_Section.mp4"
           type="video/mp4"
         />
       </video>
