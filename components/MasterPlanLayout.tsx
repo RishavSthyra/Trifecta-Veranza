@@ -158,6 +158,7 @@ export default function MasterPlanLayout({
   const [isLeaving, setIsLeaving] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
   const [currentFrame, setCurrentFrame] = useState(1);
+  const [isStageInteracting, setIsStageInteracting] = useState(false);
   const deferredSearch = useDeferredValue(search);
 
   useEffect(() => {
@@ -233,7 +234,10 @@ export default function MasterPlanLayout({
     }
 
     const refreshInventory = () => {
-      if (document.visibilityState !== "visible") {
+      if (
+        document.visibilityState !== "visible" ||
+        isStageInteracting
+      ) {
         return;
       }
 
@@ -261,7 +265,7 @@ export default function MasterPlanLayout({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", refreshInventory);
     };
-  }, [initialApartments.length]);
+  }, [initialApartments.length, isStageInteracting]);
 
   const filteredApartments = useMemo(() => {
     if (!selectedTower) {
@@ -543,6 +547,7 @@ export default function MasterPlanLayout({
         filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
         inventoryError={inventoryError}
         inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
+        onInteractionChange={setIsStageInteracting}
         onSetFrame={setWrappedFrame}
         selectedTower={selectedTower}
       />

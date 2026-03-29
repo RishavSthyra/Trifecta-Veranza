@@ -30,6 +30,7 @@ import {
   Material,
   Matrix4,
   Mesh,
+  MeshBasicMaterial,
   Object3D,
   PerspectiveCamera as ThreePerspectiveCamera,
   Quaternion,
@@ -77,6 +78,14 @@ const VIDEO_SYNC_THRESHOLD_SECONDS = 1 / (MASTER_PLAN_SCRUB_VIDEO_FPS * 1.5);
 const VIDEO_FAST_SEEK_THRESHOLD_SECONDS = 0.18;
 const ENABLE_TRACKING_DEBUG = false;
 const FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD = 28;
+const DEFAULT_MASTER_PLAN_PERFORMANCE_PROFILE: MasterPlanPerformanceProfile = {
+  canvasPerformance: {
+    debounce: 120,
+    min: 0.45,
+  },
+  isConstrained: false,
+  scrubVideoPreload: "auto",
+};
 
 // Placeholder alignment until Unreal tracking data is available.
 const BASE_CAMERA_POSITION: [number, number, number] = [10.5, 7.25, 13.5];
@@ -89,6 +98,24 @@ type CoverViewport = {
   left: number;
   top: number;
   width: number;
+};
+type MasterPlanConnection = {
+  addEventListener?: (type: "change", listener: () => void) => void;
+  effectiveType?: string;
+  removeEventListener?: (type: "change", listener: () => void) => void;
+  saveData?: boolean;
+};
+type MasterPlanNavigator = Navigator & {
+  connection?: MasterPlanConnection;
+  deviceMemory?: number;
+};
+type MasterPlanPerformanceProfile = {
+  canvasPerformance: {
+    debounce: number;
+    min: number;
+  };
+  isConstrained: boolean;
+  scrubVideoPreload: "auto" | "metadata";
 };
 
 type HoverMeshData = {
@@ -175,6 +202,27 @@ const TOWER_A_TRACKING_KEYS = [
 ] as const satisfies UnrealCameraKey[];
 const TRACKING_CAMERA_DISTANCE = 12;
 const HIGHLIGHT_EDGE_GEOMETRY_CACHE = new WeakMap<Mesh["geometry"], EdgesGeometry>();
+const HIGHLIGHT_EXPANDED_MATRIX_CACHE = new WeakMap<
+  Matrix4,
+  Map<number, Matrix4>
+>();
+const INVISIBLE_PROXY_MATERIAL = new MeshBasicMaterial({
+  colorWrite: false,
+  depthWrite: false,
+  opacity: 0,
+  side: DoubleSide,
+  toneMapped: false,
+  transparent: true,
+});
+const DEBUG_PROXY_MATERIAL = new MeshBasicMaterial({
+  colorWrite: true,
+  depthWrite: false,
+  opacity: 0,
+  side: DoubleSide,
+  toneMapped: false,
+  transparent: true,
+});
+const PROXY_MATERIAL_ARRAY_CACHE = new Map<string, Material[]>();
 
 function getHighlightEdgesGeometry(geometry: Mesh["geometry"]) {
   const cachedGeometry = HIGHLIGHT_EDGE_GEOMETRY_CACHE.get(geometry);
@@ -188,8 +236,15 @@ function getHighlightEdgesGeometry(geometry: Mesh["geometry"]) {
   return edgesGeometry;
 }
 
-function createExpandedHighlightMatrix(matrix: Matrix4, scaleMultiplier: number) {
-  return matrix
+function getExpandedHighlightMatrix(matrix: Matrix4, scaleMultiplier: number) {
+  const cachedMatrices = HIGHLIGHT_EXPANDED_MATRIX_CACHE.get(matrix);
+  const cachedMatrix = cachedMatrices?.get(scaleMultiplier);
+
+  if (cachedMatrix) {
+    return cachedMatrix;
+  }
+
+  const expandedMatrix = matrix
     .clone()
     .multiply(
       new Matrix4().makeScale(
@@ -198,6 +253,41 @@ function createExpandedHighlightMatrix(matrix: Matrix4, scaleMultiplier: number)
         scaleMultiplier,
       ),
     );
+
+  if (cachedMatrices) {
+    cachedMatrices.set(scaleMultiplier, expandedMatrix);
+  } else {
+    HIGHLIGHT_EXPANDED_MATRIX_CACHE.set(
+      matrix,
+      new Map([[scaleMultiplier, expandedMatrix]]),
+    );
+  }
+
+  return expandedMatrix;
+}
+
+function getProxyMaterials(
+  material: Material | Material[],
+  showDebugMaterial: boolean,
+) {
+  const sharedMaterial = showDebugMaterial
+    ? DEBUG_PROXY_MATERIAL
+    : INVISIBLE_PROXY_MATERIAL;
+
+  if (!Array.isArray(material)) {
+    return sharedMaterial;
+  }
+
+  const cacheKey = `${showDebugMaterial ? "debug" : "hidden"}:${material.length}`;
+  const cachedMaterials = PROXY_MATERIAL_ARRAY_CACHE.get(cacheKey);
+
+  if (cachedMaterials) {
+    return cachedMaterials;
+  }
+
+  const nextMaterials = Array.from({ length: material.length }, () => sharedMaterial);
+  PROXY_MATERIAL_ARRAY_CACHE.set(cacheKey, nextMaterials);
+  return nextMaterials;
 }
 
 function extractApartmentIdFromName(name: string) {
@@ -315,6 +405,40 @@ function easeInOutCubic(progress: number) {
   return progress < 0.5
     ? 4 * progress ** 3
     : 1 - (-2 * progress + 2) ** 3 / 2;
+}
+
+function getMasterPlanPerformanceProfile(): MasterPlanPerformanceProfile {
+  if (typeof navigator === "undefined") {
+    return DEFAULT_MASTER_PLAN_PERFORMANCE_PROFILE;
+  }
+
+  const masterPlanNavigator = navigator as MasterPlanNavigator;
+  const connection = masterPlanNavigator.connection;
+  const hardwareConcurrency = navigator.hardwareConcurrency ?? 8;
+  const deviceMemory = masterPlanNavigator.deviceMemory ?? 8;
+  const effectiveType = connection?.effectiveType ?? "";
+  const saveData = connection?.saveData ?? false;
+  const hasSlowNetwork =
+    effectiveType === "slow-2g" ||
+    effectiveType === "2g" ||
+    effectiveType === "3g";
+  const hasConstrainedCpu = hardwareConcurrency <= 4;
+  const hasConstrainedMemory = deviceMemory <= 4;
+  const isConstrained =
+    saveData || hasSlowNetwork || hasConstrainedCpu || hasConstrainedMemory;
+
+  if (!isConstrained) {
+    return DEFAULT_MASTER_PLAN_PERFORMANCE_PROFILE;
+  }
+
+  return {
+    canvasPerformance: {
+      debounce: 180,
+      min: 0.35,
+    },
+    isConstrained: true,
+    scrubVideoPreload: "metadata",
+  };
 }
 
 function towerTypeToCode(tower: TowerType | null) {
@@ -874,6 +998,29 @@ function buildFlatCandidates(
   );
 }
 
+function buildApartmentTokenLookup(apartmentIds: Iterable<string>) {
+  const lookup = new Map<TowerType, Map<string, string[]>>();
+
+  for (const apartmentId of apartmentIds) {
+    const tower = inferTowerFromApartmentId(apartmentId, null);
+    const towerLookup = lookup.get(tower) ?? new Map<string, string[]>();
+    lookup.set(tower, towerLookup);
+
+    buildFlatCandidates(apartmentId, tower).forEach((token) => {
+      const nextApartmentIds = towerLookup.get(token);
+
+      if (nextApartmentIds) {
+        nextApartmentIds.push(apartmentId);
+        return;
+      }
+
+      towerLookup.set(token, [apartmentId]);
+    });
+  }
+
+  return lookup;
+}
+
 function buildInventoryApartmentIndex(
   apartments: InventoryApartment[],
 ): InventoryApartmentIndex {
@@ -1036,7 +1183,6 @@ function getApartmentHighlightPalette(
 
 function prepareTowerScene(
   sourceScene: Object3D,
-  selectedTower: TowerType | null,
   showDebugModel: boolean,
   forcedTowerCode: TowerCode = "A",
 ) {
@@ -1044,7 +1190,6 @@ function prepareTowerScene(
   const modelTowerDummies = collectModelTowerDummies(scene);
   const apartments = new Map<string, HoverMeshData[]>();
   const pickableMeshes: Mesh[] = [];
-  const selectedTowerCode = towerTypeToCode(selectedTower);
   const towerBounds = new Map<TowerCode, Box3>();
 
   scene.updateWorldMatrix(true, true);
@@ -1057,41 +1202,14 @@ function prepareTowerScene(
     object.visible = true;
     object.frustumCulled = false;
 
-    const materials = Array.isArray(object.material)
-      ? object.material
-      : [object.material];
     const towerCode = forcedTowerCode;
-
-    const shouldShowDebugMaterial =
-      showDebugModel &&
-      (!selectedTowerCode || towerCode === selectedTowerCode) &&
-      towerCode === "A";
-
-    const proxyMaterials = materials.map((material) => {
-      const nextMaterial = (material as Material).clone();
-      nextMaterial.side = DoubleSide;
-
-      if (shouldShowDebugMaterial) {
-        nextMaterial.transparent = true;
-        nextMaterial.opacity = 0;
-        nextMaterial.depthWrite = false;
-        nextMaterial.colorWrite = true;
-        return nextMaterial;
-      }
-
-      nextMaterial.transparent = true;
-      nextMaterial.opacity = 0;
-      nextMaterial.depthWrite = false;
-      nextMaterial.colorWrite = false;
-      return nextMaterial;
-    });
-
-    object.material = Array.isArray(object.material)
-      ? proxyMaterials
-      : proxyMaterials[0];
+    const shouldShowDebugMaterial = showDebugModel && towerCode === "A";
+    object.material = getProxyMaterials(object.material, shouldShowDebugMaterial);
 
     if (towerCode) {
-      object.geometry.computeBoundingBox();
+      if (!object.geometry.boundingBox) {
+        object.geometry.computeBoundingBox();
+      }
 
       if (object.geometry.boundingBox) {
         const nextBounds = object.geometry.boundingBox
@@ -1114,13 +1232,6 @@ function prepareTowerScene(
         : apartmentId;
 
     if (!normalizedApartmentId) {
-      return;
-    }
-
-    if (
-      selectedTowerCode &&
-      towerCode !== selectedTowerCode
-    ) {
       return;
     }
 
@@ -1213,7 +1324,7 @@ const HighlightEdgeLines = memo(function HighlightEdgeLines({
     () =>
       scaleMultiplier === 1
         ? matrix
-        : createExpandedHighlightMatrix(matrix, scaleMultiplier),
+        : getExpandedHighlightMatrix(matrix, scaleMultiplier),
     [matrix, scaleMultiplier],
   );
 
@@ -1405,6 +1516,8 @@ const HoverTracker = memo(function HoverTracker({
     let latestClientX = 0;
     let latestClientY = 0;
     let latestButtons = 0;
+    let latestOffsetX = 0;
+    let latestOffsetY = 0;
 
     const updateHover = (
       apartmentId: string | null,
@@ -1426,16 +1539,18 @@ const HoverTracker = memo(function HoverTracker({
         return;
       }
 
-      const rect = element.getBoundingClientRect();
-      const localPointerX = latestClientX - rect.left;
-      const localPointerY = latestClientY - rect.top;
       const pointerPosition = {
         x: latestClientX,
         y: latestClientY,
       };
 
-      pointer.x = (localPointerX / rect.width) * 2 - 1;
-      pointer.y = -(localPointerY / rect.height) * 2 + 1;
+      if (element.clientWidth <= 0 || element.clientHeight <= 0) {
+        updateHover(null, null);
+        return;
+      }
+
+      pointer.x = (latestOffsetX / element.clientWidth) * 2 - 1;
+      pointer.y = -(latestOffsetY / element.clientHeight) * 2 + 1;
 
       raycaster.setFromCamera(pointer, camera);
 
@@ -1481,6 +1596,8 @@ const HoverTracker = memo(function HoverTracker({
       latestClientX = event.clientX;
       latestClientY = event.clientY;
       latestButtons = event.buttons;
+      latestOffsetX = event.offsetX;
+      latestOffsetY = event.offsetY;
 
       if (frameId !== 0) {
         return;
@@ -1645,12 +1762,12 @@ const TowerScene = memo(function TowerScene({
   );
   const activeTowerCode = towerTypeToCode(selectedTower) ?? "A";
   const preparedTowerA = useMemo(
-    () => prepareTowerScene(towerAGltf.scene, selectedTower, false, "A"),
-    [selectedTower, towerAGltf.scene],
+    () => prepareTowerScene(towerAGltf.scene, false, "A"),
+    [towerAGltf.scene],
   );
   const preparedTowerB = useMemo(
-    () => prepareTowerScene(towerBGltf.scene, selectedTower, false, "B"),
-    [selectedTower, towerBGltf.scene],
+    () => prepareTowerScene(towerBGltf.scene, false, "B"),
+    [towerBGltf.scene],
   );
   const primaryPreparedModel =
     activeTowerCode === "B" ? preparedTowerB : preparedTowerA;
@@ -1715,35 +1832,62 @@ const TowerScene = memo(function TowerScene({
 
     return next;
   }, [preparedTowerA.apartments, preparedTowerB.apartments]);
+  const apartmentTokenLookup = useMemo(
+    () => buildApartmentTokenLookup(combinedApartments.keys()),
+    [combinedApartments],
+  );
   const combinedPickableMeshes = useMemo(
     () => [...preparedTowerA.pickableMeshes, ...preparedTowerB.pickableMeshes],
     [preparedTowerA.pickableMeshes, preparedTowerB.pickableMeshes],
   );
+  const hoverPickableMeshes = useMemo(() => {
+    if (selectedTower === "Tower A") {
+      return preparedTowerA.pickableMeshes;
+    }
+
+    if (selectedTower === "Tower B") {
+      return preparedTowerB.pickableMeshes;
+    }
+
+    return combinedPickableMeshes;
+  }, [
+    combinedPickableMeshes,
+    preparedTowerA.pickableMeshes,
+    preparedTowerB.pickableMeshes,
+    selectedTower,
+  ]);
   const deferredFilteredApartments = useDeferredValue(filteredApartments);
-  const filteredApartmentIndex = useMemo(
-    () => buildInventoryApartmentIndex(deferredFilteredApartments),
-    [deferredFilteredApartments],
-  );
   const filteredApartmentIds = useMemo(() => {
     if (!showApartmentMeshes || !deferredFilteredApartments.length) {
       return new Set<string>();
     }
 
-    return new Set(
-      Array.from(combinedApartments.keys()).filter((apartmentId) =>
-        Boolean(
-          findInventoryApartmentInIndex(
-            filteredApartmentIndex,
-            apartmentId,
-            selectedTower,
-          ),
-        ),
-      ),
-    );
+    const nextApartmentIds = new Set<string>();
+
+    deferredFilteredApartments.forEach((apartment) => {
+      if (selectedTower && apartment.tower !== selectedTower) {
+        return;
+      }
+
+      const towerLookup = apartmentTokenLookup.get(apartment.tower);
+
+      if (!towerLookup) {
+        return;
+      }
+
+      [normalizeFlatToken(apartment.flatNumber), normalizeFlatToken(apartment.title)]
+        .filter(Boolean)
+        .forEach((token) => {
+          towerLookup.get(token)?.forEach((apartmentId) => {
+            nextApartmentIds.add(apartmentId);
+          });
+        });
+    });
+
+    return nextApartmentIds;
   }, [
-    combinedApartments,
-    deferredFilteredApartments.length,
-    filteredApartmentIndex,
+    apartmentTokenLookup,
+    deferredFilteredApartments,
     selectedTower,
     showApartmentMeshes,
   ]);
@@ -1960,7 +2104,7 @@ const TowerScene = memo(function TowerScene({
       <HoverTracker
         allowHover={allowHover}
         onHoverChange={handleSceneHover}
-        pickableMeshes={combinedPickableMeshes}
+        pickableMeshes={hoverPickableMeshes}
       />
 
       {showTrackingDebug ? (
@@ -1980,6 +2124,7 @@ type MasterPlanFrameHoverStageProps = {
   filteredApartments: InventoryApartment[];
   inventoryError: string | null;
   inventoryState: InventoryLoadState;
+  onInteractionChange?: (isInteracting: boolean) => void;
   onSetFrame: (frame: number) => void;
   selectedTower: TowerType | null;
 };
@@ -1990,6 +2135,7 @@ export default function MasterPlanFrameHoverStage({
   filteredApartments,
   inventoryError,
   inventoryState,
+  onInteractionChange,
   onSetFrame,
   selectedTower,
 }: MasterPlanFrameHoverStageProps) {
@@ -2010,6 +2156,12 @@ export default function MasterPlanFrameHoverStage({
   const displayProgressRef = useRef(frameToProgress(currentFrame));
   const dragTargetProgressRef = useRef(frameToProgress(currentFrame));
   const hoveredApartmentIdRef = useRef<string | null>(null);
+  const tooltipFrameRef = useRef<number | null>(null);
+  const tooltipPositionRef = useRef({ x: 12, y: 12 });
+  const [performanceProfile, setPerformanceProfile] =
+    useState<MasterPlanPerformanceProfile>(() =>
+      getMasterPlanPerformanceProfile(),
+    );
   const [hoveredApartmentId, setHoveredApartmentId] = useState<string | null>(
     null,
   );
@@ -2061,6 +2213,13 @@ export default function MasterPlanFrameHoverStage({
     setIsHoverCoolingDown(false);
   }, []);
 
+  const clearHoveredApartment = useCallback(() => {
+    hoveredApartmentIdRef.current = null;
+    setHoveredApartmentId((currentHoveredApartmentId) =>
+      currentHoveredApartmentId === null ? currentHoveredApartmentId : null,
+    );
+  }, []);
+
   const startHoverCooldown = useCallback(() => {
     clearHoverCooldown();
     setIsHoverCoolingDown(true);
@@ -2103,11 +2262,23 @@ export default function MasterPlanFrameHoverStage({
       }
 
       const targetFrame = progressToFrame(progress);
+      const targetTime = Math.min(
+        wrapProgress(progress) * video.duration,
+        Math.max(video.duration - 1 / MASTER_PLAN_SCRUB_VIDEO_FPS, 0),
+      );
       const previousFrame = lastSyncedVideoFrameRef.current;
       const minimumFrameDelta =
         !force && dragStateRef.current
           ? DRAG_VIDEO_SYNC_FRAME_STEP
           : 1;
+
+      if (
+        previousFrame === targetFrame &&
+        Math.abs(video.currentTime - targetTime) <=
+          VIDEO_SYNC_THRESHOLD_SECONDS * 0.5
+      ) {
+        return;
+      }
 
       if (
         previousFrame !== null &&
@@ -2119,11 +2290,6 @@ export default function MasterPlanFrameHoverStage({
       ) {
         return;
       }
-
-      const targetTime = Math.min(
-        wrapProgress(progress) * video.duration,
-        Math.max(video.duration - 1 / MASTER_PLAN_SCRUB_VIDEO_FPS, 0),
-      );
 
       lastSyncedVideoFrameRef.current = targetFrame;
 
@@ -2167,9 +2333,21 @@ export default function MasterPlanFrameHoverStage({
 
       syncVisibleVideoTime(wrappedProgress);
 
+      const previousInPrewarmWindow = isFrameWithinSnapWindow(
+        previousDisplayedFrame,
+        TOWER_MESH_PREWARM_FRAMES,
+      );
+      const nextInPrewarmWindow = isFrameWithinSnapWindow(
+        nextDisplayedFrame,
+        TOWER_MESH_PREWARM_FRAMES,
+      );
+
       if (
-        isFrameWithinSnapWindow(previousDisplayedFrame, TOWER_MESH_PREWARM_FRAMES) ||
-        isFrameWithinSnapWindow(nextDisplayedFrame, TOWER_MESH_PREWARM_FRAMES)
+        previousInPrewarmWindow !== nextInPrewarmWindow ||
+        (
+          previousDisplayedFrame !== nextDisplayedFrame &&
+          (previousInPrewarmWindow || nextInPrewarmWindow)
+        )
       ) {
         canvasInvalidateRef.current?.();
       }
@@ -2343,6 +2521,39 @@ export default function MasterPlanFrameHoverStage({
   }, []);
 
   useEffect(() => {
+    if (typeof navigator === "undefined") {
+      return;
+    }
+
+    const masterPlanNavigator = navigator as MasterPlanNavigator;
+    const connection = masterPlanNavigator.connection;
+    const syncPerformanceProfile = () => {
+      setPerformanceProfile((current) => {
+        const next = getMasterPlanPerformanceProfile();
+
+        if (
+          current.isConstrained === next.isConstrained &&
+          current.scrubVideoPreload === next.scrubVideoPreload &&
+          current.canvasPerformance.min === next.canvasPerformance.min &&
+          current.canvasPerformance.debounce ===
+            next.canvasPerformance.debounce
+        ) {
+          return current;
+        }
+
+        return next;
+      });
+    };
+
+    syncPerformanceProfile();
+    connection?.addEventListener?.("change", syncPerformanceProfile);
+
+    return () => {
+      connection?.removeEventListener?.("change", syncPerformanceProfile);
+    };
+  }, []);
+
+  useEffect(() => {
     const section = sectionRef.current;
 
     if (!section || typeof ResizeObserver === "undefined") {
@@ -2465,8 +2676,7 @@ export default function MasterPlanFrameHoverStage({
         setIsDragging(true);
         stopDragLoop();
         stopMotionAnimation();
-        hoveredApartmentIdRef.current = null;
-        setHoveredApartmentId(null);
+        clearHoveredApartment();
       }
 
       event.preventDefault();
@@ -2545,6 +2755,7 @@ export default function MasterPlanFrameHoverStage({
   }, [
     animateToProgress,
     clearHoverCooldown,
+    clearHoveredApartment,
     onSetFrame,
     startDragLoop,
     startHoverCooldown,
@@ -2558,6 +2769,9 @@ export default function MasterPlanFrameHoverStage({
       stopDragLoop();
       stopMotionAnimation();
       stopScheduledProgress();
+      if (tooltipFrameRef.current !== null) {
+        window.cancelAnimationFrame(tooltipFrameRef.current);
+      }
     };
   }, [clearHoverCooldown, stopDragLoop, stopMotionAnimation, stopScheduledProgress]);
 
@@ -2579,9 +2793,15 @@ export default function MasterPlanFrameHoverStage({
     !isDragging &&
     !isSettling;
   const showVideo = isVideoReady;
-  const canvasDpr: [number, number] = supportsPreciseHover
-    ? [0.7, 1]
-    : [0.5, 0.85];
+  const canvasDpr: [number, number] = performanceProfile.isConstrained
+    ? isDragging
+      ? [0.36, 0.5]
+      : supportsPreciseHover
+        ? [0.5, 0.72]
+        : [0.42, 0.62]
+    : supportsPreciseHover
+      ? [0.7, 1]
+      : [0.5, 0.85];
   const trackingFrame = getNearestSnapFrame(displayedFrame);
   const activeHoveredApartmentId = allowHover ? hoveredApartmentId : null;
   const apartmentIndex = useMemo(
@@ -2619,6 +2839,16 @@ export default function MasterPlanFrameHoverStage({
     inventoryError,
   );
 
+  useEffect(() => {
+    onInteractionChange?.(isDragging || isSettling);
+  }, [isDragging, isSettling, onInteractionChange]);
+
+  useEffect(() => {
+    return () => {
+      onInteractionChange?.(false);
+    };
+  }, [onInteractionChange]);
+
   const updateTooltipPosition = useCallback(
     (pointerPosition: PointerPosition | null) => {
       if (!pointerPosition || !sectionRef.current || !tooltipRef.current) {
@@ -2640,8 +2870,31 @@ export default function MasterPlanFrameHoverStage({
         Math.max(rect.height - tooltipHeight - 12, 12),
       );
 
-      tooltipRef.current.style.left = `${nextLeft}px`;
-      tooltipRef.current.style.top = `${nextTop}px`;
+      if (
+        Math.abs(tooltipPositionRef.current.x - nextLeft) < 0.5 &&
+        Math.abs(tooltipPositionRef.current.y - nextTop) < 0.5
+      ) {
+        return;
+      }
+
+      tooltipPositionRef.current = {
+        x: nextLeft,
+        y: nextTop,
+      };
+
+      if (tooltipFrameRef.current !== null) {
+        return;
+      }
+
+      tooltipFrameRef.current = window.requestAnimationFrame(() => {
+        tooltipFrameRef.current = null;
+
+        if (!tooltipRef.current) {
+          return;
+        }
+
+        tooltipRef.current.style.transform = `translate3d(${tooltipPositionRef.current.x}px, ${tooltipPositionRef.current.y}px, 0)`;
+      });
     },
     [],
   );
@@ -2715,7 +2968,7 @@ export default function MasterPlanFrameHoverStage({
             }`}
             muted
             playsInline
-            preload="auto"
+            preload={performanceProfile.scrubVideoPreload}
             disablePictureInPicture
           />
 
@@ -2744,16 +2997,14 @@ export default function MasterPlanFrameHoverStage({
               };
             }}
             onPointerLeave={() => {
-              hoveredApartmentIdRef.current = null;
-              setHoveredApartmentId(null);
+              clearHoveredApartment();
             }}
             onPointerCancel={() => {
               dragStateRef.current = null;
               setIsDragging(false);
               stopDragLoop();
               stopMotionAnimation();
-              hoveredApartmentIdRef.current = null;
-              setHoveredApartmentId(null);
+              clearHoveredApartment();
             }}
             className={`absolute inset-0 touch-none select-none ${
               allowHover && activeHoveredApartmentId
@@ -2766,7 +3017,7 @@ export default function MasterPlanFrameHoverStage({
             <Canvas
               dpr={canvasDpr}
               frameloop="demand"
-              performance={{ min: 0.45, debounce: 120 }}
+              performance={performanceProfile.canvasPerformance}
               gl={{
                 alpha: true,
                 antialias: false,
@@ -2799,8 +3050,8 @@ export default function MasterPlanFrameHoverStage({
       {allowHover && activeHoveredApartmentId ? (
         <div
           ref={tooltipRef}
-          className="pointer-events-none absolute z-30"
-          style={{ left: 12, top: 12 }}
+          className="pointer-events-none absolute z-30 will-change-transform"
+          style={{ transform: "translate3d(12px, 12px, 0)" }}
         >
           <div className="rounded-[18px] border border-white/30 bg-[linear-gradient(145deg,rgba(255,255,255,0.20),rgba(255,255,255,0.10))] px-3.5 py-3 shadow-[0_18px_44px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.28)] backdrop-blur-2xl">
             <div className="flex items-center gap-3">
