@@ -3,10 +3,8 @@
 import {
   Suspense,
   memo,
-  startTransition,
   type MutableRefObject,
   useCallback,
-  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -14,7 +12,6 @@ import {
 } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
-  AdaptiveDpr,
   Html,
   Line,
   PerspectiveCamera,
@@ -56,21 +53,19 @@ const TARGET_MODEL_HEIGHT = 10;
 const TOTAL_FRAMES = TOTAL_MASTER_PLAN_FRAMES;
 const SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
 const DRAG_THRESHOLD_PX = 8;
-const DRAG_PIXELS_PER_FRAME = 12;
-const DRAG_MAX_LEAD_FRAMES = 8;
-const DRAG_MAX_POINTER_PIXELS_PER_MS = 1.1;
+const DRAG_PIXELS_PER_FRAME = 10;
+const DRAG_MAX_LEAD_FRAMES = 10;
+const DRAG_MAX_POINTER_PIXELS_PER_MS = 1.2;
 const DRAG_PROGRESS_DAMPING_FORWARD = 18;
 const DRAG_PROGRESS_DAMPING_BACKWARD = 21;
 const DRAG_MAX_CATCH_UP_FRAMES_PER_SECOND = 32;
 const DRAG_PROGRESS_EPSILON = 0.00008;
-const SNAP_ANIMATION_MIN_DURATION_MS = 240;
-const SNAP_ANIMATION_MAX_DURATION_MS = 460;
-const SNAP_ANIMATION_MS_PER_FRAME = 4.5;
-const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 560;
-const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 980;
-const HOTSPOT_NAVIGATION_MS_PER_FRAME = 9.5;
-const DRAG_VIDEO_SYNC_FRAME_STEP = 3;
-const HOVER_COOLDOWN_MS = 180;
+const SNAP_ANIMATION_MIN_DURATION_MS = 180;
+const SNAP_ANIMATION_MAX_DURATION_MS = 340;
+const SNAP_ANIMATION_MS_PER_FRAME = 3.6;
+const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
+const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;
+const HOTSPOT_NAVIGATION_MS_PER_FRAME = 6.8;
 const TRACKING_VIDEO_ASPECT = 16 / 9;
 const VIDEO_SYNC_THRESHOLD_SECONDS = 1 / (MASTER_PLAN_SCRUB_VIDEO_FPS * 1.5);
 const VIDEO_FAST_SEEK_THRESHOLD_SECONDS = 0.18;
@@ -880,8 +875,7 @@ function buildInventoryApartmentIndex(
   const index: InventoryApartmentIndex = new Map();
 
   apartments.forEach((apartment) => {
-    const towerIndex =
-      index.get(apartment.tower) ?? new Map<string, InventoryApartment>();
+    const towerIndex = index.get(apartment.tower) ?? new Map<string, InventoryApartment>();
 
     index.set(apartment.tower, towerIndex);
 
@@ -1532,6 +1526,7 @@ function TrackingDebugOverlay({
 const TowerScene = memo(function TowerScene({
   filteredApartments,
   onInvalidateReady,
+  hoveredApartmentId,
   allowHover,
   onApartmentHover,
   rotationProgressRef,
@@ -1541,6 +1536,7 @@ const TowerScene = memo(function TowerScene({
 }: {
   filteredApartments: InventoryApartment[];
   onInvalidateReady?: (invalidateCanvas: () => void) => void;
+  hoveredApartmentId: string | null;
   allowHover: boolean;
   onApartmentHover: (
     apartmentId: string | null,
@@ -1556,11 +1552,7 @@ const TowerScene = memo(function TowerScene({
   const towerBGltf = useGLTF(MODEL_PATH_B);
   const cameraRef = useRef<ThreePerspectiveCamera | null>(null);
   const fallbackGroupRef = useRef<Group | null>(null);
-  const hoveredApartmentIdRef = useRef<string | null>(null);
   const trackingDebugLoggedRef = useRef(false);
-  const [hoveredApartmentId, setHoveredApartmentId] = useState<string | null>(
-    null,
-  );
   const activeTowerCode = towerTypeToCode(selectedTower) ?? "A";
   const preparedTowerA = useMemo(
     () => prepareTowerScene(towerAGltf.scene, selectedTower, false, "A"),
@@ -1634,13 +1626,12 @@ const TowerScene = memo(function TowerScene({
     () => [...preparedTowerA.pickableMeshes, ...preparedTowerB.pickableMeshes],
     [preparedTowerA.pickableMeshes, preparedTowerB.pickableMeshes],
   );
-  const deferredFilteredApartments = useDeferredValue(filteredApartments);
   const filteredApartmentIndex = useMemo(
-    () => buildInventoryApartmentIndex(deferredFilteredApartments),
-    [deferredFilteredApartments],
+    () => buildInventoryApartmentIndex(filteredApartments),
+    [filteredApartments],
   );
   const filteredApartmentIds = useMemo(() => {
-    if (!showApartmentMeshes || !deferredFilteredApartments.length) {
+    if (!showApartmentMeshes || !filteredApartments.length) {
       return new Set<string>();
     }
 
@@ -1657,8 +1648,8 @@ const TowerScene = memo(function TowerScene({
     );
   }, [
     combinedApartments,
-    deferredFilteredApartments.length,
     filteredApartmentIndex,
+    filteredApartments.length,
     selectedTower,
     showApartmentMeshes,
   ]);
@@ -1739,18 +1730,6 @@ const TowerScene = memo(function TowerScene({
   useEffect(() => {
     onInvalidateReady?.(invalidate);
   }, [invalidate, onInvalidateReady]);
-
-  const handleSceneHover = useCallback(
-    (apartmentId: string | null, pointerPosition: PointerPosition | null) => {
-      if (hoveredApartmentIdRef.current !== apartmentId) {
-        hoveredApartmentIdRef.current = apartmentId;
-        setHoveredApartmentId(apartmentId);
-      }
-
-      onApartmentHover(apartmentId, pointerPosition);
-    },
-    [onApartmentHover],
-  );
 
   useFrame(() => {
     const camera = cameraRef.current;
@@ -1868,7 +1847,7 @@ const TowerScene = memo(function TowerScene({
 
       <HoverTracker
         allowHover={allowHover}
-        onHoverChange={handleSceneHover}
+        onHoverChange={onApartmentHover}
         pickableMeshes={combinedPickableMeshes}
       />
 
@@ -1909,10 +1888,7 @@ export default function MasterPlanFrameHoverStage({
   const animationFrameRef = useRef<number | null>(null);
   const canvasInvalidateRef = useRef<(() => void) | null>(null);
   const dragFrameRef = useRef<number | null>(null);
-  const hoverCooldownTimeoutRef = useRef<number | null>(null);
   const displayedFrameRef = useRef(wrapFrame(currentFrame));
-  const displayedFrameStateRef = useRef(wrapFrame(currentFrame));
-  const isSettlingRef = useRef(false);
   const lastSyncedVideoFrameRef = useRef<number | null>(null);
   const progressFrameRef = useRef<number | null>(null);
   const pendingProgressRef = useRef<number | null>(null);
@@ -1926,7 +1902,6 @@ export default function MasterPlanFrameHoverStage({
   const [isDragging, setIsDragging] = useState(false);
   const [isSettling, setIsSettling] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
-  const [isHoverCoolingDown, setIsHoverCoolingDown] = useState(false);
   const [supportsPreciseHover, setSupportsPreciseHover] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [sectionSize, setSectionSize] = useState(() => ({
@@ -1958,71 +1933,15 @@ export default function MasterPlanFrameHoverStage({
     }
   }, []);
 
-  const clearHoverCooldown = useCallback(() => {
-    if (hoverCooldownTimeoutRef.current !== null) {
-      window.clearTimeout(hoverCooldownTimeoutRef.current);
-      hoverCooldownTimeoutRef.current = null;
-    }
-
-    setIsHoverCoolingDown(false);
-  }, []);
-
-  const startHoverCooldown = useCallback(() => {
-    clearHoverCooldown();
-    setIsHoverCoolingDown(true);
-    hoverCooldownTimeoutRef.current = window.setTimeout(() => {
-      hoverCooldownTimeoutRef.current = null;
-      setIsHoverCoolingDown(false);
-    }, HOVER_COOLDOWN_MS);
-  }, [clearHoverCooldown]);
-
-  const syncDisplayedFrameState = useCallback(
-    (nextFrame: number, urgent = false) => {
-      const wrappedFrame = wrapFrame(nextFrame);
-
-      if (displayedFrameStateRef.current === wrappedFrame) {
-        return;
-      }
-
-      displayedFrameStateRef.current = wrappedFrame;
-
-      if (urgent) {
-        setDisplayedFrame(wrappedFrame);
-        return;
-      }
-
-      startTransition(() => {
-        setDisplayedFrame(wrappedFrame);
-      });
-    },
-    [],
-  );
-
   const syncVideoTime = useCallback(
-    (
-      video: HTMLVideoElement | null,
-      progress: number,
-      { force = false }: { force?: boolean } = {},
-    ) => {
+    (video: HTMLVideoElement | null, progress: number) => {
       if (!video || !Number.isFinite(video.duration) || video.duration <= 0) {
         return;
       }
 
       const targetFrame = progressToFrame(progress);
-      const previousFrame = lastSyncedVideoFrameRef.current;
-      const minimumFrameDelta =
-        !force && dragStateRef.current
-          ? DRAG_VIDEO_SYNC_FRAME_STEP
-          : 1;
 
-      if (
-        previousFrame !== null &&
-        Math.abs(
-          getShortestProgressDelta(frameToProgress(previousFrame), progress),
-        ) *
-          TOTAL_FRAMES <
-          minimumFrameDelta
-      ) {
+      if (lastSyncedVideoFrameRef.current === targetFrame) {
         return;
       }
 
@@ -2067,22 +1986,13 @@ export default function MasterPlanFrameHoverStage({
 
       if (displayedFrameRef.current !== nextDisplayedFrame) {
         displayedFrameRef.current = nextDisplayedFrame;
-
-        if (!dragStateRef.current && !isSettlingRef.current) {
-          syncDisplayedFrameState(nextDisplayedFrame);
-        }
+        setDisplayedFrame(nextDisplayedFrame);
       }
 
       syncVisibleVideoTime(wrappedProgress);
-
-      if (
-        !dragStateRef.current &&
-        !isSettlingRef.current
-      ) {
-        canvasInvalidateRef.current?.();
-      }
+      canvasInvalidateRef.current?.();
     },
-    [syncDisplayedFrameState, syncVisibleVideoTime],
+    [syncVisibleVideoTime],
   );
 
   const scheduleProgress = useCallback(
@@ -2157,7 +2067,6 @@ export default function MasterPlanFrameHoverStage({
       animationFrameRef.current = null;
     }
 
-    isSettlingRef.current = false;
     setIsSettling(false);
   }, []);
 
@@ -2179,12 +2088,10 @@ export default function MasterPlanFrameHoverStage({
 
       if (Math.abs(progressDelta) < 0.0005) {
         scheduleProgress(targetProgress);
-        syncVideoTime(videoRef.current, targetProgress, { force: true });
         onComplete?.();
         return;
       }
 
-      isSettlingRef.current = true;
       setIsSettling(true);
       let startTime = 0;
 
@@ -2202,9 +2109,7 @@ export default function MasterPlanFrameHoverStage({
         if (progress >= 1) {
           dragTargetProgressRef.current = wrapProgress(targetProgress);
           scheduleProgress(targetProgress);
-          syncVideoTime(videoRef.current, targetProgress, { force: true });
           stopMotionAnimation();
-          syncDisplayedFrameState(progressToFrame(targetProgress), true);
           onComplete?.();
           return;
         }
@@ -2214,13 +2119,7 @@ export default function MasterPlanFrameHoverStage({
 
       animationFrameRef.current = window.requestAnimationFrame(animate);
     },
-    [
-      scheduleProgress,
-      stopDragLoop,
-      stopMotionAnimation,
-      syncDisplayedFrameState,
-      syncVideoTime,
-    ],
+    [scheduleProgress, stopDragLoop, stopMotionAnimation],
   );
 
   useEffect(() => {
@@ -2295,7 +2194,7 @@ export default function MasterPlanFrameHoverStage({
     const syncVideoState = () => {
       video.pause();
       lastSyncedVideoFrameRef.current = null;
-      syncVideoTime(video, displayProgressRef.current, { force: true });
+      syncVisibleVideoTime(displayProgressRef.current);
       setIsVideoReady(true);
     };
 
@@ -2309,7 +2208,7 @@ export default function MasterPlanFrameHoverStage({
     return () => {
       cleanup();
     };
-  }, [syncVideoTime]);
+  }, [syncVisibleVideoTime]);
 
   useEffect(() => {
     if (dragStateRef.current) {
@@ -2324,7 +2223,6 @@ export default function MasterPlanFrameHoverStage({
 
     if (frameDistance < 0.5) {
       scheduleProgress(targetProgress);
-      syncVideoTime(videoRef.current, targetProgress, { force: true });
       return;
     }
 
@@ -2337,18 +2235,13 @@ export default function MasterPlanFrameHoverStage({
     );
 
     const animationId = window.requestAnimationFrame(() => {
-      animateToProgress(
-        targetProgress,
-        duration,
-        startHoverCooldown,
-        easeInOutCubic,
-      );
+      animateToProgress(targetProgress, duration, undefined, easeInOutCubic);
     });
 
     return () => {
       window.cancelAnimationFrame(animationId);
     };
-  }, [animateToProgress, safeFrame, scheduleProgress, startHoverCooldown, syncVideoTime]);
+  }, [animateToProgress, safeFrame, scheduleProgress]);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -2366,7 +2259,6 @@ export default function MasterPlanFrameHoverStage({
 
       if (!dragState.didDrag) {
         dragState.didDrag = true;
-        clearHoverCooldown();
         setIsDragging(true);
         stopDragLoop();
         stopMotionAnimation();
@@ -2431,7 +2323,6 @@ export default function MasterPlanFrameHoverStage({
       );
 
       animateToProgress(targetProgress, duration, () => {
-        startHoverCooldown();
         onSetFrame(snappedFrame);
       });
     };
@@ -2447,42 +2338,27 @@ export default function MasterPlanFrameHoverStage({
       window.removeEventListener("pointerup", handlePointerEnd);
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
-  }, [
-    animateToProgress,
-    clearHoverCooldown,
-    onSetFrame,
-    startDragLoop,
-    startHoverCooldown,
-    stopDragLoop,
-    stopMotionAnimation,
-  ]);
+  }, [animateToProgress, onSetFrame, startDragLoop, stopDragLoop, stopMotionAnimation]);
 
   useEffect(() => {
     return () => {
-      clearHoverCooldown();
       stopDragLoop();
       stopMotionAnimation();
       stopScheduledProgress();
     };
-  }, [clearHoverCooldown, stopDragLoop, stopMotionAnimation, stopScheduledProgress]);
+  }, [stopDragLoop, stopMotionAnimation, stopScheduledProgress]);
 
   const allowHover =
     supportsPreciseHover &&
     !prefersReducedMotion &&
     !isDragging &&
     !isSettling &&
-    !isHoverCoolingDown &&
     isSnapFrame(displayedFrame);
-  const showApartmentMeshes =
-    !isDragging && !isSettling && !isHoverCoolingDown && isSnapFrame(displayedFrame);
+  const showApartmentMeshes = !isDragging && !isSettling && isSnapFrame(displayedFrame);
   const showTrackingDebug =
     ENABLE_TRACKING_DEBUG &&
     !isDragging &&
     !isSettling;
-  const showVideo = isVideoReady;
-  const canvasDpr: [number, number] = supportsPreciseHover
-    ? [0.7, 1]
-    : [0.5, 0.85];
   const activeHoveredApartmentId = allowHover ? hoveredApartmentId : null;
   const apartmentIndex = useMemo(
     () => buildInventoryApartmentIndex(apartments),
@@ -2550,10 +2426,7 @@ export default function MasterPlanFrameHoverStage({
       }
 
       hoveredApartmentIdRef.current = apartmentId;
-
-      startTransition(() => {
-        setHoveredApartmentId(apartmentId);
-      });
+      setHoveredApartmentId(apartmentId);
     },
     [allowHover, updateTooltipPosition],
   );
@@ -2561,10 +2434,6 @@ export default function MasterPlanFrameHoverStage({
   const handleCanvasInvalidateReady = useCallback((invalidateCanvas: () => void) => {
     canvasInvalidateRef.current = invalidateCanvas;
   }, []);
-
-  useEffect(() => {
-    syncVideoTime(videoRef.current, displayProgressRef.current, { force: true });
-  }, [currentFrame, syncVideoTime]);
 
   return (
     <section
@@ -2591,8 +2460,8 @@ export default function MasterPlanFrameHoverStage({
           <video
             ref={videoRef}
             aria-label={`Master plan scrub view ${displayedFrame}`}
-            className={`pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-200 ${
-              showVideo ? "opacity-100" : "opacity-0"
+            className={`pointer-events-none h-full w-full transition-opacity duration-300 ${
+              isVideoReady ? "opacity-100" : "opacity-0"
             }`}
             muted
             playsInline
@@ -2606,12 +2475,8 @@ export default function MasterPlanFrameHoverStage({
                 return;
               }
 
-              clearHoverCooldown();
               stopMotionAnimation();
               stopDragLoop();
-              syncVideoTime(videoRef.current, displayProgressRef.current, {
-                force: true,
-              });
               dragTargetProgressRef.current = displayProgressRef.current;
               dragStateRef.current = {
                 clampedDeltaX: 0,
@@ -2644,9 +2509,9 @@ export default function MasterPlanFrameHoverStage({
             }`}
           >
             <Canvas
-              dpr={canvasDpr}
+              dpr={[0.8, 1]}
               frameloop="demand"
-              performance={{ min: 0.45, debounce: 120 }}
+              performance={{ min: 0.6, debounce: 200 }}
               gl={{
                 alpha: true,
                 antialias: false,
@@ -2656,11 +2521,11 @@ export default function MasterPlanFrameHoverStage({
               }}
             >
               <Suspense fallback={<LoadingState />}>
-                <AdaptiveDpr />
                 <TowerScene
                   filteredApartments={filteredApartments}
                   allowHover={allowHover}
                   onInvalidateReady={handleCanvasInvalidateReady}
+                  hoveredApartmentId={activeHoveredApartmentId}
                   onApartmentHover={handleApartmentHover}
                   rotationProgressRef={displayProgressRef}
                   selectedTower={selectedTower}

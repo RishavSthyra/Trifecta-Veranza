@@ -595,6 +595,12 @@ export default function MasterPlanLayout({
         </div>
       ) : null}
 
+      <div className="pointer-events-none absolute inset-0 z-[1]">
+        <div className="surface-contain absolute -left-24 top-0 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" />
+        <div className="surface-contain absolute right-0 top-20 h-80 w-80 rounded-full bg-violet-300/20 blur-3xl dark:bg-violet-500/10" />
+        <div className="surface-contain absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-blue-300/20 blur-3xl dark:bg-blue-500/10" />
+      </div>
+
       <div
         className="pointer-events-none relative z-10 h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8"
       >

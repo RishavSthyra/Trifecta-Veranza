@@ -3,6 +3,12 @@ export const MASTER_PLAN_SCRUB_HQ_VIDEO_PATH = encodeURI(
   "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774710495/360_Level_Sequence_2_Scrub_Hq_2_keyframes_sub100mb.mp4",
 );
 export const MASTER_PLAN_SCRUB_HQ_HLS_PATH = "/master-plan-scrub/hq/index.m3u8";
+export const MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH = encodeURI(
+  "/360_Level_Sequence_2_Scrub_proxy_keyframes.mp4",
+);
+export const MASTER_PLAN_SCRUB_INTERACTION_HLS_PATH =
+  "/master-plan-scrub/interaction/index.m3u8";
+  
 export const MASTER_PLAN_SCRUB_VIDEO_PATH = MASTER_PLAN_SCRUB_HQ_VIDEO_PATH;
 export const MASTER_PLAN_SCRUB_VIDEO_FPS = 60;
 
