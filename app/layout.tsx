@@ -21,11 +21,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cn("h-full", "font-sans", geist.variable)}>
-      <body className="custom-scrollbar min-h-dvh w-full bg-zinc-50 text-zinc-900 antialiased dark:bg-black dark:text-white">
-        <div className="relative min-h-dvh w-full overflow-x-hidden">
+      <body className="custom-scrollbar app-shell w-full bg-zinc-50 text-zinc-900 antialiased dark:bg-black dark:text-white">
+        <div className="relative app-shell w-full overflow-x-hidden">
           <RouteChrome />
 
-          <main className="min-h-dvh w-full">
+          <main className="app-shell w-full">
             {children}
           </main>
         </div>

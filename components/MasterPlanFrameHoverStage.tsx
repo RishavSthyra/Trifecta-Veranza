@@ -5,6 +5,7 @@ import {
   memo,
   startTransition,
   type MutableRefObject,
+  type TouchEvent as ReactTouchEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -42,6 +43,7 @@ import {
   MASTER_PLAN_SCRUB_VIDEO_FPS,
   TOTAL_MASTER_PLAN_FRAMES,
 } from "@/data/masterPlanFrameCdnUrls";
+import { masterPlanAmenities } from "@/data/masterPlanAmenities";
 import {
   getNearestMasterPlanHotspot,
   isApartmentIdAllowedAtHotspot,
@@ -52,6 +54,7 @@ import type {
   InventoryStatus,
   TowerType,
 } from "@/types/inventory";
+import { MapPin } from "lucide-react";
 
 const MODEL_PATH_A = "/models/forglb.glb";
 const MODEL_PATH_B = "/models/forglb - Copy.glb";
@@ -81,6 +84,12 @@ const VIDEO_SYNC_THRESHOLD_SECONDS = 1 / (MASTER_PLAN_SCRUB_VIDEO_FPS * 1.5);
 const VIDEO_FAST_SEEK_THRESHOLD_SECONDS = 0.18;
 const ENABLE_TRACKING_DEBUG = false;
 const FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD = 12;
+const AMENITY_MARKER_EDGE_PADDING_PX = 10;
+const AMENITY_MARKER_MAX_VISIBLE = 18;
+const AMENITY_MARKER_MIN_GAP_PX = 28;
+const MOBILE_STAGE_MAX_SCALE = 2.8;
+const MOBILE_STAGE_MIN_SCALE = 1;
+const MOBILE_STAGE_TAP_MOVE_THRESHOLD_PX = 10;
 const DEFAULT_MASTER_PLAN_PERFORMANCE_PROFILE: MasterPlanPerformanceProfile = {
   canvasPerformance: {
     debounce: 120,
@@ -157,6 +166,27 @@ type DragState = {
   startX: number;
 };
 
+type StageViewportTransform = {
+  scale: number;
+  x: number;
+  y: number;
+};
+
+type MobileStageGestureState = {
+  initialDistance: number;
+  initialMidpointX: number;
+  initialMidpointY: number;
+  initialOffsetX: number;
+  initialOffsetY: number;
+  initialScale: number;
+  lastTouchX: number;
+  lastTouchY: number;
+  mode: "idle" | "pan" | "pinch" | "tap";
+  moved: boolean;
+  tapStartX: number;
+  tapStartY: number;
+};
+
 type TowerCode = "A" | "B";
 
 type UnrealCameraKey = keyof typeof trackingData;
@@ -171,6 +201,12 @@ type TowerFootprint = {
 type TrackingDebugPoint = {
   color: string;
   key: string;
+  label: string;
+  position: Vector3;
+};
+
+type AmenityMarker = {
+  id: string;
   label: string;
   position: Vector3;
 };
@@ -986,6 +1022,71 @@ function getTrackingCameraRays(path: TrackingCameraView[] | null | undefined) {
     label: view.key ?? `C${index + 1}`,
     start: view.position.clone(),
   })) satisfies TrackingCameraRay[];
+}
+
+const MASTER_PLAN_AMENITY_MARKERS = masterPlanAmenities.map((amenity) => ({
+  id: amenity.id,
+  label: amenity.label,
+  position: unrealToThreePosition(amenity.coordinate),
+})) satisfies AmenityMarker[];
+
+const DEFAULT_STAGE_VIEWPORT_TRANSFORM: StageViewportTransform = {
+  scale: 1,
+  x: 0,
+  y: 0,
+};
+
+function createDefaultMobileStageGestureState(): MobileStageGestureState {
+  return {
+    initialDistance: 0,
+    initialMidpointX: 0,
+    initialMidpointY: 0,
+    initialOffsetX: 0,
+    initialOffsetY: 0,
+    initialScale: 1,
+    lastTouchX: 0,
+    lastTouchY: 0,
+    mode: "idle",
+    moved: false,
+    tapStartX: 0,
+    tapStartY: 0,
+  };
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getTouchDistance(
+  touches: ArrayLike<{ clientX: number; clientY: number }>,
+) {
+  if (touches.length < 2) {
+    return 0;
+  }
+
+  const firstTouch = touches[0];
+  const secondTouch = touches[1];
+
+  return Math.hypot(
+    secondTouch.clientX - firstTouch.clientX,
+    secondTouch.clientY - firstTouch.clientY,
+  );
+}
+
+function getTouchMidpoint(
+  touches: ArrayLike<{ clientX: number; clientY: number }>,
+) {
+  if (touches.length < 2) {
+    return { x: 0, y: 0 };
+  }
+
+  const firstTouch = touches[0];
+  const secondTouch = touches[1];
+
+  return {
+    x: (firstTouch.clientX + secondTouch.clientX) / 2,
+    y: (firstTouch.clientY + secondTouch.clientY) / 2,
+  };
 }
 
 function vectorToDebugRow(vector: Vector3) {
@@ -1904,6 +2005,192 @@ const HoverTracker = memo(function HoverTracker({
   return null;
 });
 
+const AmenityMarkers = memo(function AmenityMarkers({
+  amenities,
+}: {
+  amenities: AmenityMarker[];
+}) {
+  const { camera, size } = useThree();
+  const [hoveredAmenityId, setHoveredAmenityId] = useState<string | null>(null);
+  const [visibleAmenityIds, setVisibleAmenityIds] = useState<string[]>([]);
+  const visibleSignatureRef = useRef("");
+  const cameraPositionRef = useRef(new Vector3());
+  const cameraDirectionRef = useRef(new Vector3());
+  const projectedPointRef = useRef(new Vector3());
+
+  const amenityLookup = useMemo(
+    () => new Map(amenities.map((amenity) => [amenity.id, amenity])),
+    [amenities],
+  );
+
+  const syncVisibleAmenities = useCallback(() => {
+    if (size.width <= 0 || size.height <= 0 || amenities.length === 0) {
+      if (visibleSignatureRef.current !== "") {
+        visibleSignatureRef.current = "";
+        setVisibleAmenityIds([]);
+      }
+
+      return;
+    }
+
+    camera.updateMatrixWorld();
+    camera.getWorldPosition(cameraPositionRef.current);
+    camera.getWorldDirection(cameraDirectionRef.current);
+    const maxVisibleAmenities = size.width < 768 ? 14 : AMENITY_MARKER_MAX_VISIBLE;
+    const minimumGapPx = size.width < 768 ? 24 : AMENITY_MARKER_MIN_GAP_PX;
+
+    const projectedAmenities = amenities
+      .flatMap((amenity) => {
+        const directionToAmenity = amenity.position
+          .clone()
+          .sub(cameraPositionRef.current);
+
+        if (directionToAmenity.dot(cameraDirectionRef.current) <= 0) {
+          return [];
+        }
+
+        const projectedPoint = projectedPointRef.current
+          .copy(amenity.position)
+          .project(camera);
+
+        if (
+          !Number.isFinite(projectedPoint.x) ||
+          !Number.isFinite(projectedPoint.y) ||
+          projectedPoint.z < -1 ||
+          projectedPoint.z > 1
+        ) {
+          return [];
+        }
+
+        const screenX = ((projectedPoint.x + 1) * size.width) / 2;
+        const screenY = ((1 - projectedPoint.y) * size.height) / 2;
+
+        if (
+          screenX < AMENITY_MARKER_EDGE_PADDING_PX ||
+          screenX > size.width - AMENITY_MARKER_EDGE_PADDING_PX ||
+          screenY < AMENITY_MARKER_EDGE_PADDING_PX ||
+          screenY > size.height - AMENITY_MARKER_EDGE_PADDING_PX
+        ) {
+          return [];
+        }
+
+        return [
+          {
+            amenity,
+            distanceSq: cameraPositionRef.current.distanceToSquared(
+              amenity.position,
+            ),
+            screenX,
+            screenY,
+          },
+        ];
+      })
+      .sort((left, right) => left.distanceSq - right.distanceSq);
+
+    const visibleAmenities: string[] = [];
+    const occupiedPoints: Array<{ x: number; y: number }> = [];
+
+    projectedAmenities.some((candidate) => {
+      const isTooCloseToExistingMarker = occupiedPoints.some((point) => {
+        return Math.hypot(point.x - candidate.screenX, point.y - candidate.screenY) <
+          minimumGapPx;
+      });
+
+      if (isTooCloseToExistingMarker) {
+        return false;
+      }
+
+      occupiedPoints.push({
+        x: candidate.screenX,
+        y: candidate.screenY,
+      });
+      visibleAmenities.push(candidate.amenity.id);
+
+      return visibleAmenities.length >= maxVisibleAmenities;
+    });
+
+    const nextSignature = visibleAmenities.join("|");
+
+    if (nextSignature === visibleSignatureRef.current) {
+      return;
+    }
+
+    visibleSignatureRef.current = nextSignature;
+    setVisibleAmenityIds(visibleAmenities);
+  }, [amenities, camera, size.height, size.width]);
+
+  useFrame(() => {
+    syncVisibleAmenities();
+  });
+
+  const visibleAmenities = useMemo(
+    () =>
+      visibleAmenityIds
+        .map((amenityId) => amenityLookup.get(amenityId) ?? null)
+        .filter((amenity): amenity is AmenityMarker => amenity !== null),
+    [amenityLookup, visibleAmenityIds],
+  );
+
+  if (visibleAmenities.length === 0) {
+    return null;
+  }
+
+  return (
+    <group>
+      {visibleAmenities.map((amenity) => (
+        <Html
+          key={amenity.id}
+          center
+          position={amenity.position.toArray()}
+          style={{ pointerEvents: "auto" }}
+          zIndexRange={[16, 0]}
+        >
+          <div className="relative -translate-y-[38%]">
+            {hoveredAmenityId === amenity.id ? (
+              <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[calc(100%+0.45rem)] whitespace-nowrap rounded-full border border-white/20 bg-black/82 px-2.5 py-1 text-[10px] font-medium tracking-[0.01em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-md">
+                {amenity.label}
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              aria-label={amenity.label}
+              className={`flex items-center justify-center text-[#ff4d57] drop-shadow-[0_0_12px_rgba(255,69,79,0.78)] transition duration-200 ${
+                hoveredAmenityId === amenity.id ? "scale-110" : "scale-100"
+              }`}
+              onBlur={() => {
+                setHoveredAmenityId((currentAmenityId) =>
+                  currentAmenityId === amenity.id ? null : currentAmenityId,
+                );
+              }}
+              onMouseEnter={() => {
+                setHoveredAmenityId(amenity.id);
+              }}
+              onMouseLeave={() => {
+                setHoveredAmenityId((currentAmenityId) =>
+                  currentAmenityId === amenity.id ? null : currentAmenityId,
+                );
+              }}
+              onPointerDown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+              onFocus={() => {
+                setHoveredAmenityId(amenity.id);
+              }}
+            >
+              <MapPin
+                aria-hidden="true"
+                className="h-4 w-4 stroke-[2.4]"
+              />
+            </button>
+          </div>
+        </Html>
+      ))}
+    </group>
+  );
+});
+
 function TrackingDebugOverlay({
   currentViewLabel,
   rays,
@@ -2406,6 +2693,10 @@ const TowerScene = memo(function TowerScene({
   const shouldShowSelectedApartment = selectedApartmentId !== null;
   const shouldRenderTowerProxies =
     showTowerMeshes || showTrackingDebug || shouldShowSelectedApartment;
+  const visibleAmenityMarkers = useMemo(
+    () => (showTowerMeshes ? MASTER_PLAN_AMENITY_MARKERS : []),
+    [showTowerMeshes],
+  );
   const hotspotHoveredApartmentId = useMemo(
     () =>
       hoveredApartmentId &&
@@ -2576,6 +2867,10 @@ const TowerScene = memo(function TowerScene({
         />
       ) : null}
 
+      {visibleAmenityMarkers.length > 0 ? (
+        <AmenityMarkers amenities={visibleAmenityMarkers} />
+      ) : null}
+
       {showTrackingDebug ? (
         <TrackingDebugOverlay
           currentViewLabel={trackingViewLabel}
@@ -2640,6 +2935,12 @@ export default function MasterPlanFrameHoverStage({
   const hoveredApartmentIdRef = useRef<string | null>(null);
   const tooltipFrameRef = useRef<number | null>(null);
   const tooltipPositionRef = useRef({ x: 12, y: 12 });
+  const viewportTransformRef = useRef<StageViewportTransform>(
+    DEFAULT_STAGE_VIEWPORT_TRANSFORM,
+  );
+  const mobileGestureRef = useRef<MobileStageGestureState>(
+    createDefaultMobileStageGestureState(),
+  );
   const [performanceProfile, setPerformanceProfile] =
     useState<MasterPlanPerformanceProfile>(() =>
       getMasterPlanPerformanceProfile(),
@@ -2658,6 +2959,8 @@ export default function MasterPlanFrameHoverStage({
     height: 0,
     width: 0,
   }));
+  const [viewportTransform, setViewportTransformState] =
+    useState<StageViewportTransform>(DEFAULT_STAGE_VIEWPORT_TRANSFORM);
   const safeFrame = wrapFrame(currentFrame);
   const coverViewport = useMemo(
     () =>
@@ -2674,6 +2977,53 @@ export default function MasterPlanFrameHoverStage({
   );
   const invalidateCanvas = useCallback(() => {
     canvasInvalidateRef.current?.();
+  }, []);
+  const clampViewportTransform = useCallback(
+    (nextTransform: StageViewportTransform) => {
+      const scale = clampNumber(
+        nextTransform.scale,
+        MOBILE_STAGE_MIN_SCALE,
+        MOBILE_STAGE_MAX_SCALE,
+      );
+      const maxOffsetX = Math.max(
+        (coverViewport.width * scale - coverViewport.width) / 2,
+        0,
+      );
+      const maxOffsetY = Math.max(
+        (coverViewport.height * scale - coverViewport.height) / 2,
+        0,
+      );
+
+      return {
+        scale,
+        x: clampNumber(nextTransform.x, -maxOffsetX, maxOffsetX),
+        y: clampNumber(nextTransform.y, -maxOffsetY, maxOffsetY),
+      } satisfies StageViewportTransform;
+    },
+    [coverViewport.height, coverViewport.width],
+  );
+  const applyViewportTransform = useCallback(
+    (nextTransform: StageViewportTransform) => {
+      const clampedTransform = clampViewportTransform(nextTransform);
+      const currentTransform = viewportTransformRef.current;
+
+      if (
+        Math.abs(currentTransform.scale - clampedTransform.scale) < 0.001 &&
+        Math.abs(currentTransform.x - clampedTransform.x) < 0.5 &&
+        Math.abs(currentTransform.y - clampedTransform.y) < 0.5
+      ) {
+        return currentTransform;
+      }
+
+      viewportTransformRef.current = clampedTransform;
+      setViewportTransformState(clampedTransform);
+      return clampedTransform;
+    },
+    [clampViewportTransform],
+  );
+  const resetViewportTransform = useCallback(() => {
+    viewportTransformRef.current = DEFAULT_STAGE_VIEWPORT_TRANSFORM;
+    setViewportTransformState(DEFAULT_STAGE_VIEWPORT_TRANSFORM);
   }, []);
 
   const stopScheduledProgress = useCallback(() => {
@@ -3371,20 +3721,23 @@ export default function MasterPlanFrameHoverStage({
     inventoryState,
     inventoryError,
   );
-  const selectApartmentByMeshId = (apartmentMeshId: string | null) => {
-    if (!onApartmentSelect) {
-      return;
-    }
+  const selectApartmentByMeshId = useCallback(
+    (apartmentMeshId: string | null) => {
+      if (!onApartmentSelect) {
+        return;
+      }
 
-    onApartmentSelect(
-      findInventoryApartmentInIndex(
-        apartmentIndex,
+      onApartmentSelect(
+        findInventoryApartmentInIndex(
+          apartmentIndex,
+          apartmentMeshId,
+          selectedTower,
+        ),
         apartmentMeshId,
-        selectedTower,
-      ),
-      apartmentMeshId,
-    );
-  };
+      );
+    },
+    [apartmentIndex, onApartmentSelect, selectedTower],
+  );
 
   useEffect(() => {
     onInteractionChange?.(isDragging || isSettling);
@@ -3476,6 +3829,197 @@ export default function MasterPlanFrameHoverStage({
     },
     [],
   );
+  const handleStageTouchStart = useCallback(
+    (event: ReactTouchEvent<HTMLDivElement>) => {
+      if (dragEnabled) {
+        return;
+      }
+
+      if (event.touches.length >= 2) {
+        event.preventDefault();
+        const midpoint = getTouchMidpoint(event.touches);
+
+        mobileGestureRef.current = {
+          ...createDefaultMobileStageGestureState(),
+          initialDistance: getTouchDistance(event.touches),
+          initialMidpointX: midpoint.x,
+          initialMidpointY: midpoint.y,
+          initialOffsetX: viewportTransformRef.current.x,
+          initialOffsetY: viewportTransformRef.current.y,
+          initialScale: viewportTransformRef.current.scale,
+          mode: "pinch",
+          moved: true,
+        };
+        return;
+      }
+
+      const primaryTouch = event.touches[0];
+
+      if (!primaryTouch) {
+        return;
+      }
+
+      mobileGestureRef.current = {
+        ...createDefaultMobileStageGestureState(),
+        lastTouchX: primaryTouch.clientX,
+        lastTouchY: primaryTouch.clientY,
+        mode:
+          viewportTransformRef.current.scale > MOBILE_STAGE_MIN_SCALE + 0.01
+            ? "pan"
+            : "tap",
+        tapStartX: primaryTouch.clientX,
+        tapStartY: primaryTouch.clientY,
+      };
+    },
+    [dragEnabled],
+  );
+  const handleStageTouchMove = useCallback(
+    (event: ReactTouchEvent<HTMLDivElement>) => {
+      if (dragEnabled) {
+        return;
+      }
+
+      if (event.touches.length >= 2) {
+        event.preventDefault();
+
+        const gestureState = mobileGestureRef.current;
+        const currentDistance = getTouchDistance(event.touches);
+
+        if (currentDistance <= 0) {
+          return;
+        }
+
+        const midpoint = getTouchMidpoint(event.touches);
+        const scaleRatio =
+          gestureState.initialDistance > 0
+            ? currentDistance / gestureState.initialDistance
+            : 1;
+        const nextScale = clampNumber(
+          gestureState.initialScale * scaleRatio,
+          MOBILE_STAGE_MIN_SCALE,
+          MOBILE_STAGE_MAX_SCALE,
+        );
+        const nextOffsetX =
+          gestureState.initialOffsetX +
+          (midpoint.x - gestureState.initialMidpointX);
+        const nextOffsetY =
+          gestureState.initialOffsetY +
+          (midpoint.y - gestureState.initialMidpointY);
+
+        applyViewportTransform({
+          scale: nextScale,
+          x: nextOffsetX,
+          y: nextOffsetY,
+        });
+
+        mobileGestureRef.current = {
+          ...gestureState,
+          lastTouchX: midpoint.x,
+          lastTouchY: midpoint.y,
+          mode: "pinch",
+          moved: true,
+        };
+        return;
+      }
+
+      const primaryTouch = event.touches[0];
+      const gestureState = mobileGestureRef.current;
+
+      if (!primaryTouch) {
+        return;
+      }
+
+      const travelDistance = Math.hypot(
+        primaryTouch.clientX - gestureState.tapStartX,
+        primaryTouch.clientY - gestureState.tapStartY,
+      );
+
+      if (travelDistance > MOBILE_STAGE_TAP_MOVE_THRESHOLD_PX) {
+        gestureState.moved = true;
+      }
+
+      if (
+        gestureState.mode !== "pan" &&
+        viewportTransformRef.current.scale <= MOBILE_STAGE_MIN_SCALE + 0.01
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      const deltaX = primaryTouch.clientX - gestureState.lastTouchX;
+      const deltaY = primaryTouch.clientY - gestureState.lastTouchY;
+      const nextTransform = viewportTransformRef.current;
+
+      applyViewportTransform({
+        scale: nextTransform.scale,
+        x: nextTransform.x + deltaX,
+        y: nextTransform.y + deltaY,
+      });
+
+      mobileGestureRef.current = {
+        ...gestureState,
+        lastTouchX: primaryTouch.clientX,
+        lastTouchY: primaryTouch.clientY,
+        mode: "pan",
+      };
+    },
+    [applyViewportTransform, dragEnabled],
+  );
+  const handleStageTouchEnd = useCallback(
+    (event: ReactTouchEvent<HTMLDivElement>) => {
+      if (dragEnabled) {
+        return;
+      }
+
+      if (event.touches.length >= 2) {
+        return;
+      }
+
+      if (event.touches.length === 1) {
+        const remainingTouch = event.touches[0];
+
+        mobileGestureRef.current = {
+          ...createDefaultMobileStageGestureState(),
+          lastTouchX: remainingTouch.clientX,
+          lastTouchY: remainingTouch.clientY,
+          mode:
+            viewportTransformRef.current.scale > MOBILE_STAGE_MIN_SCALE + 0.01
+              ? "pan"
+              : "tap",
+          moved: true,
+          tapStartX: remainingTouch.clientX,
+          tapStartY: remainingTouch.clientY,
+        };
+        return;
+      }
+
+      const gestureState = mobileGestureRef.current;
+      const changedTouch = event.changedTouches[0];
+
+      if (
+        changedTouch &&
+        gestureState.mode === "tap" &&
+        !gestureState.moved
+      ) {
+        selectApartmentByMeshId(
+          pointerSelectionRef.current?.(
+            changedTouch.clientX,
+            changedTouch.clientY,
+          ) ?? hoveredApartmentIdRef.current,
+        );
+      }
+
+      if (viewportTransformRef.current.scale <= MOBILE_STAGE_MIN_SCALE + 0.02) {
+        resetViewportTransform();
+      }
+
+      mobileGestureRef.current = createDefaultMobileStageGestureState();
+    },
+    [dragEnabled, resetViewportTransform, selectApartmentByMeshId],
+  );
+  const handleStageTouchCancel = useCallback(() => {
+    mobileGestureRef.current = createDefaultMobileStageGestureState();
+  }, []);
 
   useEffect(() => {
     if (!dragStateRef.current && !isSettlingRef.current) {
@@ -3522,123 +4066,144 @@ export default function MasterPlanFrameHoverStage({
             width: `${coverViewport.width}px`,
           }}
         >
-          <video
-            ref={videoRef}
-            aria-label={`Master plan scrub view ${displayedFrame}`}
-            className={`pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-200 ${
-              showVideo ? "opacity-100" : "opacity-0"
-            }`}
-            muted
-            playsInline
-            preload={performanceProfile.scrubVideoPreload}
-            disablePictureInPicture
-          />
-
           <div
-            onPointerDownCapture={(event) => {
-              if (!dragEnabled) {
-                return;
-              }
-
-              if (event.pointerType !== "touch" && event.button !== 0) {
-                return;
-              }
-
-              clearHoverCooldown();
-              stopMotionAnimation();
-              stopDragLoop();
-              syncVideoTime(videoRef.current, displayProgressRef.current, {
-                force: true,
-              });
-              invalidateCanvas();
-              dragTargetProgressRef.current = displayProgressRef.current;
-              dragStateRef.current = {
-                clampedDeltaX: 0,
-                didDrag: false,
-                lastClientX: event.clientX,
-                lastTimestamp: event.timeStamp,
-                pointerId: event.pointerId,
-                startProgress: displayProgressRef.current,
-                startX: event.clientX,
-              };
+            className="absolute inset-0 will-change-transform"
+            style={{
+              transform: `translate3d(${viewportTransform.x}px, ${viewportTransform.y}px, 0) scale(${viewportTransform.scale})`,
+              transformOrigin: "center center",
             }}
-            onPointerUpCapture={(event) => {
-              if (!dragEnabled) {
-                return;
-              }
-
-              if (event.pointerType !== "touch" && event.button !== 0) {
-                return;
-              }
-
-              const dragState = dragStateRef.current;
-
-              if (!dragState || dragState.didDrag) {
-                return;
-              }
-
-              selectApartmentByMeshId(
-                pointerSelectionRef.current?.(event.clientX, event.clientY) ??
-                  hoveredApartmentIdRef.current,
-              );
-            }}
-            onPointerLeave={() => {
-              clearHoveredApartment();
-            }}
-            onPointerCancel={() => {
-              dragStateRef.current = null;
-              setIsDragging(false);
-              stopDragLoop();
-              stopMotionAnimation();
-              clearHoveredApartment();
-            }}
-            className={`absolute inset-0 touch-none select-none ${
-              !dragEnabled
-                ? "cursor-default"
-                : allowHover && activeHoveredApartmentId
-                ? "cursor-pointer"
-                : isDragging
-                  ? "cursor-ew-resize"
-                  : "cursor-[grab] active:cursor-[grabbing]"
-            }`}
           >
-            {!isDragging ? (
-              <Canvas
-                dpr={canvasDpr}
-                frameloop="demand"
-                performance={performanceProfile.canvasPerformance}
-                gl={{
-                  alpha: true,
-                  antialias: false,
-                  depth: true,
-                  powerPreference: "high-performance",
-                  stencil: false,
-                }}
-              >
-                <Suspense fallback={<LoadingState />}>
-                  <AdaptiveDpr />
-                  <TowerScene
-                    apartments={apartments}
-                    currentFrame={trackingFrame}
-                    filteredApartments={filteredApartments}
-                    getApartmentStatus={getApartmentStatus}
-                    allowHover={allowHover}
-                    onInvalidateReady={handleCanvasInvalidateReady}
-                    onPointerSelectionReady={handlePointerSelectionReady}
-                    onApartmentHover={handleApartmentHover}
-                    rotationProgressRef={displayProgressRef}
-                    selectedApartmentId={
-                      !isDragging && !isSettling ? selectedApartmentId : null
-                    }
-                    selectedTower={selectedTower}
-                    simplifyFilteredVisuals={performanceProfile.tier !== "standard"}
-                    showApartmentMeshes={showApartmentMeshes}
-                    showTowerMeshes={showTowerMeshes}
-                    showTrackingDebug={showTrackingDebug}
-                  />
-                </Suspense>
-              </Canvas>
-            ) : null}
+            <video
+              ref={videoRef}
+              aria-label={`Master plan scrub view ${displayedFrame}`}
+              className={`pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-200 ${
+                showVideo ? "opacity-100" : "opacity-0"
+              }`}
+              muted
+              playsInline
+              preload={performanceProfile.scrubVideoPreload}
+              disablePictureInPicture
+            />
+
+            <div
+              onTouchStartCapture={handleStageTouchStart}
+              onTouchMoveCapture={handleStageTouchMove}
+              onTouchEndCapture={handleStageTouchEnd}
+              onTouchCancelCapture={handleStageTouchCancel}
+              onPointerDownCapture={(event) => {
+                if (!dragEnabled) {
+                  return;
+                }
+
+                if (event.pointerType !== "touch" && event.button !== 0) {
+                  return;
+                }
+
+                clearHoverCooldown();
+                stopMotionAnimation();
+                stopDragLoop();
+                syncVideoTime(videoRef.current, displayProgressRef.current, {
+                  force: true,
+                });
+                invalidateCanvas();
+                dragTargetProgressRef.current = displayProgressRef.current;
+                dragStateRef.current = {
+                  clampedDeltaX: 0,
+                  didDrag: false,
+                  lastClientX: event.clientX,
+                  lastTimestamp: event.timeStamp,
+                  pointerId: event.pointerId,
+                  startProgress: displayProgressRef.current,
+                  startX: event.clientX,
+                };
+              }}
+              onPointerUpCapture={(event) => {
+                if (event.pointerType !== "touch" && event.button !== 0) {
+                  return;
+                }
+
+                if (!dragEnabled) {
+                  if (event.pointerType === "touch") {
+                    return;
+                  }
+
+                  selectApartmentByMeshId(
+                    pointerSelectionRef.current?.(event.clientX, event.clientY) ??
+                      hoveredApartmentIdRef.current,
+                  );
+                  return;
+                }
+
+                const dragState = dragStateRef.current;
+
+                if (!dragState || dragState.didDrag) {
+                  return;
+                }
+
+                selectApartmentByMeshId(
+                  pointerSelectionRef.current?.(event.clientX, event.clientY) ??
+                    hoveredApartmentIdRef.current,
+                );
+              }}
+              onPointerLeave={() => {
+                clearHoveredApartment();
+              }}
+              onPointerCancel={() => {
+                dragStateRef.current = null;
+                setIsDragging(false);
+                stopDragLoop();
+                stopMotionAnimation();
+                clearHoveredApartment();
+                mobileGestureRef.current = createDefaultMobileStageGestureState();
+              }}
+              className={`absolute inset-0 touch-none select-none ${
+                !dragEnabled
+                  ? "cursor-default"
+                  : allowHover && activeHoveredApartmentId
+                    ? "cursor-pointer"
+                    : isDragging
+                      ? "cursor-ew-resize"
+                      : "cursor-[grab] active:cursor-[grabbing]"
+              }`}
+            >
+              {!isDragging ? (
+                <Canvas
+                  dpr={canvasDpr}
+                  frameloop="demand"
+                  performance={performanceProfile.canvasPerformance}
+                  gl={{
+                    alpha: true,
+                    antialias: false,
+                    depth: true,
+                    powerPreference: "high-performance",
+                    stencil: false,
+                  }}
+                >
+                  <Suspense fallback={<LoadingState />}>
+                    <AdaptiveDpr />
+                    <TowerScene
+                      apartments={apartments}
+                      currentFrame={trackingFrame}
+                      filteredApartments={filteredApartments}
+                      getApartmentStatus={getApartmentStatus}
+                      allowHover={allowHover}
+                      onInvalidateReady={handleCanvasInvalidateReady}
+                      onPointerSelectionReady={handlePointerSelectionReady}
+                      onApartmentHover={handleApartmentHover}
+                      rotationProgressRef={displayProgressRef}
+                      selectedApartmentId={
+                        !isDragging && !isSettling ? selectedApartmentId : null
+                      }
+                      selectedTower={selectedTower}
+                      simplifyFilteredVisuals={performanceProfile.tier !== "standard"}
+                      showApartmentMeshes={showApartmentMeshes}
+                      showTowerMeshes={showTowerMeshes}
+                      showTrackingDebug={showTrackingDebug}
+                    />
+                  </Suspense>
+                </Canvas>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>

@@ -223,7 +223,7 @@ export default function HeroSection() {
   return (
     <section
       ref={sectionRef}
-      className="relative h-dvh w-full overflow-hidden bg-black text-white"
+      className="relative app-screen w-full overflow-hidden bg-black text-white"
     >
       <div
         className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${

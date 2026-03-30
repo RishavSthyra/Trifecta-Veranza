@@ -971,7 +971,7 @@ export default function MasterPlanLayout({
   return (
     <div
       ref={rootRef}
-      className="relative h-dvh w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
+      className="relative app-screen w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
     >
       {!isCompactViewport ? (
         <MasterPlanFrameHoverStage
@@ -1027,7 +1027,7 @@ export default function MasterPlanLayout({
         }`}
       >
         <div className="relative w-full shrink-0">
-          <div className="relative h-[clamp(19rem,46vh,31rem)] overflow-hidden">
+          <div className="relative h-[clamp(20rem,50svh,32rem)] overflow-hidden">
             <MasterPlanFrameHoverStage
               apartments={apartments}
               currentFrame={currentFrame}
@@ -1043,7 +1043,7 @@ export default function MasterPlanLayout({
             />
 
             {!isLeaving && selectedTower ? (
-              <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-3">
+              <div className="pointer-events-none absolute inset-x-0 bottom-[max(env(safe-area-inset-bottom),1rem)] z-30 flex justify-center px-4">
                 <MasterPlanHotspotControls
                   compact
                   onPrevious={() => goToHotspot(-1)}

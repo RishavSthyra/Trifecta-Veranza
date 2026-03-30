@@ -128,6 +128,11 @@
 }
 
 @layer base {
+  html,
+  body {
+    min-height: 100%;
+  }
+
   .maplibregl-popup-content {
     @apply bg-transparent! shadow-none! p-0! rounded-none!;
   }
@@ -150,6 +155,18 @@
 }
 
 @layer utilities {
+  .app-shell {
+    min-height: 100vh;
+    min-height: 100svh;
+  }
+
+  .app-screen {
+    height: 100vh;
+    height: 100svh;
+    min-height: 100vh;
+    min-height: 100svh;
+  }
+
   .gpu-layer {
     transform: translateZ(0);
     backface-visibility: hidden;
@@ -165,6 +182,18 @@
   .glow-border-layer {
     transform: translateZ(0);
     will-change: opacity;
+  }
+}
+
+@supports (-webkit-touch-callout: none) {
+  html,
+  body {
+    min-height: -webkit-fill-available;
+  }
+
+  .app-screen {
+    height: -webkit-fill-available;
+    min-height: -webkit-fill-available;
   }
 }
 
