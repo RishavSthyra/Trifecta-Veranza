@@ -73,14 +73,6 @@ function getStatusStyles(status: InventoryApartment["status"]) {
   };
 }
 
-function formatPriceLabel(priceLakhs: number) {
-  if (!Number.isFinite(priceLakhs) || priceLakhs <= 0) {
-    return "On request";
-  }
-
-  return `${priceLakhs} L`;
-}
-
 const metaCardClassName =
   "rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]";
 
@@ -131,12 +123,6 @@ const SelectedFlatDetailsPanel = forwardRef<
       value: apartment.facing,
       icon: MapPin,
     },
-    {
-      key: "price",
-      label: "Price",
-      value: formatPriceLabel(apartment.priceLakhs),
-      icon: Expand,
-    },
   ];
 
   if (compact) {
@@ -157,7 +143,7 @@ const SelectedFlatDetailsPanel = forwardRef<
           event.stopPropagation();
         }}
       >
-        <div className="relative flex max-h-[min(82dvh,46rem)] min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px]">
+        <div className="relative flex h-auto max-h-[min(96dvh,64rem)] min-h-[min(88dvh,58rem)] flex-col overflow-hidden rounded-[32px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px]">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,228,196,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(171,135,86,0.10),transparent_28%)]" />
 
           <div className="relative flex min-h-0 flex-1 flex-col p-4 sm:p-5">
@@ -175,7 +161,14 @@ const SelectedFlatDetailsPanel = forwardRef<
                 <div className="h-10 w-10 shrink-0" />
               )}
 
-              <div className="min-w-0 flex-1" />
+              <div className="min-w-0 flex-1 text-center">
+                <p className="text-[10px] uppercase tracking-[0.28em] text-white/38">
+                  Selected Flat
+                </p>
+                <p className="mt-1 truncate text-[1.25rem] font-semibold leading-none tracking-[-0.04em] text-white sm:text-[1.45rem]">
+                  {apartment.title}
+                </p>
+              </div>
 
               {!hideCloseButton ? (
                 <button
@@ -199,7 +192,7 @@ const SelectedFlatDetailsPanel = forwardRef<
             </div>
 
             <div
-              className="group relative mt-4 overflow-hidden rounded-[28px] border border-white/12 bg-black/20"
+              className="group relative mt-4 shrink-0 overflow-hidden rounded-[28px] border border-white/12 bg-black/20"
               onClick={handleOpenWalkthrough}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
@@ -210,13 +203,13 @@ const SelectedFlatDetailsPanel = forwardRef<
               role="button"
               tabIndex={0}
             >
-              <div className="relative aspect-[4/5] w-full sm:aspect-[5/6]">
+              <div className="relative h-[40vh] min-h-[40vh] w-full">
                 <NextImage
-                  src={PANEL_PREVIEW_IMAGE}
+                  src="/preview_WALKTHOUGH.jpg"
                   alt={`${apartment.title} walkthrough preview`}
                   fill
                   sizes="(max-width: 768px) 100vw, 420px"
-                  className="object-cover transition duration-700 group-hover:scale-[1.04]"
+                  className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]"
                 />
 
                 <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,10,14,0.04)_0%,rgba(8,10,14,0.10)_26%,rgba(8,10,14,0.26)_56%,rgba(8,10,14,0.62)_100%)]" />
@@ -241,18 +234,18 @@ const SelectedFlatDetailsPanel = forwardRef<
                   </span>
                 </div>
 
-                <div className="absolute inset-0 flex items-center justify-center">
+                <div className="absolute inset-0 z-10 flex items-center justify-center">
                   <button
                     type="button"
                     onClick={(event) => {
                       event.stopPropagation();
                       handleOpenWalkthrough();
                     }}
-                    className="relative flex h-[4.9rem] w-[4.9rem] items-center justify-center rounded-full border border-white/55 bg-white/86 shadow-[0_22px_46px_rgba(15,23,42,0.24)] backdrop-blur-md transition duration-300 hover:scale-105 hover:bg-white sm:h-[5.4rem] sm:w-[5.4rem]"
+                    className="relative flex h-[3.9rem] w-[3.9rem] items-center justify-center rounded-full border border-white/55 bg-white/88 shadow-[0_18px_36px_rgba(15,23,42,0.22)] backdrop-blur-md transition duration-300 hover:scale-105 hover:bg-white sm:h-[4.4rem] sm:w-[4.4rem]"
                     aria-label="Play walkthrough preview"
                   >
                     <span className="absolute inset-[6px] rounded-full border border-zinc-900/10" />
-                    <Play className="relative ml-1 h-7 w-7 fill-zinc-900 text-zinc-900 sm:h-8 sm:w-8" />
+                    <Play className="relative ml-0.5 h-5 w-5 fill-zinc-900 text-zinc-900 sm:h-6 sm:w-6" />
                   </button>
                 </div>
 

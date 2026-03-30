@@ -489,10 +489,6 @@ export default function MasterPlanLayout({
         .includes(deferredSearch.toLowerCase());
 
       const matchesFloor = apartment.floor > 0;
-      const matchesHotspot = isInventoryApartmentAllowedAtHotspot(
-        apartment,
-        activeHotspot,
-      );
       const matchesTower = apartment.tower === selectedTower;
       const matchesBhk = bhk === "All" || apartment.bhk === Number(bhk);
       const matchesFacing = facing === "All" || apartment.facing === facing;
@@ -501,7 +497,6 @@ export default function MasterPlanLayout({
 
       return (
         matchesFloor &&
-        matchesHotspot &&
         matchesSearch &&
         matchesTower &&
         matchesBhk &&
@@ -511,7 +506,6 @@ export default function MasterPlanLayout({
       );
     });
   }, [
-    activeHotspot,
     apartments,
     deferredSearch,
     selectedTower,
@@ -1069,7 +1063,7 @@ export default function MasterPlanLayout({
             }
           >
             {selectedApartment ? (
-              <div className="custom-scrollbar flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-1 py-2 [-webkit-overflow-scrolling:touch]">
+              <div className="custom-scrollbar flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-1 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-[max(env(safe-area-inset-top),1rem)] [-webkit-overflow-scrolling:touch]">
                 <SelectedFlatDetailsPanel
                   ref={selectedFlatPanelRef}
                   apartment={selectedApartment}
