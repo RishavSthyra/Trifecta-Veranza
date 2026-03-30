@@ -8,6 +8,7 @@ import { Map as MapView,
   MarkerPopup,
   MarkerTooltip,
   MapControls,
+  MapClusterLayer,
   useMap,
   MapRoute,
   type MapRef,
@@ -72,10 +73,23 @@ export type Poi = {
   image?: string;
 };
 
+type ClusterPoiProperties = {
+  poiId: number;
+  name: string;
+  category: PoiCategory;
+};
+
 const centerPlace = {
   name: "Trifecta Veranza.",
   lng: 77.75138250386782,
   lat: 12.863519959225334,
+};
+
+const projectCard = {
+  title: "Trifecta Veranza",
+  description:
+    "A premium residential community positioned at the heart of a fast-growing neighborhood, with strong access to workplaces, schools, retail, healthcare, and everyday conveniences.",
+  image: "/VeranzaFavicon.svg",
 };
 
 const pois : Poi[] = poidata as Poi[];
@@ -93,6 +107,9 @@ const ROUTE_CACHE_KEY = "veranza-poi-routes-v1";
 const ROUTE_REQUEST_TIMEOUT = 12000;
 const ROUTE_REQUEST_SPACING = 220;
 const MAX_CONCURRENT_ROUTE_REQUESTS = 2;
+const POI_CLUSTER_MAX_ZOOM = 12;
+const POI_CLUSTER_SWITCH_ZOOM = 12.8;
+const POI_CLUSTER_RADIUS = 58;
 const ROUTE_ANIMATION_DURATION = 2600;
 const ROUTE_ANIMATION_WINDOW_SIZE = 30;
 const PROVISIONAL_ROUTE_CACHE: Record<number, RouteData> = Object.fromEntries(
@@ -765,6 +782,7 @@ export function CustomStyleExample() {
   const [userRoute, setUserRoute] = useState<RouteData | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(true);
+  const [currentZoom, setCurrentZoom] = useState(15);
 
   const [selectedCategories, setSelectedCategories] = useState<PoiCategory[]>(
     DEFAULT_SELECTED_CATEGORIES,
@@ -901,12 +919,26 @@ export function CustomStyleExample() {
     });
   }, [deferredSearch, selectedCategories]);
 
-  const featuredPois = useMemo(() => {
-    return filteredPois.filter((poi) => poi.featured);
-  }, [filteredPois]);
-  const visiblePois = useMemo(
-    () => (featuredPois.length ? featuredPois : filteredPois),
-    [featuredPois, filteredPois],
+  const visiblePois = filteredPois;
+  const clusterData = useMemo<
+    GeoJSON.FeatureCollection<GeoJSON.Point, ClusterPoiProperties>
+  >(
+    () => ({
+      type: "FeatureCollection",
+      features: visiblePois.map((poi) => ({
+        type: "Feature",
+        properties: {
+          poiId: poi.id,
+          name: poi.name,
+          category: poi.category,
+        },
+        geometry: {
+          type: "Point",
+          coordinates: [poi.lng, poi.lat],
+        },
+      })),
+    }),
+    [visiblePois],
   );
   const routeLookup = useMemo(
     () => new Map(routes.map((route) => [route.id, route] as const)),
@@ -942,6 +974,7 @@ export function CustomStyleExample() {
     setUserRoute(null);
     setIsUserRouteLoading(false);
     suppressNextMapClearRef.current = true;
+    setRoutePoiId(null);
     setSelectedPoiId(poi.id);
 
     mapRef.current?.flyTo?.({
@@ -986,6 +1019,33 @@ export function CustomStyleExample() {
       duration: 1200,
     });
   }, []);
+
+  const handleClusterPointClick = useCallback(
+    (
+      feature: GeoJSON.Feature<GeoJSON.Point, ClusterPoiProperties>,
+      coordinates: [number, number],
+    ) => {
+      const poiId = feature.properties?.poiId;
+      if (typeof poiId !== "number") return;
+
+      const poi = visiblePois.find((item) => item.id === poiId);
+      if (!poi) return;
+
+      userRouteRequestRef.current += 1;
+      setUserRoute(null);
+      setIsUserRouteLoading(false);
+      suppressNextMapClearRef.current = true;
+      setRoutePoiId(null);
+      setSelectedPoiId(poi.id);
+
+      mapRef.current?.flyTo?.({
+        center: coordinates,
+        zoom: 16.2,
+        duration: 1000,
+      });
+    },
+    [visiblePois],
+  );
 
   const handleUserLocate = async (coords: UserLocation) => {
     const requestId = userRouteRequestRef.current + 1;
@@ -1083,6 +1143,7 @@ export function CustomStyleExample() {
     ? categoryMeta[selectedPoi.category].routeColor
     : "#22d3ee";
   const userRouteColor = "#0f766e";
+  const showClusters = currentZoom < POI_CLUSTER_SWITCH_ZOOM;
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-slate-100">
@@ -1090,6 +1151,8 @@ export function CustomStyleExample() {
         ref={mapRef}
         center={[centerPlace.lng, centerPlace.lat]}
         zoom={15}
+        fadeDuration={0}
+        onViewportChange={(viewport) => setCurrentZoom(viewport.zoom)}
         styles={
           selectedStyle
             ? { light: selectedStyle, dark: selectedStyle }
@@ -1172,25 +1235,89 @@ export function CustomStyleExample() {
           />
         )}
 
+        {showClusters ? (
+          <MapClusterLayer<ClusterPoiProperties>
+            data={clusterData}
+            clusterRadius={POI_CLUSTER_RADIUS}
+            clusterMaxZoom={POI_CLUSTER_MAX_ZOOM}
+            clusterColors={["#0f766e", "#0ea5e9", "#1d4ed8"]}
+            clusterThresholds={[12, 28]}
+            pointColor="#0891b2"
+            onPointClick={handleClusterPointClick}
+          />
+        ) : null}
+
         <MapMarker longitude={centerPlace.lng} latitude={centerPlace.lat}>
           <MarkerContent>
-            <div className="relative flex items-center justify-center">
+            <button
+              type="button"
+              onClick={clearActiveRoute}
+              className="relative flex items-center justify-center"
+            >
               {/* <div className="absolute size-12 animate-ping rounded-full bg-cyan-400/20" /> */}
               {/* <div className="absolute size-8 rounded-full bg-cyan-400/15 blur-md" /> */}
               {/* <FaMapMarkerAlt className="size-8 text-red-600 opacity-90 drop-shadow-[0_8px_16px_rgba(34,211,238,0.22)]" /> */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/VeranzaFavicon.svg" alt="Veranza Logo" />
-            </div>
+              <img src={projectCard.image} alt={projectCard.title} />
+            </button>
           </MarkerContent>
 
           <MarkerTooltip>{centerPlace.name}</MarkerTooltip>
 
-          <MarkerPopup>
-            <div className="space-y-1">
-              <p className="font-medium text-slate-900">{centerPlace.name}</p>
-              <p className="text-xs text-slate-600">
-                {centerPlace.lat.toFixed(6)}, {centerPlace.lng.toFixed(6)}
-              </p>
+          <MarkerPopup className="bg-transparent border-none shadow-none">
+            <div className="w-70 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+              <div className="h-36 w-full overflow-hidden bg-slate-100">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={projectCard.image}
+                  alt={projectCard.title}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+
+              <div className="space-y-3 p-4">
+                <div>
+                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500">
+                    Project Spotlight
+                  </p>
+                  <h3 className="mt-1 text-base font-semibold text-slate-900">
+                    {projectCard.title}
+                  </h3>
+                </div>
+
+                <p className="text-sm leading-6 text-slate-600">
+                  {projectCard.description}
+                </p>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      mapRef.current?.flyTo?.({
+                        center: [centerPlace.lng, centerPlace.lat],
+                        zoom: 15,
+                        duration: 1200,
+                      })
+                    }
+                    className="flex-1 rounded-xl cursor-pointer bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+                  >
+                    View Project
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.open(
+                        `https://www.google.com/maps/search/?api=1&query=${centerPlace.lat},${centerPlace.lng}`,
+                        "_blank",
+                      )
+                    }
+                    className="rounded-xl cursor-pointer border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Open
+                  </button>
+                </div>
+              </div>
             </div>
           </MarkerPopup>
         </MapMarker>
@@ -1229,15 +1356,17 @@ export function CustomStyleExample() {
           </MapMarker>
         ) : null}
 
-        {filteredPois.map((poi) => (
-          <PoiMarker
-            key={poi.id}
-            poi={poi}
-            isSelected={selectedPoiId === poi.id}
-            onMarkerClick={handlePoiMarkerClick}
-            onViewRoute={handleViewRoute}
-          />
-        ))}
+        {!showClusters
+          ? visiblePois.map((poi) => (
+              <PoiMarker
+                key={poi.id}
+                poi={poi}
+                isSelected={selectedPoiId === poi.id}
+                onMarkerClick={handlePoiMarkerClick}
+                onViewRoute={handleViewRoute}
+              />
+            ))
+          : null}
       </MapView>
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_30%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]" />
