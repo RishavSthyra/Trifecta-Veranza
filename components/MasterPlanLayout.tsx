@@ -866,10 +866,10 @@ export default function MasterPlanLayout({
         <div
           className={`grid h-full gap-6 ${
             selectedTower && !selectedApartment
-              ? "xl:grid-cols-[minmax(0,1fr)_420px]"
+              ? "xl:grid-cols-[minmax(0,1fr)_clamp(320px,27vw,380px)] 2xl:grid-cols-[minmax(0,1fr)_420px]"
               : selectedTower
                 ? "xl:grid-cols-[minmax(0,1fr)]"
-              : "xl:grid-cols-[minmax(0,1fr)_540px]"
+              : "xl:grid-cols-[minmax(0,1fr)_clamp(360px,31vw,460px)] 2xl:grid-cols-[minmax(0,1fr)_540px]"
           }`}
         >
           {!selectedApartment ? (
@@ -888,7 +888,9 @@ export default function MasterPlanLayout({
               >
                 <div
                   className={`custom-scrollbar sticky top-6 ml-auto flex h-[calc(100dvh-3rem)] min-h-0 w-full flex-col gap-6 overflow-y-auto overscroll-contain pr-1 [overflow-anchor:none] ${
-                    selectedTower ? "max-w-[420px]" : "max-w-[540px]"
+                    selectedTower
+                      ? "max-w-[clamp(320px,27vw,380px)] 2xl:max-w-[420px]"
+                      : "max-w-[clamp(360px,31vw,460px)] 2xl:max-w-[540px]"
                   }`}
                   data-scroll-area="sidebar"
                 >

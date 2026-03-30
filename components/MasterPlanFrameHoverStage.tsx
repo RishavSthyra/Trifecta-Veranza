@@ -372,6 +372,23 @@ function getNearestSnapFrame(frame: number) {
   return getNearestSnapFrameInfo(frame).frame;
 }
 
+function getDirectionalSnapFrame(frame: number, direction: 1 | -1) {
+  const normalizedFrame = wrapFrame(frame);
+
+  if (direction === 1) {
+    return (
+      SNAP_FRAMES.find((snapFrame) => snapFrame > normalizedFrame) ??
+      SNAP_FRAMES[0]
+    );
+  }
+
+  const previousSnapFrames = SNAP_FRAMES.filter(
+    (snapFrame) => snapFrame < normalizedFrame,
+  );
+
+  return previousSnapFrames.at(-1) ?? SNAP_FRAMES.at(-1) ?? SNAP_FRAMES[0];
+}
+
 function isFrameWithinSnapWindow(frame: number, frameWindow: number) {
   return getNearestSnapFrameInfo(frame).distance <= frameWindow;
 }
@@ -3090,7 +3107,16 @@ export default function MasterPlanFrameHoverStage({
       }
 
       const releaseFrame = progressToFrame(dragTargetProgressRef.current);
-      const snappedFrame = getNearestSnapFrame(releaseFrame);
+      const dragDirection =
+        dragState.clampedDeltaX === 0
+          ? 0
+          : dragState.clampedDeltaX > 0
+            ? 1
+            : -1;
+      const snappedFrame =
+        dragDirection === 0
+          ? getNearestSnapFrame(releaseFrame)
+          : getDirectionalSnapFrame(releaseFrame, dragDirection);
       const targetProgress = frameToProgress(snappedFrame);
       dragTargetProgressRef.current = targetProgress;
       const totalFrames =

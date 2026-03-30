@@ -125,26 +125,26 @@ function TowerSelectPanel({
 
   return (
     <aside className="w-full">
-      <div className="relative overflow-hidden rounded-[34px] border border-white/35 bg-white/18 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.16)] backdrop-blur-[22px] sm:p-4">
+      <div className="relative overflow-hidden rounded-[30px] border border-white/35 bg-white/18 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.16)] backdrop-blur-[22px] xl:p-3.5 2xl:rounded-[34px] 2xl:p-4">
         <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/35 via-white/10 to-transparent" />
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-white/80" />
         <div className="pointer-events-none absolute -right-20 top-8 h-36 w-36 rounded-full bg-cyan-200/30 blur-3xl" />
         <div className="pointer-events-none absolute -left-16 bottom-4 h-32 w-32 rounded-full bg-violet-200/25 blur-3xl" />
 
-        <div className="relative mb-4 px-2 pt-1 sm:mb-5">
+        <div className="relative mb-4 px-2 pt-1 xl:mb-4 2xl:mb-5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-zinc-500/90">
             Master Plan
           </p>
-          <h2 className="mt-2 text-[1.55rem] font-semibold tracking-[-0.03em] text-zinc-950 sm:text-[1.8rem]">
+          <h2 className="mt-2 text-[1.42rem] font-semibold tracking-[-0.03em] text-zinc-950 xl:text-[1.5rem] 2xl:text-[1.8rem]">
             Choose Your Tower
           </h2>
-          <p className="mt-1.5 max-w-[28rem] text-sm leading-6 text-zinc-600">
+          <p className="mt-1.5 max-w-[24rem] text-[13px] leading-5 text-zinc-600 2xl:max-w-[28rem] 2xl:text-sm 2xl:leading-6">
             Start with the tower, then we will open the matching inventory
             filters.
           </p>
         </div>
 
-        <div className="space-y-5 sm:space-y-6">
+        <div className="space-y-4 xl:space-y-4 2xl:space-y-6">
           {towerCards.map((towerCard) => {
             const isActive = selectedTower === towerCard.value;
 
@@ -171,8 +171,8 @@ function TowerSelectPanel({
                     }`}
                   />
 
-                  <div className="grid min-h-[160px] grid-cols-[50%_50%] sm:min-h-[178px] sm:grid-cols-[48%_52%]">
-                    <div className="relative min-h-[156px] overflow-hidden rounded-l-[30px] bg-white to-transparent sm:min-h-[172px]">
+                  <div className="grid min-h-[142px] grid-cols-[48%_52%] xl:min-h-[150px] 2xl:min-h-[178px] 2xl:grid-cols-[48%_52%]">
+                    <div className="relative min-h-[138px] overflow-hidden rounded-l-[30px] bg-white to-transparent xl:min-h-[146px] 2xl:min-h-[172px]">
                       <Image
                         src={towerCard.image}
                         alt={towerCard.imageAlt}
@@ -184,9 +184,9 @@ function TowerSelectPanel({
                       />
                     </div>
 
-                    <div className="relative flex min-w-0 flex-col justify-center px-5 py-4 sm:px-6 sm:py-5">
-                      <div className="max-w-[280px]">
-                        <h3 className="text-2xl font-medium tracking-[-0.03em] text-zinc-950 sm:text-[2rem] sm:leading-[1.02]">
+                    <div className="relative flex min-w-0 flex-col justify-center px-4 py-4 xl:px-4.5 2xl:px-6 2xl:py-5">
+                      <div className="max-w-[240px] 2xl:max-w-[280px]">
+                        <h3 className="text-[1.52rem] font-medium tracking-[-0.03em] text-zinc-950 xl:text-[1.6rem] 2xl:text-[2rem] 2xl:leading-[1.02]">
                           {towerCard.value}
                         </h3>
 
@@ -194,7 +194,7 @@ function TowerSelectPanel({
                           {towerCard.description}
                         </p> */}
 
-                        <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.28em] text-zinc-400 transition group-hover:text-zinc-500 sm:mt-7 sm:text-[11px]">
+                        <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-400 transition group-hover:text-zinc-500 2xl:mt-7 2xl:text-[11px]">
                           Tap to explore tower
                         </p>
                       </div>
