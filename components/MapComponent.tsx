@@ -769,6 +769,7 @@ export function CustomStyleExample() {
   const mapRef = useRef<MapRef>(null);
   const suppressNextMapClearRef = useRef(false);
   const userRouteRequestRef = useRef(0);
+  const currentZoomRef = useRef(15);
 
   const [style, setStyle] = useState<StyleKey>("default");
   const [routes, setRoutes] = useState<RouteData[]>(
@@ -1005,6 +1006,14 @@ export function CustomStyleExample() {
     setSelectedPoiId(null);
   }, []);
 
+  const stopAllRouteAnimations = useCallback(() => {
+    userRouteRequestRef.current += 1;
+    setRoutePoiId(null);
+    setSelectedPoiId(null);
+    setUserRoute(null);
+    setIsUserRouteLoading(false);
+  }, []);
+
   const handleViewRoute = useCallback((poi: Poi) => {
     userRouteRequestRef.current += 1;
     setUserRoute(null);
@@ -1144,6 +1153,18 @@ export function CustomStyleExample() {
     : "#22d3ee";
   const userRouteColor = "#0f766e";
   const showClusters = currentZoom < POI_CLUSTER_SWITCH_ZOOM;
+  const handleViewportChange = useCallback((viewport: { zoom: number }) => {
+    const nextZoom = viewport.zoom;
+    const wasClustered = currentZoomRef.current < POI_CLUSTER_SWITCH_ZOOM;
+    const willCluster = nextZoom < POI_CLUSTER_SWITCH_ZOOM;
+
+    currentZoomRef.current = nextZoom;
+    setCurrentZoom(nextZoom);
+
+    if (!wasClustered && willCluster) {
+      stopAllRouteAnimations();
+    }
+  }, [stopAllRouteAnimations]);
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-slate-100">
@@ -1152,7 +1173,7 @@ export function CustomStyleExample() {
         center={[centerPlace.lng, centerPlace.lat]}
         zoom={15}
         fadeDuration={0}
-        onViewportChange={(viewport) => setCurrentZoom(viewport.zoom)}
+        onViewportChange={handleViewportChange}
         styles={
           selectedStyle
             ? { light: selectedStyle, dark: selectedStyle }

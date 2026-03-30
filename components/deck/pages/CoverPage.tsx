@@ -1,20 +1,29 @@
 "use client";
 
 import React, { forwardRef } from "react";
-import Image from "next/image";
 import { motion } from "framer-motion";
-import coverimg from "@/assets/Aparttments_Clouds.png";
+import { Cormorant_Garamond, Manrope } from "next/font/google";
 
 type Props = {
   number?: number;
 };
 
+const titleFont = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
+const bodyFont = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
 const containerVariants = {
   hidden: {},
   show: {
     transition: {
-      staggerChildren: 0.2,
-      delayChildren: 0.18,
+      staggerChildren: 0.16,
+      delayChildren: 0.14,
     },
   },
 };
@@ -22,7 +31,7 @@ const containerVariants = {
 const textReveal = {
   hidden: {
     opacity: 0,
-    x: -42,
+    x: -32,
     filter: "blur(8px)",
   },
   show: {
@@ -30,7 +39,7 @@ const textReveal = {
     x: 0,
     filter: "blur(0px)",
     transition: {
-      duration: 0.85,
+      duration: 0.82,
       ease: [0.22, 1, 0.36, 1] as const,
     },
   },
@@ -39,20 +48,18 @@ const textReveal = {
 const imageReveal = {
   hidden: {
     opacity: 0,
-    x: 36,
     y: 18,
     scale: 1.04,
     filter: "blur(10px)",
   },
   show: {
     opacity: 1,
-    x: 0,
     y: 0,
     scale: 1,
     filter: "blur(0px)",
     transition: {
-      duration: 1.2,
-      delay: 0.45,
+      duration: 1.15,
+      delay: 0.28,
       ease: [0.22, 1, 0.36, 1] as const,
     },
   },
@@ -61,18 +68,31 @@ const imageReveal = {
 const shadowReveal = {
   hidden: {
     opacity: 0,
-    x: 24,
-    y: 24,
-    scale: 0.96,
+    scale: 0.94,
   },
   show: {
     opacity: 1,
-    x: 0,
-    y: 0,
     scale: 1,
     transition: {
-      duration: 1.2,
-      delay: 0.55,
+      duration: 1.15,
+      delay: 0.4,
+      ease: [0.22, 1, 0.36, 1] as const,
+    },
+  },
+};
+
+const lineReveal = {
+  hidden: {
+    opacity: 0,
+    scaleX: 0,
+    transformOrigin: "left center",
+  },
+  show: {
+    opacity: 1,
+    scaleX: 1,
+    transition: {
+      duration: 0.9,
+      delay: 0.18,
       ease: [0.22, 1, 0.36, 1] as const,
     },
   },
@@ -80,79 +100,82 @@ const shadowReveal = {
 
 const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) => {
   void _number;
+
   return (
     <div
       ref={ref}
-      className="relative h-full w-full overflow-hidden rounded-[20px] bg-[#f6f1e8] shadow-[0_25px_80px_rgba(0,0,0,0.18)] sm:rounded-[30px]"
+      className="relative h-full w-full overflow-hidden rounded-[20px] bg-[#f6f1e8] shadow-[0_25px_80px_rgba(0,0,0,0.16)] sm:rounded-[30px]"
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-[#f8f5ef] via-[#f2ebdf] to-[#e9dfcf]" />
-      <div className="absolute inset-y-0 right-0 w-[42%] bg-gradient-to-l from-[#d9c7ab]/40 to-transparent" />
-      <div className="absolute -left-16 top-[-120px] h-[280px] w-[280px] rounded-full bg-white/60 blur-3xl" />
-      <div className="absolute bottom-[-60px] right-[-40px] h-[240px] w-[240px] rounded-full bg-[#c9b18c]/25 blur-3xl" />
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,#faf7f2_0%,#f3ece1_40%,#eadfce_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_16%,rgba(255,255,255,0.88),transparent_28%),radial-gradient(circle_at_84%_12%,rgba(214,190,153,0.18),transparent_24%),radial-gradient(circle_at_50%_82%,rgba(188,156,112,0.12),transparent_30%)]" />
+      <div className="absolute inset-[10px] rounded-[16px] border border-white/45 sm:inset-[14px] sm:rounded-[24px]" />
+
+      <div className="absolute -left-20 top-[-120px] h-[280px] w-[280px] rounded-full bg-white/70 blur-3xl" />
+      <div className="absolute right-[-50px] top-[-40px] h-[220px] w-[220px] rounded-full bg-[#d7c0a0]/25 blur-3xl" />
+      <div className="absolute bottom-[-70px] left-1/2 h-[220px] w-[320px] -translate-x-1/2 rounded-full bg-[#b99663]/12 blur-3xl" />
 
       <motion.div
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="relative z-10 flex h-full flex-col justify-between px-4 pb-4 pt-10 sm:px-10 sm:pb-10 sm:pt-12"
+        className="relative z-20 flex h-full flex-col justify-between px-5 pb-5 pt-8 sm:px-10 sm:pb-10 sm:pt-12"
       >
-        <div className="relative z-20 max-w-[58%] rounded-[32px] px-2 py-2 backdrop-blur-[2px] sm:max-w-[82%] sm:px-4 sm:py-4">
+        <div className="relative z-30 max-w-[52%] sm:max-w-[50%] lg:max-w-[68%] xl:max-w-[88%] ">
           <motion.p
             variants={textReveal}
-            className="mb-3 text-[10px] uppercase tracking-[0.42em] text-neutral-700 sm:mb-4 sm:text-xs sm:tracking-[0.5em]"
+            className={`mb-3 text-[10px] uppercase tracking-[0.42em] text-[#6f6457] sm:mb-4 sm:text-xs sm:tracking-[0.5em] ${bodyFont.className}`}
           >
-            Luxury Living
+           TRIFECTA VERANZA
           </motion.p>
 
           <motion.h1
             variants={textReveal}
-            className="max-w-[240px] text-[1.85rem] font-semibold leading-[0.94] tracking-tight text-neutral-900 sm:max-w-[420px] sm:text-5xl"
+            className={`${titleFont.className} max-w-[330px] text-[2.35rem] font-semibold leading-[0.88] tracking-[-0.035em] text-[#1f1b16] sm:max-w-[520px] sm:text-[4.25rem] lg:max-w-full lg:text-[4.9rem]`}
           >
             The New Standard of Refined Urban Living
           </motion.h1>
+
+          <motion.div
+            variants={lineReveal}
+            className="mt-4 h-px w-[120px] bg-[linear-gradient(90deg,rgba(170,137,90,0.95),rgba(170,137,90,0.35),transparent)] sm:mt-5 sm:w-[170px]"
+          />
+
+          <motion.p
+            variants={textReveal}
+            className={`mt-4 max-w-[290px] text-[11px] font-medium leading-[1.7] text-[#6d6256] sm:mt-5 sm:max-w-[360px] sm:text-[13px] lg:max-w-[390px] ${bodyFont.className}`}
+          >
+            Curated spaces, elevated comfort, timeless metropolitan sophistication.
+          </motion.p>
         </div>
-
-        {/* <motion.div
-          variants={footerReveal}
-          className="relative z-20 flex items-end justify-between gap-4"
-        >
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.28em] text-neutral-600 sm:text-sm sm:tracking-[0.35em]">
-              Marketing Deck
-            </p>
-            <p className="mt-1.5 text-[13px] font-medium text-neutral-900 sm:mt-2 sm:text-lg">
-              Project Overview
-            </p>
-          </div>
-
-        </motion.div> */}
       </motion.div>
 
       <motion.div
         variants={imageReveal}
         initial="hidden"
         animate="show"
-        className="absolute inset-y-0 inset-x-[-10%] z-[5] flex items-end sm:inset-x-[-12%]"
+        className="pointer-events-none absolute inset-0 z-10 flex items-end justify-center"
       >
-        <div className="relative flex h-full w-full items-end">
+        <div className="relative flex h-full w-full items-end justify-center overflow-visible">
           <motion.div
             variants={shadowReveal}
             initial="hidden"
             animate="show"
-            className="absolute inset-x-[10%] bottom-[8%] top-[14%] rounded-[130px] bg-black/14 blur-3xl"
+            className="absolute bottom-[7%] left-1/2 h-[34%] w-[68%] -translate-x-1/2 rounded-[999px] bg-black/14 blur-3xl sm:h-[36%] sm:w-[62%]"
           />
-          <div className="relative flex h-full w-full items-end overflow-visible">
-            <img
-              src='https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855534/Aparttments_Clouds.png'
-              alt="Project cover"
-              
-              className="h-full w-full max-w-none origin-bottom object-contain object-bottom scale-[1.2] sm:scale-[1.34]"
-            />
-          </div>
+
+          {/* <div className="absolute bottom-[18%] left-1/2 h-[42%] w-[58%] -translate-x-1/2 rounded-[999px] bg-[radial-gradient(circle,rgba(255,255,255,0.38)_0%,rgba(255,255,255,0.12)_38%,transparent_72%)] blur-2xl" /> */}
+
+          <img
+            src="https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855534/Aparttments_Clouds.png"
+            alt="Project cover"
+            className="relative z-10 h-full w-auto max-w-none object-contain object-bottom scale-[1.18] sm:scale-[1.3] lg:scale-[1.36]"
+          />
         </div>
       </motion.div>
 
-      <div className="absolute bottom-0 left-0 right-0 z-[6] h-24 bg-gradient-to-t from-[#f6f1e8]/46 to-transparent sm:h-44 sm:from-[#f6f1e8]/28" />
+      {/* <div className="absolute inset-y-0 left-0 z-[12] w-[52%] bg-[linear-gradient(90deg,rgba(246,241,232,0.99)_0%,rgba(246,241,232,0.92)_38%,rgba(246,241,232,0.55)_68%,transparent_100%)] sm:w-[50%] lg:w-[48%]" />
+
+      <div className="absolute bottom-0 left-0 right-0 z-[13] h-24 bg-gradient-to-t from-[#f6f1e8]/52 to-transparent sm:h-44 sm:from-[#f6f1e8]/30" /> */}
     </div>
   );
 });
