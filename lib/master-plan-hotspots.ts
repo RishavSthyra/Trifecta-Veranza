@@ -21,7 +21,7 @@ const HOTSPOT_ALLOWED_UNIT_ENDINGS: Record<
     "Tower B": ["1", "2", "5", "6"],
   },
   A2: {
-    "Tower A": ["2", "6"],
+    "Tower A": ["2", "5"],
     "Tower B": ["5", "6"],
   },
   A3: {

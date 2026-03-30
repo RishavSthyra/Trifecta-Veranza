@@ -3246,8 +3246,8 @@ export default function MasterPlanFrameHoverStage({
   );
   const trackingFrame = getNearestSnapFrame(displayedFrame);
   const activeHotspot = useMemo(
-    () => getNearestMasterPlanHotspot(displayedFrame),
-    [displayedFrame],
+    () => getNearestMasterPlanHotspot(trackingFrame),
+    [trackingFrame],
   );
   const hotspotHoveredApartmentId = useMemo(
     () =>
