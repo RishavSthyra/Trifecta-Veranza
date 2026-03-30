@@ -244,7 +244,7 @@ export default function HeroSection() {
         preload="auto"
       >
         <source
-          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774781281/Trifeccta_Hero_Section.mp4"
+          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774905518/Tf_Fixed.mp4"
           type="video/mp4"
         />
       </video>
@@ -267,7 +267,7 @@ export default function HeroSection() {
         onEnded={() => router.push("/master-plan")}
       >
         <source
-          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774875688/Tf_1.mp4"
+          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774906461/Tf_Fixed_Final_2.mp4"
           type="video/webm"
         />
       </video>
