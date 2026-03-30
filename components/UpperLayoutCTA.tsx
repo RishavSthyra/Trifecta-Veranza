@@ -2,8 +2,9 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence, type Transition } from "framer-motion";
-import { FiPhone, FiDownload, FiDollarSign, FiGrid } from "react-icons/fi";
+import { FiPhone, FiDownload, FiDollarSign, FiGrid, FiHome } from "react-icons/fi";
 
 interface CtaButtonType {
   name: string;
@@ -24,7 +25,9 @@ const spring: Transition = {
 };
 
 export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
+  const pathname = usePathname();
   const [hovered, setHovered] = useState<string | null>(null);
+  const isMasterPlanRoute = pathname === "/master-plan";
 
   const buttons: CtaButtonType[] = [
     {
@@ -48,11 +51,15 @@ export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
       icon: <FiDollarSign className="h-4 w-4" />,
     },
     {
-      name: "Floor Plan",
-      link: "/floor-plan",
+      name: isMasterPlanRoute ? "Home" : "Floor Plan",
+      link: isMasterPlanRoute ? "/" : "/floor-plan",
       action: "link",
       isHighlight: false,
-      icon: <FiGrid className="h-4 w-4" />,
+      icon: isMasterPlanRoute ? (
+        <FiHome className="h-4 w-4" />
+      ) : (
+        <FiGrid className="h-4 w-4" />
+      ),
     },
   ];
 

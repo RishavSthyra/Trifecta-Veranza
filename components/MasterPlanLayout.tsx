@@ -841,10 +841,6 @@ export default function MasterPlanLayout({
     }
   }, [router]);
 
-  const handleCompactBackToHome = useCallback(() => {
-    router.push("/");
-  }, [router]);
-
   useEffect(() => {
     const getScrollAreaElement = (target: EventTarget | null) => {
       if (target instanceof HTMLElement) {
@@ -1034,21 +1030,6 @@ export default function MasterPlanLayout({
           type="video/webm"
         />
       </video>
-
-      {shouldUseTouchBackNavigation &&
-      !isLeaving &&
-      !isSpecialVideoExperienceActive ? (
-        <div className="pointer-events-none absolute inset-x-0 top-[max(env(safe-area-inset-top),0.75rem)] z-50 flex justify-start px-3 sm:px-4">
-          <button
-            type="button"
-            onClick={handleCompactBackToHome}
-            className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/92 px-4 py-2.5 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl transition hover:bg-white"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back Home
-          </button>
-        </div>
-      ) : null}
 
       {!isCompactViewport &&
       !isLeaving &&

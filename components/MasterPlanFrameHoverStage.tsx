@@ -43,7 +43,10 @@ import {
   MASTER_PLAN_SCRUB_VIDEO_FPS,
   TOTAL_MASTER_PLAN_FRAMES,
 } from "@/data/masterPlanFrameCdnUrls";
-import { masterPlanAmenities } from "@/data/masterPlanAmenities";
+import {
+  masterPlanAmenities,
+  type MasterPlanAmenityIconKey,
+} from "@/data/masterPlanAmenities";
 import {
   getNearestMasterPlanHotspot,
   isApartmentIdAllowedAtHotspot,
@@ -54,7 +57,25 @@ import type {
   InventoryStatus,
   TowerType,
 } from "@/types/inventory";
-import { MapPin } from "lucide-react";
+import {
+  Bike,
+  Bird,
+  BriefcaseBusiness,
+  Building2,
+  Dumbbell,
+  Flame,
+  Flower2,
+  Gem,
+  Goal,
+  Leaf,
+  PartyPopper,
+  PawPrint,
+  Theater,
+  ToyBrick,
+  Trees,
+  Waves,
+  type LucideIcon,
+} from "lucide-react";
 
 const MODEL_PATH_A = "/models/forglb.glb";
 const MODEL_PATH_B = "/models/forglb - Copy.glb";
@@ -87,6 +108,7 @@ const FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD = 12;
 const AMENITY_MARKER_EDGE_PADDING_PX = 10;
 const AMENITY_MARKER_MAX_VISIBLE = 18;
 const AMENITY_MARKER_MIN_GAP_PX = 28;
+const AMENITY_MARKER_BUILDING_CLEARANCE_PX = 34;
 const MOBILE_STAGE_MAX_SCALE = 2.8;
 const MOBILE_STAGE_MIN_SCALE = 1;
 const MOBILE_STAGE_TAP_MOVE_THRESHOLD_PX = 10;
@@ -207,8 +229,14 @@ type TrackingDebugPoint = {
 
 type AmenityMarker = {
   id: string;
+  iconKey: MasterPlanAmenityIconKey;
   label: string;
   position: Vector3;
+};
+
+type ScreenPoint = {
+  x: number;
+  y: number;
 };
 
 type TrackingCameraRay = {
@@ -1026,9 +1054,93 @@ function getTrackingCameraRays(path: TrackingCameraView[] | null | undefined) {
 
 const MASTER_PLAN_AMENITY_MARKERS = masterPlanAmenities.map((amenity) => ({
   id: amenity.id,
+  iconKey: amenity.iconKey,
   label: amenity.label,
   position: unrealToThreePosition(amenity.coordinate),
 })) satisfies AmenityMarker[];
+
+const AMENITY_ICON_COMPONENTS: Record<MasterPlanAmenityIconKey, LucideIcon> = {
+  bird: Bird,
+  business: BriefcaseBusiness,
+  clubhouse: Building2,
+  fire: Flame,
+  fitness: Dumbbell,
+  flower: Flower2,
+  garden: Trees,
+  nature: Leaf,
+  party: PartyPopper,
+  pet: PawPrint,
+  play: ToyBrick,
+  pool: Waves,
+  rock: Gem,
+  sport: Goal,
+  theater: Theater,
+  track: Bike,
+};
+
+function getTowerFootprintPoints(footprint: TowerFootprint) {
+  return [footprint.ta1, footprint.ta2, footprint.ta3, footprint.ta4];
+}
+
+function pointInPolygon(point: ScreenPoint, polygon: ScreenPoint[]) {
+  let isInside = false;
+
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const current = polygon[i];
+    const previous = polygon[j];
+    const intersects =
+      current.y > point.y !== previous.y > point.y &&
+      point.x <
+        ((previous.x - current.x) * (point.y - current.y)) /
+          (previous.y - current.y || Number.EPSILON) +
+          current.x;
+
+    if (intersects) {
+      isInside = !isInside;
+    }
+  }
+
+  return isInside;
+}
+
+function distanceFromPointToSegment(
+  point: ScreenPoint,
+  segmentStart: ScreenPoint,
+  segmentEnd: ScreenPoint,
+) {
+  const dx = segmentEnd.x - segmentStart.x;
+  const dy = segmentEnd.y - segmentStart.y;
+
+  if (dx === 0 && dy === 0) {
+    return Math.hypot(point.x - segmentStart.x, point.y - segmentStart.y);
+  }
+
+  const t = clampNumber(
+    ((point.x - segmentStart.x) * dx + (point.y - segmentStart.y) * dy) /
+      (dx * dx + dy * dy),
+    0,
+    1,
+  );
+  const projectedX = segmentStart.x + t * dx;
+  const projectedY = segmentStart.y + t * dy;
+
+  return Math.hypot(point.x - projectedX, point.y - projectedY);
+}
+
+function distanceFromPointToPolygon(point: ScreenPoint, polygon: ScreenPoint[]) {
+  let minimumDistance = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < polygon.length; index += 1) {
+    const current = polygon[index];
+    const next = polygon[(index + 1) % polygon.length];
+    minimumDistance = Math.min(
+      minimumDistance,
+      distanceFromPointToSegment(point, current, next),
+    );
+  }
+
+  return minimumDistance;
+}
 
 const DEFAULT_STAGE_VIEWPORT_TRANSFORM: StageViewportTransform = {
   scale: 1,
@@ -2007,8 +2119,10 @@ const HoverTracker = memo(function HoverTracker({
 
 const AmenityMarkers = memo(function AmenityMarkers({
   amenities,
+  buildingFootprints,
 }: {
   amenities: AmenityMarker[];
+  buildingFootprints: TowerFootprint[];
 }) {
   const { camera, size } = useThree();
   const [hoveredAmenityId, setHoveredAmenityId] = useState<string | null>(null);
@@ -2038,6 +2152,33 @@ const AmenityMarkers = memo(function AmenityMarkers({
     camera.getWorldDirection(cameraDirectionRef.current);
     const maxVisibleAmenities = size.width < 768 ? 14 : AMENITY_MARKER_MAX_VISIBLE;
     const minimumGapPx = size.width < 768 ? 24 : AMENITY_MARKER_MIN_GAP_PX;
+    const buildingClearancePx =
+      size.width < 768
+        ? AMENITY_MARKER_BUILDING_CLEARANCE_PX - 6
+        : AMENITY_MARKER_BUILDING_CLEARANCE_PX;
+    const projectedBuildingPolygons = buildingFootprints
+      .map((footprint) =>
+        getTowerFootprintPoints(footprint)
+          .map((point) => {
+            const projectedPoint = projectedPointRef.current.copy(point).project(camera);
+
+            if (
+              !Number.isFinite(projectedPoint.x) ||
+              !Number.isFinite(projectedPoint.y) ||
+              projectedPoint.z < -1 ||
+              projectedPoint.z > 1
+            ) {
+              return null;
+            }
+
+            return {
+              x: ((projectedPoint.x + 1) * size.width) / 2,
+              y: ((1 - projectedPoint.y) * size.height) / 2,
+            } satisfies ScreenPoint;
+          })
+          .filter((point): point is ScreenPoint => point !== null),
+      )
+      .filter((polygon) => polygon.length >= 3);
 
     const projectedAmenities = amenities
       .flatMap((amenity) => {
@@ -2064,6 +2205,7 @@ const AmenityMarkers = memo(function AmenityMarkers({
 
         const screenX = ((projectedPoint.x + 1) * size.width) / 2;
         const screenY = ((1 - projectedPoint.y) * size.height) / 2;
+        const screenPoint = { x: screenX, y: screenY };
 
         if (
           screenX < AMENITY_MARKER_EDGE_PADDING_PX ||
@@ -2071,6 +2213,17 @@ const AmenityMarkers = memo(function AmenityMarkers({
           screenY < AMENITY_MARKER_EDGE_PADDING_PX ||
           screenY > size.height - AMENITY_MARKER_EDGE_PADDING_PX
         ) {
+          return [];
+        }
+
+        const overlapsProjectedBuilding = projectedBuildingPolygons.some(
+          (polygon) =>
+            pointInPolygon(screenPoint, polygon) ||
+            distanceFromPointToPolygon(screenPoint, polygon) <
+              buildingClearancePx,
+        );
+
+        if (overlapsProjectedBuilding) {
           return [];
         }
 
@@ -2117,7 +2270,7 @@ const AmenityMarkers = memo(function AmenityMarkers({
 
     visibleSignatureRef.current = nextSignature;
     setVisibleAmenityIds(visibleAmenities);
-  }, [amenities, camera, size.height, size.width]);
+  }, [amenities, buildingFootprints, camera, size.height, size.width]);
 
   useFrame(() => {
     syncVisibleAmenities();
@@ -2131,62 +2284,66 @@ const AmenityMarkers = memo(function AmenityMarkers({
     [amenityLookup, visibleAmenityIds],
   );
 
-  if (visibleAmenities.length === 0) {
-    return null;
+    if (visibleAmenities.length === 0) {
+      return null;
   }
 
   return (
     <group>
-      {visibleAmenities.map((amenity) => (
-        <Html
-          key={amenity.id}
-          center
-          position={amenity.position.toArray()}
-          style={{ pointerEvents: "auto" }}
-          zIndexRange={[16, 0]}
-        >
-          <div className="relative -translate-y-[38%]">
-            {hoveredAmenityId === amenity.id ? (
-              <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[calc(100%+0.45rem)] whitespace-nowrap rounded-full border border-white/20 bg-black/82 px-2.5 py-1 text-[10px] font-medium tracking-[0.01em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-md">
-                {amenity.label}
-              </div>
-            ) : null}
+      {visibleAmenities.map((amenity) => {
+        const Icon = AMENITY_ICON_COMPONENTS[amenity.iconKey];
 
-            <button
-              type="button"
-              aria-label={amenity.label}
-              className={`flex items-center justify-center text-[#ff4d57] drop-shadow-[0_0_12px_rgba(255,69,79,0.78)] transition duration-200 ${
-                hoveredAmenityId === amenity.id ? "scale-110" : "scale-100"
-              }`}
-              onBlur={() => {
-                setHoveredAmenityId((currentAmenityId) =>
-                  currentAmenityId === amenity.id ? null : currentAmenityId,
-                );
-              }}
-              onMouseEnter={() => {
-                setHoveredAmenityId(amenity.id);
-              }}
-              onMouseLeave={() => {
-                setHoveredAmenityId((currentAmenityId) =>
-                  currentAmenityId === amenity.id ? null : currentAmenityId,
-                );
-              }}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-              }}
-              onFocus={() => {
-                setHoveredAmenityId(amenity.id);
-              }}
-            >
-              <MapPin
-                aria-hidden="true"
-                className="h-4 w-4 stroke-[2.4]"
-              />
-            </button>
-          </div>
-        </Html>
-      ))}
+        return (
+          <Html
+            key={amenity.id}
+            center
+            position={amenity.position.toArray()}
+            style={{ pointerEvents: "auto" }}
+            zIndexRange={[16, 0]}
+          >
+            <div className="relative -translate-y-[38%]">
+              {hoveredAmenityId === amenity.id ? (
+                <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[calc(100%+0.45rem)] whitespace-nowrap rounded-full border border-white/20 bg-black/82 px-2.5 py-1 text-[10px] font-medium tracking-[0.01em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-md">
+                  {amenity.label}
+                </div>
+              ) : null}
+
+              <button
+                type="button"
+                aria-label={amenity.label}
+                className={`flex h-8 w-8 items-center justify-center rounded-full border border-black/25 bg-white text-black shadow-[0_10px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.92)] transition duration-200 ${
+                  hoveredAmenityId === amenity.id ? "scale-110" : "scale-100"
+                }`}
+                onBlur={() => {
+                  setHoveredAmenityId((currentAmenityId) =>
+                    currentAmenityId === amenity.id ? null : currentAmenityId,
+                  );
+                }}
+                onMouseEnter={() => {
+                  setHoveredAmenityId(amenity.id);
+                }}
+                onMouseLeave={() => {
+                  setHoveredAmenityId((currentAmenityId) =>
+                    currentAmenityId === amenity.id ? null : currentAmenityId,
+                  );
+                }}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+                onFocus={() => {
+                  setHoveredAmenityId(amenity.id);
+                }}
+              >
+                <Icon
+                  aria-hidden="true"
+                  className="h-4 w-4 stroke-[2.2]"
+                />
+              </button>
+            </div>
+          </Html>
+        );
+      })}
     </group>
   );
 });
@@ -2697,6 +2854,41 @@ const TowerScene = memo(function TowerScene({
     () => (showTowerMeshes ? MASTER_PLAN_AMENITY_MARKERS : []),
     [showTowerMeshes],
   );
+  const visibleTowerFootprints = useMemo(() => {
+    const footprints: TowerFootprint[] = [];
+
+    const towerAFootprint = towerATrackingTransform
+      ? transformTowerFootprint(
+          preparedTowerA.trackedTowerFootprints.A ??
+            preparedTowerA.towerFootprints.A,
+          towerATrackingTransform,
+        )
+      : preparedTowerA.towerFootprints.A ?? null;
+    const towerBFootprint = towerBTrackingTransform
+      ? transformTowerFootprint(
+          preparedTowerB.trackedTowerFootprints.B ??
+            preparedTowerB.towerFootprints.B,
+          towerBTrackingTransform,
+        )
+      : preparedTowerB.towerFootprints.B ?? null;
+
+    if (towerAFootprint) {
+      footprints.push(towerAFootprint);
+    }
+
+    if (towerBFootprint) {
+      footprints.push(towerBFootprint);
+    }
+
+    return footprints;
+  }, [
+    preparedTowerA.towerFootprints.A,
+    preparedTowerA.trackedTowerFootprints.A,
+    preparedTowerB.towerFootprints.B,
+    preparedTowerB.trackedTowerFootprints.B,
+    towerATrackingTransform,
+    towerBTrackingTransform,
+  ]);
   const hotspotHoveredApartmentId = useMemo(
     () =>
       hoveredApartmentId &&
@@ -2868,7 +3060,10 @@ const TowerScene = memo(function TowerScene({
       ) : null}
 
       {visibleAmenityMarkers.length > 0 ? (
-        <AmenityMarkers amenities={visibleAmenityMarkers} />
+        <AmenityMarkers
+          amenities={visibleAmenityMarkers}
+          buildingFootprints={visibleTowerFootprints}
+        />
       ) : null}
 
       {showTrackingDebug ? (

@@ -2,6 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { IconLayoutNavbarCollapse } from "@tabler/icons-react";
+import Link from "next/link";
 import {
   AnimatePresence,
   MotionValue,
@@ -60,12 +61,13 @@ const FloatingDockMobile = ({
                 }}
                 transition={{ delay: (items.length - 1 - idx) * 0.05 }}
               >
-                <a
+                <Link
                   href={item.href}
+                  onClick={() => setOpen(false)}
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-transparent "
                 >
                   <div className="h-4 w-4">{item.icon}</div>
-                </a>
+                </Link>
               </motion.div>
             ))}
           </motion.div>
@@ -190,7 +192,7 @@ function IconContainer({
   });
 
   return (
-    <a href={href}>
+    <Link href={href}>
       <motion.div
         ref={ref}
         style={{ width, height }}
@@ -218,6 +220,6 @@ function IconContainer({
           {icon}
         </motion.div>
       </motion.div>
-    </a>
+    </Link>
   );
 }
