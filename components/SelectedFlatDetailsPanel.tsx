@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { forwardRef, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
+  ArrowLeft,
   BedDouble,
   Building2,
   Expand,
@@ -17,7 +18,9 @@ import type { InventoryApartment } from "@/types/inventory";
 
 type SelectedFlatDetailsPanelProps = {
   apartment: InventoryApartment;
+  compact?: boolean;
   hideCloseButton?: boolean;
+  showBackButton?: boolean;
   onClose: () => void;
 };
 
@@ -70,6 +73,14 @@ function getStatusStyles(status: InventoryApartment["status"]) {
   };
 }
 
+function formatPriceLabel(priceLakhs: number) {
+  if (!Number.isFinite(priceLakhs) || priceLakhs <= 0) {
+    return "On request";
+  }
+
+  return `${priceLakhs} L`;
+}
+
 const metaCardClassName =
   "rounded-[22px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.02))] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]";
 
@@ -77,7 +88,13 @@ const SelectedFlatDetailsPanel = forwardRef<
   HTMLDivElement,
   SelectedFlatDetailsPanelProps
 >(function SelectedFlatDetailsPanel(
-  { apartment, hideCloseButton = false, onClose },
+  {
+    apartment,
+    compact = false,
+    hideCloseButton = false,
+    showBackButton = false,
+    onClose,
+  },
   ref,
 ) {
   const router = useRouter();
@@ -89,6 +106,266 @@ const SelectedFlatDetailsPanel = forwardRef<
   const handleOpenWalkthrough = useCallback(() => {
     router.push("/walkthrough");
   }, [router]);
+  const compactFacts = [
+    {
+      key: "tower",
+      label: "Tower",
+      value: apartment.tower,
+      icon: Building2,
+    },
+    {
+      key: "config",
+      label: "Configuration",
+      value: `${apartment.bhk} BHK`,
+      icon: BedDouble,
+    },
+    {
+      key: "area",
+      label: "Surface",
+      value: `${apartment.areaSqft} sqft`,
+      icon: Expand,
+    },
+    {
+      key: "facing",
+      label: "Orientation",
+      value: apartment.facing,
+      icon: MapPin,
+    },
+    {
+      key: "price",
+      label: "Price",
+      value: formatPriceLabel(apartment.priceLakhs),
+      icon: Expand,
+    },
+  ];
+
+  if (compact) {
+    return (
+      <motion.div
+        ref={ref}
+        initial={{ opacity: 0, x: 22, y: 10 }}
+        animate={{ opacity: 1, x: 0, y: 0 }}
+        exit={{ opacity: 0, x: 18, y: 8 }}
+        transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+        className="pointer-events-auto w-full max-w-[min(94vw,27rem)]"
+        data-scroll-area="flat-details-panel"
+        data-flat-details-panel
+        onTouchMoveCapture={(event) => {
+          event.stopPropagation();
+        }}
+        onWheelCapture={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        <div className="relative flex max-h-[min(82dvh,46rem)] min-h-0 flex-col overflow-hidden rounded-[32px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,228,196,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(171,135,86,0.10),transparent_28%)]" />
+
+          <div className="relative flex min-h-0 flex-1 flex-col p-4 sm:p-5">
+            <div className="flex items-center justify-between gap-3">
+              {showBackButton ? (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/78 transition hover:bg-white/12 hover:text-white"
+                  aria-label="Back to inventory filters"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
+              ) : (
+                <div className="h-10 w-10 shrink-0" />
+              )}
+
+              <div className="min-w-0 flex-1" />
+
+              {!hideCloseButton ? (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/78 transition hover:bg-white/12 hover:text-white"
+                  aria-label="Close flat details"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : (
+                <span
+                  className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] ${statusStyles.badgeClassName}`}
+                >
+                  <span
+                    className={`inline-flex h-2 w-2 rounded-full ${statusStyles.dotClassName}`}
+                  />
+                  {apartment.status}
+                </span>
+              )}
+            </div>
+
+            <div
+              className="group relative mt-4 overflow-hidden rounded-[28px] border border-white/12 bg-black/20"
+              onClick={handleOpenWalkthrough}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  handleOpenWalkthrough();
+                }
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <div className="relative aspect-[4/5] w-full sm:aspect-[5/6]">
+                <NextImage
+                  src={PANEL_PREVIEW_IMAGE}
+                  alt={`${apartment.title} walkthrough preview`}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 420px"
+                  className="object-cover transition duration-700 group-hover:scale-[1.04]"
+                />
+
+                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,10,14,0.04)_0%,rgba(8,10,14,0.10)_26%,rgba(8,10,14,0.26)_56%,rgba(8,10,14,0.62)_100%)]" />
+
+                <div className="absolute inset-x-0 top-0 flex items-start justify-between p-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-white/62">
+                      Walkthrough
+                    </p>
+                    <p className="mt-1 text-sm font-medium text-white/92">
+                      Private preview
+                    </p>
+                  </div>
+
+                  <span
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] ${statusStyles.badgeClassName}`}
+                  >
+                    <span
+                      className={`inline-flex h-2 w-2 rounded-full ${statusStyles.dotClassName}`}
+                    />
+                    {apartment.status}
+                  </span>
+                </div>
+
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleOpenWalkthrough();
+                    }}
+                    className="relative flex h-[4.9rem] w-[4.9rem] items-center justify-center rounded-full border border-white/55 bg-white/86 shadow-[0_22px_46px_rgba(15,23,42,0.24)] backdrop-blur-md transition duration-300 hover:scale-105 hover:bg-white sm:h-[5.4rem] sm:w-[5.4rem]"
+                    aria-label="Play walkthrough preview"
+                  >
+                    <span className="absolute inset-[6px] rounded-full border border-zinc-900/10" />
+                    <Play className="relative ml-1 h-7 w-7 fill-zinc-900 text-zinc-900 sm:h-8 sm:w-8" />
+                  </button>
+                </div>
+
+                <div className="absolute inset-x-0 bottom-0 p-4">
+                  <div className="flex items-end justify-between gap-3 rounded-[20px] border border-white/12 bg-[linear-gradient(180deg,rgba(10,12,17,0.72),rgba(10,12,17,0.54))] px-4 py-3 backdrop-blur-md">
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-[0.26em] text-white/42">
+                        Selected Flat
+                      </p>
+                      <p className="mt-1 truncate text-[1.8rem] font-semibold leading-none tracking-[-0.06em] text-white">
+                        {apartment.title}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-[10px] uppercase tracking-[0.26em] text-white/42">
+                        Floor
+                      </p>
+                      <p className="mt-1 text-lg font-medium text-white/88">
+                        {apartment.floorLabel || apartment.floor}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-white/10 pb-4">
+              {compactFacts.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <div key={item.key} className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5">
+                      <Icon className="h-4 w-4 text-[#d9c29c]" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-white/38">
+                        {item.label}
+                      </p>
+                      <p className="mt-1 truncate text-sm font-medium text-white/92">
+                        {item.value}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-4 flex min-h-0 flex-1 flex-col">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.26em] text-white/38">
+                    Dimensions
+                  </p>
+                  <p className="mt-1 text-base font-semibold tracking-[-0.03em] text-white">
+                    Room dimensions
+                  </p>
+                </div>
+
+                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-white/54">
+                  {dimensionItems.length} rooms
+                </div>
+              </div>
+
+              <div className="custom-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+                <div className="space-y-3 pb-1">
+                  {dimensionItems.length > 0 ? (
+                    dimensionItems.map((item, index) => (
+                      <div
+                        key={item.key}
+                        className="flex items-start justify-between gap-3 border-b border-white/8 pb-3 last:border-b-0 last:pb-0"
+                      >
+                        <div className="flex min-w-0 items-start gap-3">
+                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5">
+                            <Ruler className="h-4 w-4 text-[#d6c29d]" />
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-white/32">
+                              {String(index + 1).padStart(2, "0")}
+                            </p>
+                            <p className="mt-1 truncate text-sm font-medium text-white/88">
+                              {item.label}
+                            </p>
+                          </div>
+                        </div>
+
+                        <p className="shrink-0 text-right text-sm font-semibold tracking-[0.01em] text-[#f2e6cc]">
+                          {item.value}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-6 text-sm text-white/52">
+                      Room dimensions are not available for this apartment yet.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleOpenWalkthrough}
+              className="mt-4 inline-flex w-full items-center justify-center rounded-full border border-[#dcc59b]/30 bg-[linear-gradient(135deg,#e4cfaa_0%,#c9a874_52%,#f1dfc1_100%)] px-4 py-3 text-sm font-semibold text-[#17120c] shadow-[0_18px_40px_rgba(0,0,0,0.22)] transition hover:brightness-105"
+            >
+              Open walkthrough
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div

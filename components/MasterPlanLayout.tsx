@@ -278,6 +278,9 @@ export default function MasterPlanLayout({
   );
   const isSpecialVideoExperienceActive =
     isSpecialVideoLaunching || isSpecialVideoOpen;
+  const isFlatPanelOpen = Boolean(
+    selectedApartment || (isSpecialVideoCompleted && specialVideoApartment),
+  );
   const activeSpecialVideoUrl = isSpecialVideoReversing
     ? SPECIAL_UNIT_VIDEO_REVERSE_URL
     : SPECIAL_UNIT_VIDEO_URL;
@@ -285,6 +288,18 @@ export default function MasterPlanLayout({
   useEffect(() => {
     currentFrameRef.current = currentFrame;
   }, [currentFrame]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    document.body.dataset.masterPlanFlatOpen = isFlatPanelOpen ? "true" : "false";
+
+    return () => {
+      delete document.body.dataset.masterPlanFlatOpen;
+    };
+  }, [isFlatPanelOpen]);
 
   useEffect(() => {
     const preloadLink = document.createElement("link");
@@ -1046,10 +1061,22 @@ export default function MasterPlanLayout({
         </div>
 
         <div className="mt-2 min-h-0 flex-1 px-3 pb-3">
-          <div className="surface-contain flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_24px_64px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70">
+          <div
+            className={
+              selectedApartment
+                ? "flex h-full min-h-0 flex-col"
+                : "surface-contain flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_24px_64px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70"
+            }
+          >
             {selectedApartment ? (
-              <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                Flat details are open above.
+              <div className="custom-scrollbar flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-1 py-2 [-webkit-overflow-scrolling:touch]">
+                <SelectedFlatDetailsPanel
+                  ref={selectedFlatPanelRef}
+                  apartment={selectedApartment}
+                  compact
+                  showBackButton
+                  onClose={clearSelectedApartment}
+                />
               </div>
             ) : selectedTower ? (
               <div
@@ -1099,24 +1126,6 @@ export default function MasterPlanLayout({
         </div>
       </div>
 
-      <AnimatePresence>
-        {selectedApartment ? (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 12 }}
-            transition={{ duration: 0.22, ease: smoothEase }}
-            className="pointer-events-none absolute inset-x-0 bottom-4 z-40 px-3 xl:hidden"
-          >
-            <SelectedFlatDetailsPanel
-              ref={selectedFlatPanelRef}
-              apartment={selectedApartment}
-              onClose={clearSelectedApartment}
-            />
-          </motion.div>
-        ) : null}
-      </AnimatePresence>
-
       <div
         className={`pointer-events-none relative z-10 hidden h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8 xl:block ${
           isSpecialVideoExperienceActive ? "opacity-0" : "opacity-100"
@@ -1134,6 +1143,26 @@ export default function MasterPlanLayout({
           {!selectedApartment ? (
             <div className="pointer-events-none hidden xl:block" />
           ) : null}
+
+          <AnimatePresence>
+            {selectedApartment ? (
+              <motion.div
+                initial={{ opacity: 0, x: 24, y: 12 }}
+                animate={{ opacity: 1, x: 0, y: 0 }}
+                exit={{ opacity: 0, x: 24, y: 12 }}
+                transition={{ duration: 0.26, ease: smoothEase }}
+                className="pointer-events-none absolute right-6 top-1/2 z-40 w-full max-w-[26rem] -translate-y-1/2 2xl:right-10"
+              >
+                <SelectedFlatDetailsPanel
+                  ref={selectedFlatPanelRef}
+                  apartment={selectedApartment}
+                  compact
+                  showBackButton
+                  onClose={clearSelectedApartment}
+                />
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
 
           <AnimatePresence mode="wait">
             {!isLeaving && !selectedApartment ? (
@@ -1303,24 +1332,6 @@ export default function MasterPlanLayout({
           </>
         ) : null}
 
-        <AnimatePresence>
-          {selectedApartment ? (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 12 }}
-              transition={{ duration: 0.22, ease: smoothEase }}
-              className="pointer-events-none absolute inset-x-0 bottom-4 z-40 px-3 sm:bottom-6 sm:px-5 lg:px-8"
-            >
-              <SelectedFlatDetailsPanel
-                ref={selectedFlatPanelRef}
-                apartment={selectedApartment}
-                onClose={clearSelectedApartment}
-              />
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-
       </div>
 
       <AnimatePresence>
@@ -1367,16 +1378,18 @@ export default function MasterPlanLayout({
               !isSpecialVideoReversing &&
               specialVideoApartment ? (
                 <motion.div
-                  initial={{ opacity: 0, y: 18 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 18 }}
+                  initial={{ opacity: 0, x: 24, y: 12 }}
+                  animate={{ opacity: 1, x: 0, y: 0 }}
+                  exit={{ opacity: 0, x: 24, y: 12 }}
                   transition={{ duration: 0.28, ease: smoothEase }}
-                  className="absolute inset-x-0 bottom-4 z-20 px-3 sm:bottom-6 sm:px-5 lg:px-8"
+                  className="pointer-events-none absolute inset-x-3 bottom-3 z-20 sm:inset-x-auto sm:right-5 sm:top-1/2 sm:bottom-auto sm:w-full sm:max-w-[27rem] sm:-translate-y-1/2 lg:right-8"
                 >
                   <SelectedFlatDetailsPanel
                     apartment={specialVideoApartment}
+                    compact
                     hideCloseButton
-                    onClose={() => {}}
+                    showBackButton
+                    onClose={handleSpecialVideoBack}
                   />
                 </motion.div>
               ) : null}

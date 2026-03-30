@@ -1098,14 +1098,37 @@ function buildFlatCandidates(
 ) {
   const apartment = formatApartmentLabel(apartmentId, fallbackTower);
   const unitToken = normalizeFlatToken(apartment.unit ?? "");
+  const floorToken = normalizeFlatToken(apartment.floor ?? "");
   const towerCode = normalizeFlatToken(apartment.towerCode);
+  const compoundUnitTokens = new Set<string>();
+
+  if (floorToken && unitToken) {
+    const trimmedUnitToken = unitToken.replace(/^0+/, "");
+    const unitSlices = new Set([
+      unitToken,
+      unitToken.slice(-3),
+      unitToken.slice(-2),
+      trimmedUnitToken,
+    ]);
+
+    unitSlices.forEach((unitSlice) => {
+      if (!unitSlice) {
+        return;
+      }
+
+      compoundUnitTokens.add(`${floorToken}${unitSlice}`);
+    });
+  }
 
   return new Set(
     [
       unitToken,
+      ...compoundUnitTokens,
       `${towerCode}${unitToken}`,
       `T${towerCode}${unitToken}`,
       `${towerCode}FLAT${unitToken}`,
+      ...Array.from(compoundUnitTokens, (token) => `${towerCode}${token}`),
+      ...Array.from(compoundUnitTokens, (token) => `T${towerCode}${token}`),
     ].filter(Boolean),
   );
 }
@@ -1145,14 +1168,44 @@ function buildInventoryApartmentIndex(
 
     const flatToken = normalizeFlatToken(apartment.flatNumber);
     const titleToken = normalizeFlatToken(apartment.title);
+    const flatDigitsToken = normalizeFlatToken(
+      apartment.flatNumber.replace(/[^0-9]/g, ""),
+    );
+    const titleDigitsToken = normalizeFlatToken(
+      apartment.title.replace(/[^0-9]/g, ""),
+    );
+    const towerCode = apartment.tower === "Tower B" ? "B" : "A";
+    const floorToken = String(apartment.floor).replace(/[^0-9]/g, "").padStart(2, "0");
+    const numericVariants = new Set(
+      [flatDigitsToken, titleDigitsToken].filter(Boolean),
+    );
+    const indexTokens = new Set<string>(
+      [flatToken, titleToken, `${towerCode}${flatToken}`, `${towerCode}${titleToken}`].filter(
+        Boolean,
+      ),
+    );
 
-    if (flatToken && !towerIndex.has(flatToken)) {
-      towerIndex.set(flatToken, apartment);
-    }
+    numericVariants.forEach((numericToken) => {
+      indexTokens.add(numericToken);
+      indexTokens.add(`${towerCode}${numericToken}`);
+      indexTokens.add(`T${towerCode}${numericToken}`);
 
-    if (titleToken && !towerIndex.has(titleToken)) {
-      towerIndex.set(titleToken, apartment);
-    }
+      const lastTwo = numericToken.slice(-2);
+      const lastThree = numericToken.slice(-3);
+      const lastFour = numericToken.slice(-4);
+
+      [lastTwo, lastThree, lastFour].filter(Boolean).forEach((sliceToken) => {
+        indexTokens.add(sliceToken);
+        indexTokens.add(`${floorToken}${sliceToken}`);
+        indexTokens.add(`${towerCode}${floorToken}${sliceToken}`);
+      });
+    });
+
+    indexTokens.forEach((token) => {
+      if (token && !towerIndex.has(token)) {
+        towerIndex.set(token, apartment);
+      }
+    });
   });
 
   return index;
@@ -2171,7 +2224,9 @@ const TowerScene = memo(function TowerScene({
   const hotspotScopedPickableMeshes = useMemo(
     () =>
       hoverPickableMeshes.filter((mesh) => {
-        const apartmentId = resolveApartmentIdFromObject(mesh);
+        const apartmentId =
+          (mesh.userData.apartmentId as string | undefined) ??
+          resolveApartmentIdFromObject(mesh);
 
         return apartmentId ? inventoryBackedApartmentIds.has(apartmentId) : false;
       }),
