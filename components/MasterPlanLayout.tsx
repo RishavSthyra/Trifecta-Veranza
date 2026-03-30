@@ -255,6 +255,7 @@ export default function MasterPlanLayout({
   const [isLeaving, setIsLeaving] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [isTouchTabletViewport, setIsTouchTabletViewport] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(1);
   const [isStageInteracting, setIsStageInteracting] = useState(false);
   const [selectedApartment, setSelectedApartment] =
@@ -281,6 +282,8 @@ export default function MasterPlanLayout({
   const isFlatPanelOpen = Boolean(
     selectedApartment || (isSpecialVideoCompleted && specialVideoApartment),
   );
+  const shouldUseTouchBackNavigation =
+    isCompactViewport || isTouchTabletViewport;
   const activeSpecialVideoUrl = isSpecialVideoReversing
     ? SPECIAL_UNIT_VIDEO_REVERSE_URL
     : SPECIAL_UNIT_VIDEO_URL;
@@ -364,15 +367,21 @@ export default function MasterPlanLayout({
     }
 
     const compactViewportMedia = window.matchMedia("(max-width: 1279px)");
+    const touchViewportMedia = window.matchMedia("(max-width: 1366px)");
     const syncCompactViewport = () => {
       setIsCompactViewport(compactViewportMedia.matches);
+      setIsTouchTabletViewport(
+        touchViewportMedia.matches && window.navigator.maxTouchPoints > 0,
+      );
     };
 
     syncCompactViewport();
     compactViewportMedia.addEventListener("change", syncCompactViewport);
+    touchViewportMedia.addEventListener("change", syncCompactViewport);
 
     return () => {
       compactViewportMedia.removeEventListener("change", syncCompactViewport);
+      touchViewportMedia.removeEventListener("change", syncCompactViewport);
     };
   }, []);
 
@@ -832,6 +841,10 @@ export default function MasterPlanLayout({
     }
   }, [router]);
 
+  const handleCompactBackToHome = useCallback(() => {
+    router.push("/");
+  }, [router]);
+
   useEffect(() => {
     const getScrollAreaElement = (target: EventTarget | null) => {
       if (target instanceof HTMLElement) {
@@ -868,6 +881,10 @@ export default function MasterPlanLayout({
 
       if (isInsideScrollArea(target)) return;
 
+      if (shouldUseTouchBackNavigation) {
+        return;
+      }
+
       if (e.deltaY < -20) {
         e.preventDefault();
         e.stopPropagation();
@@ -900,6 +917,10 @@ export default function MasterPlanLayout({
         return;
       }
 
+      if (shouldUseTouchBackNavigation) {
+        return;
+      }
+
       const upKeys = ["ArrowUp", "PageUp", "Home"];
       if (upKeys.includes(e.key)) {
         e.preventDefault();
@@ -908,6 +929,11 @@ export default function MasterPlanLayout({
     };
 
     const handleTouchStart = (e: TouchEvent) => {
+      if (shouldUseTouchBackNavigation) {
+        touchStartYRef.current = null;
+        return;
+      }
+
       if (isInsideScrollArea(e.target)) {
         touchStartYRef.current = null;
         return;
@@ -922,6 +948,10 @@ export default function MasterPlanLayout({
       if (leavingRef.current) {
         e.preventDefault();
         e.stopPropagation();
+        return;
+      }
+
+      if (shouldUseTouchBackNavigation) {
         return;
       }
 
@@ -966,7 +996,7 @@ export default function MasterPlanLayout({
         blockAllScrollLikeActions as EventListener,
       );
     };
-  }, [goToHotspot, leaveToHome]);
+  }, [goToHotspot, leaveToHome, shouldUseTouchBackNavigation]);
 
   return (
     <div
@@ -1005,6 +1035,21 @@ export default function MasterPlanLayout({
         />
       </video>
 
+      {shouldUseTouchBackNavigation &&
+      !isLeaving &&
+      !isSpecialVideoExperienceActive ? (
+        <div className="pointer-events-none absolute inset-x-0 top-[max(env(safe-area-inset-top),0.75rem)] z-50 flex justify-start px-3 sm:px-4">
+          <button
+            type="button"
+            onClick={handleCompactBackToHome}
+            className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/92 px-4 py-2.5 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl transition hover:bg-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back Home
+          </button>
+        </div>
+      ) : null}
+
       {!isCompactViewport &&
       !isLeaving &&
       !isSpecialVideoExperienceActive &&
@@ -1042,7 +1087,7 @@ export default function MasterPlanLayout({
               selectedTower={selectedTower}
             />
 
-            {!isLeaving && selectedTower ? (
+            {!isLeaving && !isSpecialVideoExperienceActive ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-[max(env(safe-area-inset-bottom),1rem)] z-30 flex justify-center px-4">
                 <MasterPlanHotspotControls
                   compact

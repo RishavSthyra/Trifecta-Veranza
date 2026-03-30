@@ -312,7 +312,7 @@ export default function HeroSection() {
         </button>
       </div>
 
-      <div className="relative z-10 flex h-full items-center justify-center px-6">
+      <div className="absolute inset-0 z-10 flex items-center justify-center px-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-[max(env(safe-area-inset-top),1.5rem)]">
         <motion.div
           variants={contentWrap}
           initial="show"

@@ -2941,6 +2941,7 @@ export default function MasterPlanFrameHoverStage({
   const mobileGestureRef = useRef<MobileStageGestureState>(
     createDefaultMobileStageGestureState(),
   );
+  const lastTouchSelectionTimestampRef = useRef(0);
   const [performanceProfile, setPerformanceProfile] =
     useState<MasterPlanPerformanceProfile>(() =>
       getMasterPlanPerformanceProfile(),
@@ -4001,6 +4002,7 @@ export default function MasterPlanFrameHoverStage({
         gestureState.mode === "tap" &&
         !gestureState.moved
       ) {
+        lastTouchSelectionTimestampRef.current = window.performance.now();
         selectApartmentByMeshId(
           pointerSelectionRef.current?.(
             changedTouch.clientX,
@@ -4123,7 +4125,11 @@ export default function MasterPlanFrameHoverStage({
                 }
 
                 if (!dragEnabled) {
-                  if (event.pointerType === "touch") {
+                  if (
+                    event.pointerType === "touch" &&
+                    window.performance.now() - lastTouchSelectionTimestampRef.current <
+                      400
+                  ) {
                     return;
                   }
 
