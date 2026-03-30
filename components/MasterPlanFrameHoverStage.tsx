@@ -34,6 +34,7 @@ import {
   Object3D,
   PerspectiveCamera as ThreePerspectiveCamera,
   Quaternion,
+  Raycaster,
   Vector2,
   Vector3,
 } from "three";
@@ -2120,14 +2121,19 @@ const HoverTracker = memo(function HoverTracker({
 const AmenityMarkers = memo(function AmenityMarkers({
   amenities,
   buildingFootprints,
+  occlusionMeshes,
 }: {
   amenities: AmenityMarker[];
   buildingFootprints: TowerFootprint[];
+  occlusionMeshes: Mesh[];
 }) {
   const { camera, size } = useThree();
   const [hoveredAmenityId, setHoveredAmenityId] = useState<string | null>(null);
-  const [visibleAmenityIds, setVisibleAmenityIds] = useState<string[]>([]);
+  const [visibleAmenitiesState, setVisibleAmenitiesState] = useState<
+    Array<{ id: string; scale: number }>
+  >([]);
   const visibleSignatureRef = useRef("");
+  const occlusionRaycaster = useMemo(() => new Raycaster(), []);
   const cameraPositionRef = useRef(new Vector3());
   const cameraDirectionRef = useRef(new Vector3());
   const projectedPointRef = useRef(new Vector3());
@@ -2141,7 +2147,7 @@ const AmenityMarkers = memo(function AmenityMarkers({
     if (size.width <= 0 || size.height <= 0 || amenities.length === 0) {
       if (visibleSignatureRef.current !== "") {
         visibleSignatureRef.current = "";
-        setVisibleAmenityIds([]);
+        setVisibleAmenitiesState([]);
       }
 
       return;
@@ -2185,9 +2191,31 @@ const AmenityMarkers = memo(function AmenityMarkers({
         const directionToAmenity = amenity.position
           .clone()
           .sub(cameraPositionRef.current);
+        const distanceToAmenity = directionToAmenity.length();
 
         if (directionToAmenity.dot(cameraDirectionRef.current) <= 0) {
           return [];
+        }
+
+        if (distanceToAmenity <= 0.01) {
+          return [];
+        }
+
+        occlusionRaycaster.set(
+          cameraPositionRef.current,
+          directionToAmenity.clone().normalize(),
+        );
+        occlusionRaycaster.near = 0.05;
+        occlusionRaycaster.far = Math.max(distanceToAmenity - 0.35, 0.05);
+
+        if (occlusionMeshes.length > 0) {
+          const isOccludedByTowerMesh =
+            occlusionRaycaster.intersectObjects(occlusionMeshes, false).length >
+            0;
+
+          if (isOccludedByTowerMesh) {
+            return [];
+          }
         }
 
         const projectedPoint = projectedPointRef.current
@@ -2230,9 +2258,7 @@ const AmenityMarkers = memo(function AmenityMarkers({
         return [
           {
             amenity,
-            distanceSq: cameraPositionRef.current.distanceToSquared(
-              amenity.position,
-            ),
+            distanceSq: distanceToAmenity * distanceToAmenity,
             screenX,
             screenY,
           },
@@ -2240,7 +2266,12 @@ const AmenityMarkers = memo(function AmenityMarkers({
       })
       .sort((left, right) => left.distanceSq - right.distanceSq);
 
-    const visibleAmenities: string[] = [];
+    const nearestDistance = Math.sqrt(projectedAmenities[0]?.distanceSq ?? 0);
+    const farthestDistance = Math.sqrt(
+      projectedAmenities.at(-1)?.distanceSq ?? nearestDistance + 1,
+    );
+
+    const visibleAmenities: Array<{ id: string; scale: number }> = [];
     const occupiedPoints: Array<{ x: number; y: number }> = [];
 
     projectedAmenities.some((candidate) => {
@@ -2257,20 +2288,40 @@ const AmenityMarkers = memo(function AmenityMarkers({
         x: candidate.screenX,
         y: candidate.screenY,
       });
-      visibleAmenities.push(candidate.amenity.id);
+      const candidateDistance = Math.sqrt(candidate.distanceSq);
+      const normalizedDistance =
+        farthestDistance - nearestDistance <= 0.001
+          ? 0
+          : (candidateDistance - nearestDistance) /
+            (farthestDistance - nearestDistance);
+
+      visibleAmenities.push({
+        id: candidate.amenity.id,
+        scale: clampNumber(1.18 - normalizedDistance * 0.28, 0.84, 1.18),
+      });
 
       return visibleAmenities.length >= maxVisibleAmenities;
     });
 
-    const nextSignature = visibleAmenities.join("|");
+    const nextSignature = visibleAmenities
+      .map((amenity) => `${amenity.id}:${amenity.scale.toFixed(2)}`)
+      .join("|");
 
     if (nextSignature === visibleSignatureRef.current) {
       return;
     }
 
     visibleSignatureRef.current = nextSignature;
-    setVisibleAmenityIds(visibleAmenities);
-  }, [amenities, buildingFootprints, camera, size.height, size.width]);
+    setVisibleAmenitiesState(visibleAmenities);
+  }, [
+    amenities,
+    buildingFootprints,
+    camera,
+    occlusionRaycaster,
+    occlusionMeshes,
+    size.height,
+    size.width,
+  ]);
 
   useFrame(() => {
     syncVisibleAmenities();
@@ -2278,14 +2329,29 @@ const AmenityMarkers = memo(function AmenityMarkers({
 
   const visibleAmenities = useMemo(
     () =>
-      visibleAmenityIds
-        .map((amenityId) => amenityLookup.get(amenityId) ?? null)
-        .filter((amenity): amenity is AmenityMarker => amenity !== null),
-    [amenityLookup, visibleAmenityIds],
+      visibleAmenitiesState
+        .map((amenityState) => {
+          const amenity = amenityLookup.get(amenityState.id) ?? null;
+
+          if (!amenity) {
+            return null;
+          }
+
+          return {
+            ...amenity,
+            scale: amenityState.scale,
+          };
+        })
+        .filter(
+          (
+            amenity,
+          ): amenity is AmenityMarker & { scale: number } => amenity !== null,
+        ),
+    [amenityLookup, visibleAmenitiesState],
   );
 
-    if (visibleAmenities.length === 0) {
-      return null;
+  if (visibleAmenities.length === 0) {
+    return null;
   }
 
   return (
@@ -2311,9 +2377,10 @@ const AmenityMarkers = memo(function AmenityMarkers({
               <button
                 type="button"
                 aria-label={amenity.label}
-                className={`flex h-8 w-8 items-center justify-center rounded-full border border-black/25 bg-white text-black shadow-[0_10px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.92)] transition duration-200 ${
-                  hoveredAmenityId === amenity.id ? "scale-110" : "scale-100"
-                }`}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-black/25 bg-white text-black shadow-[0_10px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.92)] transition duration-200"
+                style={{
+                  transform: `scale(${amenity.scale * (hoveredAmenityId === amenity.id ? 1.08 : 1)})`,
+                }}
                 onBlur={() => {
                   setHoveredAmenityId((currentAmenityId) =>
                     currentAmenityId === amenity.id ? null : currentAmenityId,
@@ -3063,6 +3130,7 @@ const TowerScene = memo(function TowerScene({
         <AmenityMarkers
           amenities={visibleAmenityMarkers}
           buildingFootprints={visibleTowerFootprints}
+          occlusionMeshes={combinedPickableMeshes}
         />
       ) : null}
 

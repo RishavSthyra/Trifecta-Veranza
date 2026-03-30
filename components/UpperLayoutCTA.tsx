@@ -1,10 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { FiPhone, FiDownload, FiDollarSign, FiGrid, FiHome } from "react-icons/fi";
+import { BiHome } from "react-icons/bi";
+import { IoMapOutline } from "react-icons/io5";
+import { PiMapPinAreaFill } from "react-icons/pi";
+import { User } from "lucide-react";
 
 interface CtaButtonType {
   name: string;
@@ -16,6 +20,7 @@ interface CtaButtonType {
 
 type UpperLayoutCTAProps = {
   onQuoteClick: () => void;
+  mergeRouteLinks?: boolean;
 };
 
 const spring: Transition = {
@@ -24,12 +29,15 @@ const spring: Transition = {
   damping: 24,
 };
 
-export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
+export default function UpperLayoutCTA({
+  onQuoteClick,
+  mergeRouteLinks = false,
+}: UpperLayoutCTAProps) {
   const pathname = usePathname();
   const [hovered, setHovered] = useState<string | null>(null);
   const isMasterPlanRoute = pathname === "/master-plan";
 
-  const buttons: CtaButtonType[] = [
+  const primaryButtons: CtaButtonType[] = [
     {
       name: "Contact Us",
       link: "tel:+91-808 800 4411",
@@ -63,17 +71,57 @@ export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
     },
   ];
 
+  const routeButtons = useMemo(() => {
+    if (!mergeRouteLinks) {
+      return [];
+    }
+
+    return [
+      {
+        name: "Home",
+        link: "/",
+        action: "link",
+        isHighlight: false,
+        icon: <BiHome className="h-4 w-4" />,
+      },
+      {
+        name: "Project Overview",
+        link: "/project-overview",
+        action: "link",
+        isHighlight: false,
+        icon: <User className="h-4 w-4" />,
+      },
+      {
+        name: "Master Plan",
+        link: "/master-plan",
+        action: "link",
+        isHighlight: false,
+        icon: <PiMapPinAreaFill className="h-4 w-4" />,
+      },
+      {
+        name: "Map",
+        link: "/area-map",
+        action: "link",
+        isHighlight: false,
+        icon: <IoMapOutline className="h-4 w-4" />,
+      },
+    ].filter((button) => !(isMasterPlanRoute && button.name === "Home"));
+  }, [isMasterPlanRoute, mergeRouteLinks]);
+
+  const buttons = [...primaryButtons, ...routeButtons];
+  const shouldShowLabels = !mergeRouteLinks;
+
   return (
-    <div className="pointer-events-none absolute left-1/2 top-3 z-50 -translate-x-1/2 md:top-0">
+    <div className="pointer-events-none absolute left-1/2 top-3 z-50 w-full max-w-[calc(100vw-1rem)] -translate-x-1/2 px-2 md:top-0 md:max-w-none md:px-0">
       <motion.div
         layout
         transition={spring}
-        className="pointer-events-auto relative inline-block w-fit"
+        className="pointer-events-auto relative mx-auto w-fit max-w-full"
       >
         <motion.div
           layout
           transition={spring}
-          className="relative overflow-visible rounded-full border border-white/20 bg-black px-4 py-3 shadow-[0_20px_90px_rgba(0,0,0,0.8)] backdrop-blur-xl md:rounded-t-[75px] md:px-16 md:py-4"
+          className="relative max-w-full overflow-visible rounded-full border border-white/20 bg-black px-3 py-3 shadow-[0_20px_90px_rgba(0,0,0,0.8)] backdrop-blur-xl md:rounded-t-[75px] md:px-16 md:py-4"
         >
           {/* Right Wave */}
           <svg
@@ -101,9 +149,13 @@ export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
             />
           </svg>
 
-          <motion.div layout transition={spring} className="flex gap-2">
+          <motion.div
+            layout
+            transition={spring}
+            className="flex max-w-[calc(100vw-2rem)] items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:max-w-none md:gap-2"
+          >
             {buttons.map((button) => {
-              const isHovered = hovered === button.name;
+              const isHovered = shouldShowLabels && hovered === button.name;
 
               return (
                 <motion.div
@@ -118,18 +170,18 @@ export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
                       <motion.div
                         layout
                         transition={spring}
-                        className={`inline-flex items-center justify-center overflow-hidden rounded-xl border text-xs font-medium md:text-xs ${
+                        className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border text-xs font-medium md:text-xs ${
                           button.isHighlight
                             ? "bg-white text-zinc-900 shadow-md"
                             : "border-white/10 bg-white/10 text-white"
                         }`}
                         animate={{
-                          paddingLeft: isHovered ? 16 : 10,
-                          paddingRight: isHovered ? 16 : 10,
+                          paddingLeft: isHovered ? 16 : mergeRouteLinks ? 9 : 10,
+                          paddingRight: isHovered ? 16 : mergeRouteLinks ? 9 : 10,
                         }}
                       >
                         <motion.span
-                          className="flex h-9 w-4 items-center justify-center md:h-10"
+                          className="flex h-8 w-4 items-center justify-center md:h-10"
                           animate={{ scale: isHovered ? 1.08 : 1 }}
                           transition={spring}
                         >
@@ -137,7 +189,7 @@ export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
                         </motion.span>
 
                         <AnimatePresence initial={false}>
-                          {isHovered && (
+                          {shouldShowLabels && isHovered && (
                             <motion.span
                               initial={{ width: 0, opacity: 0, x: -8 }}
                               animate={{ width: "auto", opacity: 1, x: 0 }}
@@ -157,18 +209,18 @@ export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
                       layout
                       transition={spring}
                       onClick={onQuoteClick}
-                      className={`inline-flex items-center justify-center overflow-hidden rounded-xl border text-xs font-medium md:text-xs ${
+                      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border text-xs font-medium md:text-xs ${
                         button.isHighlight
                           ? "bg-white text-zinc-900 shadow-md"
                           : "border-white/10 bg-white/10 text-white"
                       }`}
                       animate={{
-                        paddingLeft: isHovered ? 16 : 10,
-                        paddingRight: isHovered ? 16 : 10,
+                        paddingLeft: isHovered ? 16 : mergeRouteLinks ? 9 : 10,
+                        paddingRight: isHovered ? 16 : mergeRouteLinks ? 9 : 10,
                       }}
                     >
                       <motion.span
-                        className="flex h-9 w-4 items-center justify-center md:h-10"
+                        className="flex h-8 w-4 items-center justify-center md:h-10"
                         animate={{ scale: isHovered ? 1.08 : 1 }}
                         transition={spring}
                       >
@@ -176,7 +228,7 @@ export default function UpperLayoutCTA({ onQuoteClick }: UpperLayoutCTAProps) {
                       </motion.span>
 
                       <AnimatePresence initial={false}>
-                        {isHovered && (
+                        {shouldShowLabels && isHovered && (
                           <motion.span
                             initial={{ width: 0, opacity: 0, x: -8 }}
                             animate={{ width: "auto", opacity: 1, x: 0 }}

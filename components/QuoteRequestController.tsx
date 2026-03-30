@@ -8,12 +8,19 @@ const QuoteRequestModal = dynamic(() => import("./QuoteRequestModal"), {
   ssr: false,
 });
 
-export default function QuoteRequestController() {
+export default function QuoteRequestController({
+  mergeRouteLinks = false,
+}: {
+  mergeRouteLinks?: boolean;
+}) {
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
 
   return (
     <>
-      <UpperLayoutCTA onQuoteClick={() => setIsQuoteModalOpen(true)} />
+      <UpperLayoutCTA
+        mergeRouteLinks={mergeRouteLinks}
+        onQuoteClick={() => setIsQuoteModalOpen(true)}
+      />
       <QuoteRequestModal
         isOpen={isQuoteModalOpen}
         onClose={() => setIsQuoteModalOpen(false)}

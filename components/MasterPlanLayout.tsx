@@ -282,8 +282,10 @@ export default function MasterPlanLayout({
   const isFlatPanelOpen = Boolean(
     selectedApartment || (isSpecialVideoCompleted && specialVideoApartment),
   );
-  const shouldUseTouchBackNavigation =
+  const shouldUseCompactLayout =
     isCompactViewport || isTouchTabletViewport;
+  const shouldUseTouchBackNavigation =
+    shouldUseCompactLayout;
   const activeSpecialVideoUrl = isSpecialVideoReversing
     ? SPECIAL_UNIT_VIDEO_REVERSE_URL
     : SPECIAL_UNIT_VIDEO_URL;
@@ -999,7 +1001,7 @@ export default function MasterPlanLayout({
       ref={rootRef}
       className="relative app-screen w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
     >
-      {!isCompactViewport ? (
+      {!shouldUseCompactLayout ? (
         <MasterPlanFrameHoverStage
           apartments={apartments}
           currentFrame={currentFrame}
@@ -1031,14 +1033,14 @@ export default function MasterPlanLayout({
         />
       </video>
 
-      {!isCompactViewport &&
+      {!shouldUseCompactLayout &&
       !isLeaving &&
       !isSpecialVideoExperienceActive &&
       selectedTower === "Tower B" ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
       ) : null}
 
-      {!isCompactViewport && !isLeaving && !isSpecialVideoExperienceActive ? (
+      {!shouldUseCompactLayout && !isLeaving && !isSpecialVideoExperienceActive ? (
         <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-4 sm:top-28 md:top-30">
           <MasterPlanHotspotControls
             onPrevious={() => goToHotspot(-1)}
@@ -1047,8 +1049,10 @@ export default function MasterPlanLayout({
         </div>
       ) : null}
 
-      <div
-        className={`relative z-10 flex h-full flex-col transition-opacity duration-300 xl:hidden ${
+        <div
+        className={`relative z-10 h-full flex-col transition-opacity duration-300 ${
+          shouldUseCompactLayout ? "flex" : "flex xl:hidden"
+        } ${
           isSpecialVideoExperienceActive ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
@@ -1089,7 +1093,10 @@ export default function MasterPlanLayout({
             }
           >
             {selectedApartment ? (
-              <div className="custom-scrollbar flex min-h-0 flex-1 items-start justify-center overflow-y-auto px-1 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-[max(env(safe-area-inset-top),1rem)] [-webkit-overflow-scrolling:touch]">
+              <div
+                className="custom-scrollbar flex min-h-0 flex-1 items-start justify-center overflow-y-auto overscroll-contain px-1 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-[max(env(safe-area-inset-top),1rem)] [-webkit-overflow-scrolling:touch] touch-pan-y"
+                data-scroll-area="compact-panel"
+              >
                 <SelectedFlatDetailsPanel
                   ref={selectedFlatPanelRef}
                   apartment={selectedApartment}
@@ -1100,7 +1107,7 @@ export default function MasterPlanLayout({
               </div>
             ) : selectedTower ? (
               <div
-                className="flex min-h-0 flex-1 flex-col gap-3 p-3"
+                className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3"
                 data-scroll-area="compact-panel"
               >
                 <MasterPlanFiltersCard
@@ -1131,7 +1138,7 @@ export default function MasterPlanLayout({
               </div>
             ) : (
               <div
-                className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto p-4 [-webkit-overflow-scrolling:touch]"
+                className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch] touch-pan-y"
                 data-scroll-area="compact-panel"
               >
                 <TowerSelect
@@ -1147,7 +1154,9 @@ export default function MasterPlanLayout({
       </div>
 
       <div
-        className={`pointer-events-none relative z-10 hidden h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8 xl:block ${
+        className={`pointer-events-none relative z-10 h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8 ${
+          shouldUseCompactLayout ? "hidden" : "hidden xl:block"
+        } ${
           isSpecialVideoExperienceActive ? "opacity-0" : "opacity-100"
         }`}
       >
@@ -1161,7 +1170,11 @@ export default function MasterPlanLayout({
           }`}
         >
           {!selectedApartment ? (
-            <div className="pointer-events-none hidden xl:block" />
+            <div
+              className={`pointer-events-none ${
+                shouldUseCompactLayout ? "hidden" : "hidden xl:block"
+              }`}
+            />
           ) : null}
 
           <AnimatePresence>
@@ -1192,7 +1205,11 @@ export default function MasterPlanLayout({
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="pointer-events-auto gpu-layer hidden min-w-0 xl:col-start-2 xl:block xl:h-full"
+                className={`pointer-events-auto gpu-layer min-w-0 ${
+                  shouldUseCompactLayout
+                    ? "hidden"
+                    : "hidden xl:col-start-2 xl:block xl:h-full"
+                }`}
               >
                 <div
                   className={`custom-scrollbar sticky top-6 ml-auto flex h-[calc(100dvh-3rem)] min-h-0 w-full flex-col gap-6 overflow-y-auto overscroll-contain pr-1 [overflow-anchor:none] ${
@@ -1251,7 +1268,9 @@ export default function MasterPlanLayout({
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   onClick={() => setIsMobileSheetOpen(false)}
-                  className="pointer-events-auto absolute inset-0 z-20 bg-black/10 backdrop-blur-[1px] xl:hidden"
+                  className={`pointer-events-auto absolute inset-0 z-20 bg-black/10 backdrop-blur-[1px] ${
+                    shouldUseCompactLayout ? "" : "xl:hidden"
+                  }`}
                   aria-label="Close master plan panel"
                 />
               ) : null}
@@ -1261,7 +1280,9 @@ export default function MasterPlanLayout({
               <button
                 type="button"
                 onClick={() => setIsMobileSheetOpen(true)}
-                className="pointer-events-auto absolute bottom-6 right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl xl:hidden"
+                className={`pointer-events-auto absolute bottom-6 right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl ${
+                  shouldUseCompactLayout ? "" : "xl:hidden"
+                }`}
               >
                 <SlidersHorizontal className="h-4 w-4" />
                 {filteredApartments.length} units
@@ -1276,7 +1297,9 @@ export default function MasterPlanLayout({
                   : { y: "110%", opacity: 0 }
               }
               transition={{ duration: 0.45, ease: smoothEase }}
-              className={`gpu-layer absolute inset-x-3 bottom-3 z-30 xl:hidden ${
+              className={`gpu-layer absolute inset-x-3 bottom-3 z-30 ${
+                shouldUseCompactLayout ? "" : "xl:hidden"
+              } ${
                 isMobileSheetOpen ? "pointer-events-auto" : "pointer-events-none"
               }`}
             >
@@ -1760,7 +1783,7 @@ function MasterPlanResultsCard({
         variants={staggerWrap}
         initial="hidden"
         animate="visible"
-        className={`custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch] ${
+        className={`custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch] touch-pan-y ${
           compact ? "pr-1" : "pr-2"
         }`}
         data-scroll-area="results"

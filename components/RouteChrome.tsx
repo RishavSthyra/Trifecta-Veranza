@@ -35,9 +35,32 @@ const dockItems = [
 export default function RouteChrome() {
   const pathname = usePathname();
   const [isMasterPlanFlatOpen, setIsMasterPlanFlatOpen] = useState(false);
+  const [shouldMergeDockIntoCta, setShouldMergeDockIntoCta] = useState(false);
   const isAdminRoute = pathname.startsWith("/admin");
   const isImmersiveRoute = pathname === "/tower-hover-test";
-  const shouldHideDock = pathname === "/master-plan" && isMasterPlanFlatOpen;
+  const shouldHideDock =
+    shouldMergeDockIntoCta ||
+    (pathname === "/master-plan" && isMasterPlanFlatOpen);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const touchViewportMedia = window.matchMedia("(max-width: 1366px)");
+    const syncTouchViewport = () => {
+      setShouldMergeDockIntoCta(
+        touchViewportMedia.matches && window.navigator.maxTouchPoints > 0,
+      );
+    };
+
+    syncTouchViewport();
+    touchViewportMedia.addEventListener("change", syncTouchViewport);
+
+    return () => {
+      touchViewportMedia.removeEventListener("change", syncTouchViewport);
+    };
+  }, []);
 
   useEffect(() => {
     if (pathname !== "/master-plan" || typeof document === "undefined") {
@@ -77,7 +100,7 @@ export default function RouteChrome() {
         />
       ) : null}
 
-      <QuoteRequestController />
+      <QuoteRequestController mergeRouteLinks={shouldMergeDockIntoCta} />
     </>
   );
 }

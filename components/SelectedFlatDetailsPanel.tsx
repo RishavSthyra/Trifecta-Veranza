@@ -133,7 +133,7 @@ const SelectedFlatDetailsPanel = forwardRef<
         animate={{ opacity: 1, x: 0, y: 0 }}
         exit={{ opacity: 0, x: 18, y: 8 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        className="pointer-events-auto w-full max-w-[min(94vw,27rem)]"
+        className="pointer-events-auto h-full w-full max-w-[min(94vw,27rem)]"
         data-scroll-area="flat-details-panel"
         data-flat-details-panel
         onTouchMoveCapture={(event) => {
@@ -143,7 +143,7 @@ const SelectedFlatDetailsPanel = forwardRef<
           event.stopPropagation();
         }}
       >
-        <div className="relative flex h-auto max-h-[min(96dvh,64rem)] min-h-[min(88dvh,58rem)] flex-col overflow-hidden rounded-[32px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px]">
+        <div className="relative flex h-full min-h-0 max-h-[min(96dvh,64rem)] flex-col overflow-hidden rounded-[32px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px]">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,228,196,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(171,135,86,0.10),transparent_28%)]" />
 
           <div className="relative flex min-h-0 flex-1 flex-col p-4 sm:p-5">
@@ -310,7 +310,7 @@ const SelectedFlatDetailsPanel = forwardRef<
                 </div>
               </div>
 
-              <div className="custom-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto pr-1">
+              <div className="custom-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch] touch-pan-y">
                 <div className="space-y-3 pb-1">
                   {dimensionItems.length > 0 ? (
                     dimensionItems.map((item, index) => (
