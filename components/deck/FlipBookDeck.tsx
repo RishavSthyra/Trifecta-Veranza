@@ -7,14 +7,13 @@ import ClosingPage from "@/components/deck/pages/ClosingPage";
 import OverviewLeftPage from "./pages/OverviewLeftPage";
 import OverviewRightPage from "./pages/OverviewRightPage";
 import { motion } from "framer-motion";
-import PlantImage from "@/assets/still-life-with-indoor-plants.avif";
 import OverviewBg from "@/assets/overviewBg.avif";
-import HangingPlant from "@/assets/hanging-golden-pothos-marble-pot-lush-indoor-greenery.avif";
 import Image from "next/image";
 import UnitPlanLeftPage from "./pages/TowerA_01_left";
 import UnitPlanRightPage from "./pages/TowerA_01_right";
-import LeafOverlay from "@/components/ui/LeafOverlay"
+import LeafOverlay from "@/components/ui/LeafOverlay";
 import { unitPlans } from "@/data/unitPlans";
+import MobileDeckLanding from "./MobileDeckLanding";
 
 type PageFlipInstance = {
   flipNext: (corner?: "top" | "bottom") => void;
@@ -97,52 +96,53 @@ export default function FlipBookDeck() {
     return () => window.removeEventListener("resize", updateViewport);
   }, []);
 
-const pages = useMemo(() => {
-  const staticPages = [
-    <CoverPage key="cover" number={1} />,
-    <OverviewLeftPage key="overviewImage" number={3} />,
-    <OverviewRightPage key="overviewChart" number={4} />,
-  ];
+  const pages = useMemo(() => {
+    const staticPages = [
+      <CoverPage key="cover" number={1} />,
+      <OverviewLeftPage key="overviewImage" number={3} />,
+      <OverviewRightPage key="overviewChart" number={4} />,
+    ];
 
-  const unitPlanPages = unitPlans.flatMap((plan, index) => {
-    const leftPageNumber = 5 + index * 2;
-    const rightPageNumber = 6 + index * 2;
+    const unitPlanPages = unitPlans.flatMap((plan, index) => {
+      const leftPageNumber = 5 + index * 2;
+      const rightPageNumber = 6 + index * 2;
+
+      return [
+        <UnitPlanLeftPage
+          key={`${plan.id}-2d`}
+          number={leftPageNumber}
+          series={plan.series}
+          towerA={plan.towerA}
+          towerB={plan.towerB}
+          bhk={plan.bhk}
+          facing={plan.facing}
+          areaLabel={plan.areaLabel}
+          areaValue={plan.areaValue}
+          description={plan.description}
+          image2D={plan.image2D}
+        />,
+        <UnitPlanRightPage
+          key={`${plan.id}-3d`}
+          number={rightPageNumber}
+          image3D={plan.image3D}
+          specs={plan.specs}
+        />,
+      ];
+    });
+
+    const closingPageNumber = 5 + unitPlans.length * 2;
 
     return [
-      <UnitPlanLeftPage
-        key={`${plan.id}-2d`}
-        number={leftPageNumber}
-        series={plan.series}
-        towerA={plan.towerA}
-        towerB={plan.towerB}
-        bhk={plan.bhk}
-        facing={plan.facing}
-        areaLabel={plan.areaLabel}
-        areaValue={plan.areaValue}
-        description={plan.description}
-        image2D={plan.image2D}
-      />,
-      <UnitPlanRightPage
-        key={`${plan.id}-3d`}
-        number={rightPageNumber}
-        image3D={plan.image3D}
-        specs={plan.specs}
-      />,
+      ...staticPages,
+      ...unitPlanPages,
+      <ClosingPage key="closing" number={closingPageNumber} />,
     ];
-  });
-
-  const closingPageNumber = 5 + unitPlans.length * 2;
-
-  return [
-    ...staticPages,
-    ...unitPlanPages,
-    <ClosingPage key="closing" number={closingPageNumber} />,
-  ];
-}, []);
+  }, []);
 
   const isMobile = viewport.width < 640;
   const isTablet = viewport.width >= 640 && viewport.width < 1024;
   const isSmallLaptop = viewport.width >= 1024 && viewport.width < 1280;
+  const useStackedDeck = viewport.width < 1280;
 
   const bookConfig = (() => {
     // Desktop: keep your current layout
@@ -193,34 +193,43 @@ const pages = useMemo(() => {
   })();
 
   return (
-    <div className="relative flex min-h-dvh items-start justify-center overflow-auto bg-neutral-100 px-1.5 pb-4 pt-16 sm:items-center sm:overflow-hidden sm:px-4 sm:py-4 sm:pt-6">
-      <motion.div
-        variants={bgAnimation}
-        initial="hidden"
-        animate="show"
-        className="absolute inset-0"
-      >
-        <Image
-          src={OverviewBg}
-          alt="Overview background"
-          fill
-          priority
-          className="object-cover"
-        />
-      </motion.div>
-       <LeafOverlay />
+    <div
+      className={`relative min-h-dvh justify-center bg-neutral-100 ${
+        useStackedDeck
+          ? "overflow-y-auto overflow-x-hidden bg-[linear-gradient(180deg,#d5b785_0%,#c19b64_26%,#f5ede0_62%,#f7f1e7_100%)] px-0 pb-0 pt-16 sm:pt-18"
+          : "flex items-start overflow-auto px-1.5 pb-4 pt-16 sm:items-center sm:overflow-hidden sm:px-4 sm:py-4 sm:pt-6"
+      }`}
+    >
+      {!useStackedDeck ? (
+        <motion.div
+          variants={bgAnimation}
+          initial="hidden"
+          animate="show"
+          className="absolute inset-0"
+        >
+          <Image
+            src={OverviewBg}
+            alt="Overview background"
+            fill
+            priority
+            className="object-cover"
+          />
+        </motion.div>
+      ) : null}
+      {!useStackedDeck ? <LeafOverlay /> : null}
 
       <motion.div
         variants={leftPlantAnimation}
         initial="hidden"
         animate="show"
-        className="pointer-events-none absolute bottom-0 left-0 hidden w-[18%] sm:block sm:w-[16%] lg:w-[20%]"
+        className={`pointer-events-none absolute bottom-0 -left-20 hidden ${
+          useStackedDeck ? "xl:block xl:w-[28%]" : "sm:block sm:w-[16%] lg:w-[32%]"
+        } w-[18%]`}
       >
-        <Image
-          src={PlantImage}
+        <img
+          src={"https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855828/still-life-with-indoor-plants_1.png"}
           alt="Plant Image Vector Trifecta"
           className="h-auto w-full"
-          priority
         />
       </motion.div>
 
@@ -228,50 +237,55 @@ const pages = useMemo(() => {
         variants={hangingPlantAnimation}
         initial="hidden"
         animate="show"
-        className="pointer-events-none absolute right-0 top-0 z-50 hidden w-[18%] origin-top sm:block sm:w-[16%] lg:w-[20%]"
+        className={`pointer-events-none absolute right-0 top-0 z-50 hidden origin-top ${
+          useStackedDeck ? "xl:block xl:w-[18%]" : "sm:block sm:w-[16%] lg:w-[20%]"
+        } w-[18%]`}
       >
-        <Image
-          src={HangingPlant}
+        <img
+          src={"https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855684/hanging-golden-pothos-marble-pot-lush-indoor-greenery_1.png"}
           alt="Hanging Plant Image Vector Trifecta"
           className="h-auto w-full"
-          priority
         />
       </motion.div>
 
       <div className="relative z-10 mx-auto flex w-full max-w-full flex-col items-center justify-center">
-        <div className="relative flex w-full items-center justify-center">
-          <div className="flex w-full justify-center">
-            <HTMLFlipBook
-              ref={bookRef}
-              width={bookConfig.width}
-              height={bookConfig.height}
-              size="stretch"
-              minWidth={bookConfig.minWidth}
-              maxWidth={bookConfig.maxWidth}
-              minHeight={bookConfig.minHeight}
-              maxHeight={bookConfig.maxHeight}
-              drawShadow
-              maxShadowOpacity={0.35}
-              showCover
-              mobileScrollSupport
-              flippingTime={900}
-              startPage={0}
-              usePortrait
-              startZIndex={1}
-              autoSize
-              clickEventForward
-              useMouseEvents
-              swipeDistance={30}
-              showPageCorners
-              disableFlipByClick={false}
-              onFlip={() => {}}
-              className="mx-auto max-w-full"
-              style={{}}
-            >
-              {pages}
-            </HTMLFlipBook>
+        {useStackedDeck ? (
+          <MobileDeckLanding />
+        ) : (
+          <div className="relative flex w-full items-center justify-center">
+            <div className="flex w-full justify-center">
+              <HTMLFlipBook
+                ref={bookRef}
+                width={bookConfig.width}
+                height={bookConfig.height}
+                size="stretch"
+                minWidth={bookConfig.minWidth}
+                maxWidth={bookConfig.maxWidth}
+                minHeight={bookConfig.minHeight}
+                maxHeight={bookConfig.maxHeight}
+                drawShadow
+                maxShadowOpacity={0.35}
+                showCover
+                mobileScrollSupport
+                flippingTime={900}
+                startPage={0}
+                usePortrait
+                startZIndex={1}
+                autoSize
+                clickEventForward
+                useMouseEvents
+                swipeDistance={30}
+                showPageCorners
+                disableFlipByClick={false}
+                onFlip={() => {}}
+                className="mx-auto max-w-full"
+                style={{}}
+              >
+                {pages}
+              </HTMLFlipBook>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

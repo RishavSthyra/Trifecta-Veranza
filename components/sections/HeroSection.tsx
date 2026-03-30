@@ -300,7 +300,7 @@ export default function HeroSection() {
         <button className="text-xs uppercase tracking-[0.25em] text-white/80">
           <Link href={"/"}>
             <Image
-              src={"/Logo_Trifect_Veranza.png"}
+              src={"https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774853778/Logo_Trifect_Veranza_A.svg"}
               width={140}
               height={100}
               alt="Trifecta Logo"

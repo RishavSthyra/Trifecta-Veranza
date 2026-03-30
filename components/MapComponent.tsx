@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import poidata from "@/data/poi.json"
-import { Map,
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import poidata from "@/data/poi.json";
+import { Map as MapView,
   MapMarker,
   MarkerContent,
   MarkerPopup,
@@ -13,13 +13,13 @@ import { Map,
   type MapRef,
 } from "@/components/ui/map";
 import {
+  BriefcaseBusiness,
+  Cross,
   Loader2,
+  School,
+  Store,
   Trees,
   BusFront,
-  ShoppingBag,
-  Building2,
-  GraduationCap,
-  Hospital,
   Landmark,
   Search,
   MapPinned,
@@ -79,6 +79,22 @@ const centerPlace = {
 };
 
 const pois : Poi[] = poidata as Poi[];
+const DEFAULT_SELECTED_CATEGORIES: PoiCategory[] = [
+  "park",
+  "mall",
+  "bus_stop",
+  "school",
+  "hospital",
+  "landmark",
+  "IT Company",
+];
+const CATEGORY_ORDER = DEFAULT_SELECTED_CATEGORIES;
+const ROUTE_CACHE_KEY = "veranza-poi-routes-v1";
+const ROUTE_REQUEST_TIMEOUT = 12000;
+const ROUTE_REQUEST_SPACING = 220;
+const MAX_CONCURRENT_ROUTE_REQUESTS = 2;
+const ROUTE_ANIMATION_DURATION = 2600;
+const ROUTE_ANIMATION_WINDOW_SIZE = 30;
 const PROVISIONAL_ROUTE_CACHE: Record<number, RouteData> = Object.fromEntries(
   pois.map((poi) => [poi.id, buildProvisionalRoute(poi)]),
 ) as Record<number, RouteData>;
@@ -282,6 +298,28 @@ function upsertRouteById(routes: RouteData[], nextRoute: RouteData) {
   return nextRoutes;
 }
 
+function getRouteCacheKey(poi: Poi) {
+  return `${centerPlace.lng},${centerPlace.lat}:${poi.lng},${poi.lat}`;
+}
+
+function loadRouteCache() {
+  try {
+    const raw = sessionStorage.getItem(ROUTE_CACHE_KEY);
+    if (!raw) return {} as Record<string, RouteData>;
+    return JSON.parse(raw) as Record<string, RouteData>;
+  } catch {
+    return {} as Record<string, RouteData>;
+  }
+}
+
+function saveRouteCache(cache: Record<string, RouteData>) {
+  try {
+    sessionStorage.setItem(ROUTE_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // ignore storage failures
+  }
+}
+
 const categoryMeta: Record<
   PoiCategory,
   {
@@ -316,7 +354,7 @@ const categoryMeta: Record<
     panelClass: "border-fuchsia-300/70 bg-fuchsia-50/85",
     pinColor: "text-fuchsia-600",
     routeColor: "#d946ef",
-    icon: ShoppingBag,
+    icon: Store,
     badgeBg: "bg-fuchsia-500",
     badgeRing: "ring-fuchsia-200/80",
     badgeIcon: "text-white",
@@ -340,7 +378,7 @@ const categoryMeta: Record<
     panelClass: "border-sky-300/70 bg-sky-50/85",
     pinColor: "text-sky-600",
     routeColor: "#0ea5e9",
-    icon: GraduationCap,
+    icon: School,
     badgeBg: "bg-sky-500",
     badgeRing: "ring-sky-200/80",
     badgeIcon: "text-white",
@@ -352,7 +390,7 @@ const categoryMeta: Record<
     panelClass: "border-rose-300/70 bg-rose-50/85",
     pinColor: "text-rose-600",
     routeColor: "#f43f5e",
-    icon: Hospital,
+    icon: Cross,
     badgeBg: "bg-rose-500",
     badgeRing: "ring-rose-200/80",
     badgeIcon: "text-white",
@@ -376,14 +414,14 @@ const categoryMeta: Record<
     panelClass: "border-emerald-300/70 bg-emerald-50/85",
     pinColor: "text-emerald-700",
     routeColor: "#059669",
-    icon: Building2,
+    icon: BriefcaseBusiness,
     badgeBg: "bg-teal-600",
     badgeRing: "ring-teal-200/80",
     badgeIcon: "text-white",
   },
 };
 
-function CategoryBadge({
+const CategoryBadge = memo(function CategoryBadge({
   category,
   selected = false,
   size = "md",
@@ -418,9 +456,51 @@ function CategoryBadge({
       </div>
     </div>
   );
-}
+});
 
-function PoiMarker({
+const CategoryFilterChip = memo(function CategoryFilterChip({
+  active,
+  category,
+  onClick,
+}: {
+  active: boolean;
+  category: PoiCategory;
+  onClick: (category: PoiCategory) => void;
+}) {
+  const meta = categoryMeta[category];
+  const Icon = meta.icon;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(category)}
+      className={`flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all ${
+        active
+          ? `${meta.panelClass} shadow-sm`
+          : "border-slate-200 bg-white/70 hover:bg-slate-50"
+      }`}
+    >
+      <div
+        className={`flex h-9 w-9 items-center justify-center rounded-full border ${
+          active ? "border-white/70 bg-white/70" : "border-slate-200 bg-slate-50"
+        }`}
+      >
+        <Icon
+          className={`size-4 ${
+            active ? meta.color : "text-slate-500"
+          }`}
+        />
+      </div>
+      <div>
+        <p className="text-sm font-medium text-slate-900">
+          {meta.label}
+        </p>
+      </div>
+    </button>
+  );
+});
+
+const PoiMarker = memo(function PoiMarker({
   poi,
   isSelected,
   onMarkerClick,
@@ -428,8 +508,8 @@ function PoiMarker({
 }: {
   poi: Poi;
   isSelected: boolean;
-  onMarkerClick: () => void;
-  onViewRoute: () => void;
+  onMarkerClick: (poi: Poi) => void;
+  onViewRoute: (poi: Poi) => void;
 }) {
   const meta = categoryMeta[poi.category];
 
@@ -438,7 +518,7 @@ function PoiMarker({
       <MarkerContent>
         <button
           type="button"
-          onClick={onMarkerClick}
+          onClick={() => onMarkerClick(poi)}
           className="group relative"
         >
           <CategoryBadge
@@ -455,6 +535,7 @@ function PoiMarker({
         <div className="w-70 overflow-hidden rounded-2xl border border-slate-200 bg-white  shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
           {poi.image ? (
             <div className="h-36 w-full overflow-hidden bg-slate-100">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={poi.image}
                 alt={poi.name}
@@ -496,7 +577,7 @@ function PoiMarker({
             <div className="flex gap-2">
               <button
                 type="button"
-                onClick={onViewRoute}
+                onClick={() => onViewRoute(poi)}
                 className="flex-1 rounded-xl cursor-pointer bg-slate-900 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
               >
                 View Route
@@ -520,6 +601,31 @@ function PoiMarker({
       </MarkerPopup>
     </MapMarker>
   );
+});
+
+function useAnimatedRouteProgress(active: boolean) {
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    if (!active) return;
+
+    let frameId = 0;
+    let start: number | null = null;
+
+    const animate = (time: number) => {
+      if (start === null) start = time;
+
+      const elapsed = time - start;
+      setProgress((elapsed % ROUTE_ANIMATION_DURATION) / ROUTE_ANIMATION_DURATION);
+      frameId = requestAnimationFrame(animate);
+    };
+
+    frameId = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(frameId);
+  }, [active]);
+
+  return active ? progress : 0;
 }
 
 function MapClickClearRoute({
@@ -654,25 +760,18 @@ export function CustomStyleExample() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUserRouteLoading, setIsUserRouteLoading] = useState(false);
   const [selectedPoiId, setSelectedPoiId] = useState<number | null>(null);
-  const [routeProgress, setRouteProgress] = useState(0);
   const [routePoiId, setRoutePoiId] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [userRoute, setUserRoute] = useState<RouteData | null>(null);
-  const [userRouteProgress, setUserRouteProgress] = useState(0);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(true);
 
-  const [selectedCategories, setSelectedCategories] = useState<PoiCategory[]>([
-    "park",
-    "mall",
-    "bus_stop",
-    "school",
-    "hospital",
-    "landmark",
-    "IT Company",
-  ]);
+  const [selectedCategories, setSelectedCategories] = useState<PoiCategory[]>(
+    DEFAULT_SELECTED_CATEGORIES,
+  );
 
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const selectedStyle = styles[style];
   const is3D = style === "openstreetmap3d";
 
@@ -682,134 +781,114 @@ export function CustomStyleExample() {
       duration: 500,
     });
   }, [is3D]);
-useEffect(() => {
-  let cancelled = false;
+  useEffect(() => {
+    let cancelled = false;
+    const timeoutIds: number[] = [];
 
-  const CACHE_KEY = "veranza-poi-routes-v1";
-  const MAX_CONCURRENT = 2; // keep low to respect rate limits
-  const REQUEST_SPACING = 220; // throttle between request starts
-  const REQUEST_TIMEOUT = 12000;
-
-  function getRouteCacheKey(poi: Poi) {
-    return `${centerPlace.lng},${centerPlace.lat}:${poi.lng},${poi.lat}`;
-  }
-
-  function loadCache(): Record<string, RouteData> {
-    try {
-      const raw = sessionStorage.getItem(CACHE_KEY);
-      if (!raw) return {};
-      return JSON.parse(raw) as Record<string, RouteData>;
-    } catch {
-      return {};
+    async function fetchRouteForPoi(poi: Poi): Promise<RouteData | null> {
+      return fetchRouteBetweenPoints({
+        from: { lng: centerPlace.lng, lat: centerPlace.lat },
+        to: { lng: poi.lng, lat: poi.lat },
+        id: poi.id,
+        name: poi.name,
+        timeout: ROUTE_REQUEST_TIMEOUT,
+      });
     }
-  }
 
-  function saveCache(cache: Record<string, RouteData>) {
-    try {
-      sessionStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-    } catch {
-      // ignore storage failures
-    }
-  }
+    async function runQueue() {
+      setIsLoading(true);
 
-  async function fetchRouteForPoi(poi: Poi): Promise<RouteData | null> {
-    return fetchRouteBetweenPoints({
-      from: { lng: centerPlace.lng, lat: centerPlace.lat },
-      to: { lng: poi.lng, lat: poi.lat },
-      id: poi.id,
-      name: poi.name,
-      timeout: REQUEST_TIMEOUT,
-    });
-  }
+      const cache = loadRouteCache();
+      const initialResults: RouteData[] = [];
+      const uncachedPois: Poi[] = [];
 
-  async function runQueue() {
-    setIsLoading(true);
+      for (const poi of pois) {
+        const cacheKey = getRouteCacheKey(poi);
+        const cached = cache[cacheKey];
+        if (cached) {
+          initialResults.push(cached);
+          continue;
+        }
 
-    const cache = loadCache();
-    const initialResults: RouteData[] = [];
-    const uncachedPois: Poi[] = [];
+        const provisionalRoute = PROVISIONAL_ROUTE_CACHE[poi.id];
+        if (provisionalRoute) {
+          initialResults.push(provisionalRoute);
+        }
 
-    for (const poi of pois) {
-      const cacheKey = getRouteCacheKey(poi);
-      const cached = cache[cacheKey];
-      if (cached) {
-        initialResults.push(cached);
-        continue;
+        uncachedPois.push(poi);
       }
 
-      const provisionalRoute = PROVISIONAL_ROUTE_CACHE[poi.id];
-      if (provisionalRoute) {
-        initialResults.push(provisionalRoute);
+      if (!cancelled) {
+        setRoutes(initialResults);
       }
 
-      uncachedPois.push(poi);
+      if (uncachedPois.length === 0) {
+        if (!cancelled) setIsLoading(false);
+        return;
+      }
+
+      let nextIndex = 0;
+      let activeCount = 0;
+      let startedCount = 0;
+
+      await new Promise<void>((resolve) => {
+        const launchNext = () => {
+          if (cancelled) {
+            resolve();
+            return;
+          }
+
+          if (nextIndex >= uncachedPois.length && activeCount === 0) {
+            resolve();
+            return;
+          }
+
+          while (
+            activeCount < MAX_CONCURRENT_ROUTE_REQUESTS &&
+            nextIndex < uncachedPois.length
+          ) {
+            const poi = uncachedPois[nextIndex++];
+            const startDelay = startedCount * ROUTE_REQUEST_SPACING;
+            startedCount += 1;
+            activeCount += 1;
+
+            const timeoutId = window.setTimeout(async () => {
+              const result = await fetchRouteForPoi(poi);
+
+              if (result && !cancelled) {
+                const cacheKey = getRouteCacheKey(poi);
+                cache[cacheKey] = result;
+                saveRouteCache(cache);
+
+                setRoutes((prev) => upsertRouteById(prev, result));
+              }
+
+              activeCount -= 1;
+              launchNext();
+            }, startDelay);
+
+            timeoutIds.push(timeoutId);
+          }
+        };
+
+        launchNext();
+      });
+
+      if (!cancelled) {
+        setIsLoading(false);
+      }
     }
 
-    if (!cancelled) {
-      setRoutes(initialResults);
-    }
+    runQueue();
 
-    if (uncachedPois.length === 0) {
-      if (!cancelled) setIsLoading(false);
-      return;
-    }
-
-    let nextIndex = 0;
-    let activeCount = 0;
-    let startedCount = 0;
-
-    await new Promise<void>((resolve) => {
-      const launchNext = () => {
-        if (cancelled) {
-          resolve();
-          return;
-        }
-
-        if (nextIndex >= uncachedPois.length && activeCount === 0) {
-          resolve();
-          return;
-        }
-
-        while (activeCount < MAX_CONCURRENT && nextIndex < uncachedPois.length) {
-          const poi = uncachedPois[nextIndex++];
-          const startDelay = startedCount * REQUEST_SPACING;
-          startedCount += 1;
-          activeCount += 1;
-
-          window.setTimeout(async () => {
-            const result = await fetchRouteForPoi(poi);
-
-            if (result && !cancelled) {
-              const cacheKey = getRouteCacheKey(poi);
-              cache[cacheKey] = result;
-              saveCache(cache);
-
-              setRoutes((prev) => upsertRouteById(prev, result));
-            }
-
-            activeCount -= 1;
-            launchNext();
-          }, startDelay);
-        }
-      };
-
-      launchNext();
-    });
-
-    if (!cancelled) {
-      setIsLoading(false);
-    }
-  }
-
-  runQueue();
-
-  return () => {
-    cancelled = true;
-  };
-}, []);
+    return () => {
+      cancelled = true;
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    };
+  }, []);
 
   const filteredPois = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
 
     return pois.filter((poi) => {
       const matchesCategory = selectedCategories.includes(poi.category);
@@ -820,24 +899,47 @@ useEffect(() => {
 
       return matchesCategory && matchesSearch;
     });
-  }, [selectedCategories, search]);
+  }, [deferredSearch, selectedCategories]);
 
   const featuredPois = useMemo(() => {
     return filteredPois.filter((poi) => poi.featured);
   }, [filteredPois]);
+  const visiblePois = useMemo(
+    () => (featuredPois.length ? featuredPois : filteredPois),
+    [featuredPois, filteredPois],
+  );
+  const routeLookup = useMemo(
+    () => new Map(routes.map((route) => [route.id, route] as const)),
+    [routes],
+  );
 
-  function toggleCategory(category: PoiCategory) {
+  const clearPoiSelection = useCallback(() => {
+    setRoutePoiId(null);
+    setSelectedPoiId(null);
+  }, []);
+
+  const applySearchInput = useCallback((value: string) => {
+    clearPoiSelection();
+    setSearch(value);
+  }, [clearPoiSelection]);
+
+  const clearSearchInput = useCallback(() => {
+    clearPoiSelection();
+    setSearch("");
+  }, [clearPoiSelection]);
+
+  const toggleCategory = useCallback((category: PoiCategory) => {
+    clearPoiSelection();
     setSelectedCategories((prev) =>
       prev.includes(category)
         ? prev.filter((item) => item !== category)
         : [...prev, category],
     );
-  }
+  }, [clearPoiSelection]);
 
-  function handlePoiMarkerClick(poi: Poi) {
+  const handlePoiMarkerClick = useCallback((poi: Poi) => {
     userRouteRequestRef.current += 1;
     setUserRoute(null);
-    setUserRouteProgress(0);
     setIsUserRouteLoading(false);
     suppressNextMapClearRef.current = true;
     setSelectedPoiId(poi.id);
@@ -847,111 +949,97 @@ useEffect(() => {
       zoom: 16.8,
       duration: 1200,
     });
-  }
+  }, []);
 
-  function resetFilters() {
+  const resetFilters = useCallback(() => {
     userRouteRequestRef.current += 1;
     setSelectedPoiId(null);
     setRoutePoiId(null);
-    setRouteProgress(0);
     setUserLocation(null);
     setUserRoute(null);
-    setUserRouteProgress(0);
     setIsUserRouteLoading(false);
     setSearch("");
-    setSelectedCategories([
-      "park",
-      "mall",
-      "bus_stop",
-      "school",
-      "hospital",
-      "landmark",
-      "IT Company",
-    ]);
+    setSelectedCategories(DEFAULT_SELECTED_CATEGORIES);
     mapRef.current?.flyTo?.({
       center: [centerPlace.lng, centerPlace.lat],
       zoom: 15,
       duration: 1200,
     });
-  }
+  }, []);
 
-  const clearActiveRoute = () => {
+  const clearActiveRoute = useCallback(() => {
     setRoutePoiId(null);
-    setRouteProgress(0);
     setSelectedPoiId(null);
-  };
+  }, []);
 
-  function handleViewRoute(poi: Poi) {
+  const handleViewRoute = useCallback((poi: Poi) => {
     userRouteRequestRef.current += 1;
     setUserRoute(null);
-    setUserRouteProgress(0);
     setIsUserRouteLoading(false);
     suppressNextMapClearRef.current = true;
     setSelectedPoiId(poi.id);
     setRoutePoiId(poi.id);
-    setRouteProgress(0);
 
     mapRef.current?.flyTo?.({
       center: [poi.lng, poi.lat],
       zoom: 13.8,
       duration: 1200,
     });
-  }
+  }, []);
 
   const handleUserLocate = async (coords: UserLocation) => {
-      const requestId = userRouteRequestRef.current + 1;
-      userRouteRequestRef.current = requestId;
+    const requestId = userRouteRequestRef.current + 1;
+    userRouteRequestRef.current = requestId;
 
-      suppressNextMapClearRef.current = true;
-      setSelectedPoiId(null);
-      setRoutePoiId(null);
-      setRouteProgress(0);
-      setUserLocation(coords);
+    suppressNextMapClearRef.current = true;
+    setSelectedPoiId(null);
+    setRoutePoiId(null);
+    setUserLocation(coords);
 
-      const fallbackRoute = buildUserFallbackRoute(coords);
-      setUserRoute(fallbackRoute);
-      setUserRouteProgress(0);
-      setIsUserRouteLoading(true);
+    const fallbackRoute = buildUserFallbackRoute(coords);
+    setUserRoute(fallbackRoute);
+    setIsUserRouteLoading(true);
 
-      mapRef.current?.fitBounds(
+    mapRef.current?.fitBounds(
+      [
         [
-          [
-            Math.min(coords.longitude, centerPlace.lng),
-            Math.min(coords.latitude, centerPlace.lat),
-          ],
-          [
-            Math.max(coords.longitude, centerPlace.lng),
-            Math.max(coords.latitude, centerPlace.lat),
-          ],
+          Math.min(coords.longitude, centerPlace.lng),
+          Math.min(coords.latitude, centerPlace.lat),
         ],
-        {
-          padding: {
-            top: 120,
-            right: 80,
-            bottom: isMobileFiltersOpen ? 340 : 140,
-            left: 80,
-          },
-          duration: 1500,
+        [
+          Math.max(coords.longitude, centerPlace.lng),
+          Math.max(coords.latitude, centerPlace.lat),
+        ],
+      ],
+      {
+        padding: {
+          top: 120,
+          right: 80,
+          bottom: isMobileFiltersOpen ? 340 : 140,
+          left: 80,
         },
-      );
+        duration: 1500,
+      },
+    );
 
-      const fetchedRoute = await fetchRouteBetweenPoints({
-        from: { lng: coords.longitude, lat: coords.latitude },
-        to: { lng: centerPlace.lng, lat: centerPlace.lat },
-        id: -1,
-        name: "Your Route to Trifecta Veranza",
-      });
+    const fetchedRoute = await fetchRouteBetweenPoints({
+      from: { lng: coords.longitude, lat: coords.latitude },
+      to: { lng: centerPlace.lng, lat: centerPlace.lat },
+      id: -1,
+      name: "Your Route to Trifecta Veranza",
+      timeout: ROUTE_REQUEST_TIMEOUT,
+    });
 
-      if (userRouteRequestRef.current !== requestId) {
-        return;
-      }
+    if (userRouteRequestRef.current !== requestId) {
+      return;
+    }
 
-      if (fetchedRoute) {
-        setUserRoute(fetchedRoute);
-      }
+    if (fetchedRoute) {
+      setUserRoute(fetchedRoute);
+    }
 
-      setIsUserRouteLoading(false);
-    };
+    setIsUserRouteLoading(false);
+  };
 
   
   const selectedPoi =
@@ -959,67 +1047,23 @@ useEffect(() => {
     pois.find((poi) => poi.id === selectedPoiId) ??
     null;
 
-  const activeRoute = routes.find((route) => route.id === routePoiId) ?? null;
+  const activeRoute = routePoiId !== null ? routeLookup.get(routePoiId) ?? null : null;
+  const routeProgress = useAnimatedRouteProgress(Boolean(activeRoute));
+  const userRouteProgress = useAnimatedRouteProgress(Boolean(userRoute));
 
-  useEffect(() => {
-  if (!activeRoute) {
-    setRouteProgress(0);
-    return;
-  }
+  const animatedCoordinates = useMemo(() => {
+    if (!activeRoute) return [];
 
-  let frameId = 0;
-  let start: number | null = null;
-  const duration = 2600;
+    if (!Array.isArray(activeRoute.coordinates)) return [];
 
-  const animate = (time: number) => {
-    if (start === null) start = time;
+    if (activeRoute.coordinates.length < 2) return [];
 
-    const elapsed = time - start;
-    const progress = (elapsed % duration) / duration;
-
-    setRouteProgress(progress);
-    frameId = requestAnimationFrame(animate);
-  };
-
-  frameId = requestAnimationFrame(animate);
-
-  return () => cancelAnimationFrame(frameId);
-}, [activeRoute]);
-
-const animatedCoordinates = useMemo(() => {
-  if (!activeRoute) return [];
-
-  if (!Array.isArray(activeRoute.coordinates)) return [];
-
-  if (activeRoute.coordinates.length < 2) return [];
-
-  return getAnimatedSegment(activeRoute.coordinates, routeProgress, 30);
-}, [activeRoute, routeProgress]);
-
-  useEffect(() => {
-    if (!userRoute) {
-      setUserRouteProgress(0);
-      return;
-    }
-
-    let frameId = 0;
-    let start: number | null = null;
-    const duration = 2600;
-
-    const animate = (time: number) => {
-      if (start === null) start = time;
-
-      const elapsed = time - start;
-      const progress = (elapsed % duration) / duration;
-
-      setUserRouteProgress(progress);
-      frameId = requestAnimationFrame(animate);
-    };
-
-    frameId = requestAnimationFrame(animate);
-
-    return () => cancelAnimationFrame(frameId);
-  }, [userRoute]);
+    return getAnimatedSegment(
+      activeRoute.coordinates,
+      routeProgress,
+      ROUTE_ANIMATION_WINDOW_SIZE,
+    );
+  }, [activeRoute, routeProgress]);
 
   const userAnimatedCoordinates = useMemo(() => {
     if (!userRoute) return [];
@@ -1028,7 +1072,11 @@ const animatedCoordinates = useMemo(() => {
 
     if (userRoute.coordinates.length < 2) return [];
 
-    return getAnimatedSegment(userRoute.coordinates, userRouteProgress, 30);
+    return getAnimatedSegment(
+      userRoute.coordinates,
+      userRouteProgress,
+      ROUTE_ANIMATION_WINDOW_SIZE,
+    );
   }, [userRoute, userRouteProgress]);
 
   const activeRouteColor = selectedPoi
@@ -1038,7 +1086,7 @@ const animatedCoordinates = useMemo(() => {
 
   return (
     <div className="relative h-dvh w-full overflow-hidden bg-slate-100">
-      <Map
+      <MapView
         ref={mapRef}
         center={[centerPlace.lng, centerPlace.lat]}
         zoom={15}
@@ -1097,6 +1145,7 @@ const animatedCoordinates = useMemo(() => {
         {activeRoute && (
           <>
             <MapRoute
+              id="poi-route-outline"
               coordinates={activeRoute.coordinates}
               color="#ffffff"
               width={3}
@@ -1104,6 +1153,7 @@ const animatedCoordinates = useMemo(() => {
             />
 
             <MapRoute
+              id="poi-route-base"
               coordinates={activeRoute.coordinates}
               color={activeRouteColor}
               width={6}
@@ -1114,6 +1164,7 @@ const animatedCoordinates = useMemo(() => {
 
         {animatedCoordinates.length > 1 && (
           <MapRoute
+            id="poi-route-animated"
             coordinates={animatedCoordinates}
             color={activeRouteColor}
             width={5}
@@ -1127,6 +1178,7 @@ const animatedCoordinates = useMemo(() => {
               {/* <div className="absolute size-12 animate-ping rounded-full bg-cyan-400/20" /> */}
               {/* <div className="absolute size-8 rounded-full bg-cyan-400/15 blur-md" /> */}
               {/* <FaMapMarkerAlt className="size-8 text-red-600 opacity-90 drop-shadow-[0_8px_16px_rgba(34,211,238,0.22)]" /> */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/VeranzaFavicon.svg" alt="Veranza Logo" />
             </div>
           </MarkerContent>
@@ -1182,11 +1234,11 @@ const animatedCoordinates = useMemo(() => {
             key={poi.id}
             poi={poi}
             isSelected={selectedPoiId === poi.id}
-            onMarkerClick={() => handlePoiMarkerClick(poi)}
-            onViewRoute={() => handleViewRoute(poi)}
+            onMarkerClick={handlePoiMarkerClick}
+            onViewRoute={handleViewRoute}
           />
         ))}
-      </Map>
+      </MapView>
 
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.22),transparent_30%),linear-gradient(to_bottom,rgba(255,255,255,0.02),rgba(255,255,255,0.06))]" />
 
@@ -1264,14 +1316,14 @@ const animatedCoordinates = useMemo(() => {
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => applySearchInput(e.target.value)}
                     placeholder="Search places, companies, schools..."
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white/85 pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-300"
                   />
                   {search && (
                     <button
                       type="button"
-                      onClick={() => setSearch("")}
+                      onClick={clearSearchInput}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition hover:text-slate-700"
                     >
                       <X className="size-4" />
@@ -1286,35 +1338,17 @@ const animatedCoordinates = useMemo(() => {
                 </p>
 
                 <div className="grid grid-cols-2 gap-2">
-                  {(Object.keys(categoryMeta) as PoiCategory[]).map(
+                  {CATEGORY_ORDER.map(
                     (category) => {
-                      const meta = categoryMeta[category];
                       const active = selectedCategories.includes(category);
 
                       return (
-                        <button
+                        <CategoryFilterChip
                           key={category}
-                          type="button"
-                          onClick={() => toggleCategory(category)}
-                          className={`flex items-center gap-2 rounded-2xl border px-3 py-3 text-left transition-all ${
-                            active
-                              ? `${meta.panelClass} shadow-sm`
-                              : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                          }`}
-                        >
-                          <div
-                            className={`h-2.5 w-2.5 rounded-full ${
-                              active
-                                ? meta.color.replace("text-", "bg-")
-                                : "bg-slate-300"
-                            }`}
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-slate-900">
-                              {meta.label}
-                            </p>
-                          </div>
-                        </button>
+                          active={active}
+                          category={category}
+                          onClick={toggleCategory}
+                        />
                       );
                     },
                   )}
@@ -1342,13 +1376,11 @@ const animatedCoordinates = useMemo(() => {
                 </div>
 
                 <div className="h-full space-y-2 overflow-y-auto pr-1">
-                  {(featuredPois.length ? featuredPois : filteredPois).map(
+                  {visiblePois.map(
                     (poi) => {
                       const meta = categoryMeta[poi.category];
                       const isSelected = selectedPoi?.id === poi.id;
-                      const linkedRoute = routes.find(
-                        (route) => route.id === poi.id,
-                      );
+                      const linkedRoute = routeLookup.get(poi.id);
 
                       return (
                         <button
@@ -1514,14 +1546,14 @@ const animatedCoordinates = useMemo(() => {
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                 <input
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => applySearchInput(e.target.value)}
                   placeholder="Search places, companies, schools..."
                   className="h-11 w-full rounded-2xl border border-slate-200 bg-white/85 pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-300"
                 />
                 {search && (
                   <button
                     type="button"
-                    onClick={() => setSearch("")}
+                    onClick={clearSearchInput}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
                   >
                     <X className="size-4" />
@@ -1535,33 +1567,17 @@ const animatedCoordinates = useMemo(() => {
                 Categories
               </p>
               <div className="grid grid-cols-2 gap-2">
-                {(Object.keys(categoryMeta) as PoiCategory[]).map(
+                {CATEGORY_ORDER.map(
                   (category) => {
-                    const meta = categoryMeta[category];
                     const active = selectedCategories.includes(category);
 
                     return (
-                      <button
+                      <CategoryFilterChip
                         key={category}
-                        type="button"
-                        onClick={() => toggleCategory(category)}
-                        className={`flex items-center gap-2 rounded-2xl border px-3 py-3 text-left transition-all ${
-                          active
-                            ? `${meta.panelClass} shadow-sm`
-                            : "border-slate-200 bg-white/70 hover:bg-slate-50"
-                        }`}
-                      >
-                        <div
-                          className={`h-2.5 w-2.5 rounded-full ${
-                            active
-                              ? meta.color.replace("text-", "bg-")
-                              : "bg-slate-300"
-                          }`}
-                        />
-                        <p className="text-sm font-medium text-slate-900">
-                          {meta.label}
-                        </p>
-                      </button>
+                        active={active}
+                        category={category}
+                        onClick={toggleCategory}
+                      />
                     );
                   },
                 )}
@@ -1579,12 +1595,12 @@ const animatedCoordinates = useMemo(() => {
               </div>
 
               <div className="max-h-[28vh] space-y-2 overflow-y-auto pr-1">
-                {(featuredPois.length ? featuredPois : filteredPois)
+                {visiblePois
                   .slice(0, 8)
                   .map((poi) => {
                     const meta = categoryMeta[poi.category];
                     const isSelected = selectedPoi?.id === poi.id;
-                    const linkedRoute = routes.find((route) => route.id === poi.id);
+                    const linkedRoute = routeLookup.get(poi.id);
 
                     return (
                       <button

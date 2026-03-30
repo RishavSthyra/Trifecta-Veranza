@@ -95,6 +95,20 @@ const itemAnim: Variants = {
   },
 };
 
+function getApartmentMeshId(apartment: InventoryApartment) {
+  const towerCode = apartment.tower === "Tower B" ? "B" : "A";
+  const floorCode = String(apartment.floor)
+    .replace(/[^0-9]/g, "")
+    .padStart(2, "0");
+  const flatCode = apartment.flatNumber.replace(/[^0-9A-Za-z]/g, "").toUpperCase();
+
+  if (!floorCode || !flatCode) {
+    return null;
+  }
+
+  return `Tower_${towerCode}_${floorCode}_${flatCode}`;
+}
+
 type MasterPlanLayoutProps = {
   initialApartments?: InventoryApartment[];
 };
@@ -222,6 +236,7 @@ export default function MasterPlanLayout({
     string | null
   >(null);
   const deferredSearch = useDeferredValue(search);
+  const selectedApartmentInventoryId = selectedApartment?.id ?? null;
 
   useEffect(() => {
     currentFrameRef.current = currentFrame;
@@ -425,6 +440,16 @@ export default function MasterPlanLayout({
     },
     [],
   );
+
+  const handleApartmentListSelect = useCallback((apartment: InventoryApartment) => {
+    const apartmentMeshId = getApartmentMeshId(apartment);
+
+    if (!apartmentMeshId) {
+      return;
+    }
+
+    handleApartmentSelect(apartment, apartmentMeshId);
+  }, [handleApartmentSelect]);
 
   useEffect(() => {
     if (!selectedApartment) {
@@ -795,6 +820,8 @@ export default function MasterPlanLayout({
                   filteredApartments={filteredApartments}
                   isInventoryLoading={isInventoryLoading}
                   inventoryError={inventoryError}
+                  onApartmentSelect={handleApartmentListSelect}
+                  selectedApartmentId={selectedApartmentInventoryId}
                   compact
                 />
               </div>
@@ -887,6 +914,8 @@ export default function MasterPlanLayout({
                         filteredApartments={filteredApartments}
                         isInventoryLoading={isInventoryLoading}
                         inventoryError={inventoryError}
+                        onApartmentSelect={handleApartmentListSelect}
+                        selectedApartmentId={selectedApartmentInventoryId}
                       />
                     </>
                   ) : (
@@ -992,6 +1021,8 @@ export default function MasterPlanLayout({
                         filteredApartments={filteredApartments}
                         isInventoryLoading={isInventoryLoading}
                         inventoryError={inventoryError}
+                        onApartmentSelect={handleApartmentListSelect}
+                        selectedApartmentId={selectedApartmentInventoryId}
                         compact
                       />
                     </div>
@@ -1339,11 +1370,15 @@ function MasterPlanResultsCard({
   filteredApartments,
   isInventoryLoading,
   inventoryError,
+  onApartmentSelect,
+  selectedApartmentId,
   compact = false,
 }: {
   filteredApartments: InventoryApartment[];
   isInventoryLoading: boolean;
   inventoryError: string | null;
+  onApartmentSelect: (apartment: InventoryApartment) => void;
+  selectedApartmentId: string | null;
   compact?: boolean;
 }) {
   return (
@@ -1414,10 +1449,21 @@ function MasterPlanResultsCard({
                   initial="hidden"
                   animate="visible"
                   exit="exit"
-                  className={`group flex w-full text-left shadow-sm transition dark:border-white/10 dark:from-white/10 dark:to-white/5 ${
+                  onClick={() => onApartmentSelect(apartment)}
+                  className={`group flex w-full text-left shadow-sm transition dark:to-white/5 ${
+                    apartment.id === selectedApartmentId
+                      ? "border-[#d4b57b]/70 bg-linear-to-br from-[#fff7ea] to-[#f7edd6] shadow-[0_18px_42px_rgba(186,146,79,0.18)] dark:border-[#d4b57b]/35 dark:from-[#3b3223] dark:to-[#211d16]"
+                      : "dark:border-white/10 dark:from-white/10"
+                  } ${
                     compact
-                      ? "flex-col gap-3 rounded-[20px] border border-zinc-200/60 bg-linear-to-br from-white to-zinc-50 px-3.5 py-3"
-                      : "items-center justify-between rounded-[22px] border border-zinc-200/50 bg-linear-to-br from-white to-zinc-50 px-4 py-3"
+                      ? "flex-col gap-3 rounded-[20px] border px-3.5 py-3"
+                      : "items-center justify-between rounded-[22px] border px-4 py-3"
+                  } ${
+                    apartment.id === selectedApartmentId
+                      ? "border-[#e0c493]/70"
+                      : compact
+                        ? "border-zinc-200/60 bg-linear-to-br from-white to-zinc-50"
+                        : "border-zinc-200/50 bg-linear-to-br from-white to-zinc-50"
                   }`}
                 >
                   <div className="min-w-0 w-full">

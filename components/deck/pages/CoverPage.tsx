@@ -3,7 +3,7 @@
 import React, { forwardRef } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import coverimg from "@/assets/vertical-shot-white-building-clear-sky.avif";
+import coverimg from "@/assets/Aparttments_Clouds.png";
 
 type Props = {
   number?: number;
@@ -31,24 +31,6 @@ const textReveal = {
     filter: "blur(0px)",
     transition: {
       duration: 0.85,
-      ease: [0.22, 1, 0.36, 1] as const,
-    },
-  },
-};
-
-const footerReveal = {
-  hidden: {
-    opacity: 0,
-    x: -28,
-    filter: "blur(6px)",
-  },
-  show: {
-    opacity: 1,
-    x: 0,
-    filter: "blur(0px)",
-    transition: {
-      duration: 0.8,
-      delay: 0.15,
       ease: [0.22, 1, 0.36, 1] as const,
     },
   },
@@ -114,7 +96,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
         animate="show"
         className="relative z-10 flex h-full flex-col justify-between px-4 pb-4 pt-10 sm:px-10 sm:pb-10 sm:pt-12"
       >
-        <div className="max-w-[56%] sm:max-w-[72%]">
+        <div className="relative z-20 max-w-[58%] rounded-[32px] px-2 py-2 backdrop-blur-[2px] sm:max-w-[82%] sm:px-4 sm:py-4">
           <motion.p
             variants={textReveal}
             className="mb-3 text-[10px] uppercase tracking-[0.42em] text-neutral-700 sm:mb-4 sm:text-xs sm:tracking-[0.5em]"
@@ -128,17 +110,9 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
           >
             The New Standard of Refined Urban Living
           </motion.h1>
-
-          <motion.p
-            variants={textReveal}
-            className="mt-3 max-w-[210px] text-[11px] leading-[1.65] text-neutral-700 sm:mt-6 sm:max-w-[360px] sm:text-base sm:leading-6"
-          >
-            A premium residential experience crafted with timeless architecture,
-            elegant interiors, and elevated lifestyle spaces.
-          </motion.p>
         </div>
 
-        <motion.div
+        {/* <motion.div
           variants={footerReveal}
           className="relative z-20 flex items-end justify-between gap-4"
         >
@@ -151,34 +125,34 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
             </p>
           </div>
 
-        </motion.div>
+        </motion.div> */}
       </motion.div>
 
       <motion.div
         variants={imageReveal}
         initial="hidden"
         animate="show"
-        className="absolute bottom-0 right-[-2%] z-[5] w-[62%] sm:right-0 sm:w-[68%]"
+        className="absolute inset-y-0 inset-x-[-10%] z-[5] flex items-end sm:inset-x-[-12%]"
       >
-        <div className="relative">
+        <div className="relative flex h-full w-full items-end">
           <motion.div
             variants={shadowReveal}
             initial="hidden"
             animate="show"
-            className="absolute inset-0 translate-x-4 translate-y-4 rounded-tl-[56px] bg-black/10 blur-2xl sm:translate-x-6 sm:translate-y-6 sm:rounded-tl-[80px]"
+            className="absolute inset-x-[10%] bottom-[8%] top-[14%] rounded-[130px] bg-black/14 blur-3xl"
           />
-          <div className="relative overflow-hidden rounded-tl-[56px] sm:rounded-tl-[90px]">
-            <Image
-              src={coverimg}
+          <div className="relative flex h-full w-full items-end overflow-visible">
+            <img
+              src='https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855534/Aparttments_Clouds.png'
               alt="Project cover"
-              priority
-              className="h-auto w-full object-cover object-bottom"
+              
+              className="h-full w-full max-w-none origin-bottom object-contain object-bottom scale-[1.2] sm:scale-[1.34]"
             />
           </div>
         </div>
       </motion.div>
 
-      <div className="absolute bottom-0 left-0 right-0 z-[6] h-20 bg-gradient-to-t from-[#f6f1e8]/35 to-transparent sm:h-32 sm:from-[#f6f1e8]/20" />
+      <div className="absolute bottom-0 left-0 right-0 z-[6] h-24 bg-gradient-to-t from-[#f6f1e8]/46 to-transparent sm:h-44 sm:from-[#f6f1e8]/28" />
     </div>
   );
 });

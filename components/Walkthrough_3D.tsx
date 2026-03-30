@@ -101,6 +101,12 @@ type PanoMeta = {
   }>;
 };
 
+type PanoTileDescriptor = {
+  col: number;
+  row: number;
+  url: string;
+};
+
 type DebugInfo = {
   cameraWorld: { x: number; y: number; z: number };
   cameraNav: { x: number; y: number; z: number };
@@ -280,7 +286,7 @@ export default function ApartmentTour({
   const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
 
   const NAV_POINTS = useMemo(() => navData as NavPoint[], []);
-  const START_NAV_ID = "BP_panoPath_Interior_F0010";
+  const START_NAV_ID = "BP_panoPath_Interior_F0000";
 
   const showProjectionRef = useRef(true);
   const activeRoomIdRef = useRef(START_NAV_ID);
@@ -497,6 +503,10 @@ export default function ApartmentTour({
 
     const panoTextures = new Map<string, DynamicTexture>();
     const panoTexturePromises = new Map<string, Promise<DynamicTexture>>();
+    const panoMetaCache = new Map<string, PanoMeta>();
+    const panoMetaPromises = new Map<string, Promise<PanoMeta>>();
+    const panoTileListCache = new Map<string, PanoTileDescriptor[]>();
+    const panoPreviewPromiseCache = new Map<string, Promise<HTMLImageElement>>();
     const textureUseOrder: string[] = [];
 
     const modelMeshes: AbstractMesh[] = [];
@@ -516,6 +526,7 @@ export default function ApartmentTour({
     let navTransitionRunId = 0;
     let navMoveRequestId = 0;
     let lastNavMarkerVisualSyncAt = 0;
+    let currentCanvasCursor: "grab" | "pointer" = "grab";
 
     const touchTexture = (id: string) => {
       const idx = textureUseOrder.indexOf(id);
@@ -536,6 +547,15 @@ export default function ApartmentTour({
         panoTextures.delete(oldest);
         textureUseOrder.shift();
       }
+    };
+
+    const setCanvasCursor = (nextCursor: "grab" | "pointer") => {
+      if (currentCanvasCursor === nextCursor) {
+        return;
+      }
+
+      currentCanvasCursor = nextCursor;
+      canvas.style.cursor = nextCursor;
     };
 
     const fmt3 = (n: number) => n.toFixed(3);
@@ -942,7 +962,10 @@ export default function ApartmentTour({
       buildActiveBasisDebug();
     };
 
-    const buildTileList = (panoId: string, meta: PanoMeta) => {
+    const buildTileList = (
+      panoId: string,
+      meta: PanoMeta,
+    ): PanoTileDescriptor[] => {
       if (meta.tiles && meta.tiles.length > 0) {
         return meta.tiles.map((t) => ({
           col: t.col,
@@ -968,6 +991,73 @@ export default function ApartmentTour({
         }
       }
       return list;
+    };
+
+    const loadPanoMeta = async (panoId: string) => {
+      const cachedMeta = panoMetaCache.get(panoId);
+      if (cachedMeta) {
+        return cachedMeta;
+      }
+
+      const cachedPromise = panoMetaPromises.get(panoId);
+      if (cachedPromise) {
+        return cachedPromise;
+      }
+
+      const promise = (async () => {
+        const metaUrl = `${panoBasePath}${panoId}/meta.json`;
+        const metaRes = await fetch(metaUrl);
+
+        if (!metaRes.ok) {
+          throw new Error(`Failed to load pano meta: ${metaUrl}`);
+        }
+
+        const meta = (await metaRes.json()) as PanoMeta;
+        panoMetaCache.set(panoId, meta);
+        return meta;
+      })();
+
+      panoMetaPromises.set(panoId, promise);
+
+      try {
+        return await promise;
+      } finally {
+        panoMetaPromises.delete(panoId);
+      }
+    };
+
+    const getCachedTileList = (panoId: string, meta: PanoMeta) => {
+      const cachedTileList = panoTileListCache.get(panoId);
+      if (cachedTileList) {
+        return cachedTileList;
+      }
+
+      const tileList = buildTileList(panoId, meta);
+      panoTileListCache.set(panoId, tileList);
+      return tileList;
+    };
+
+    const loadPanoPreview = (panoId: string, meta: PanoMeta) => {
+      const cachedPromise = panoPreviewPromiseCache.get(panoId);
+      if (cachedPromise) {
+        return cachedPromise;
+      }
+
+      const previewPromise = loadImage(
+        `${panoBasePath}${panoId}/${meta.preview}`,
+      ).catch((error) => {
+        panoPreviewPromiseCache.delete(panoId);
+        throw error;
+      });
+
+      panoPreviewPromiseCache.set(panoId, previewPromise);
+      return previewPromise;
+    };
+
+    const preloadPanoPreview = async (imageFilename: string) => {
+      const panoId = panoIdFromFilename(imageFilename);
+      const meta = await loadPanoMeta(panoId);
+      await loadPanoPreview(panoId, meta);
     };
 
     const getProjectedPanoSize = (meta: PanoMeta) => {
@@ -1410,7 +1500,7 @@ export default function ApartmentTour({
           hoveredMarker.root.rotationQuaternion?.clone() ??
           quaternionFromSurfaceNormal(lastCursorNormal);
         hoverCursorRoot.setEnabled(true);
-        canvas.style.cursor = "pointer";
+        setCanvasCursor("pointer");
 
         syncDebugInfoState((prev) => ({
           ...prev,
@@ -1442,7 +1532,7 @@ export default function ApartmentTour({
       if (!pick?.hit || !pick.pickedPoint || !pick.pickedMesh) {
         hoverCursorRoot.setEnabled(false);
         lastCursorNormal = Vector3.Forward();
-        canvas.style.cursor = "grab";
+        setCanvasCursor("grab");
 
         syncDebugInfoState((prev) => ({
           ...prev,
@@ -1467,7 +1557,7 @@ export default function ApartmentTour({
       if (!normal) {
         hoverCursorRoot.setEnabled(false);
         lastCursorNormal = Vector3.Forward();
-        canvas.style.cursor = "grab";
+        setCanvasCursor("grab");
 
         syncDebugInfoState((prev) => ({
           ...prev,
@@ -1490,7 +1580,7 @@ export default function ApartmentTour({
 
       const n = normal.normalize();
       lastCursorNormal = Vector3.Lerp(lastCursorNormal, n, 0.35).normalize();
-      canvas.style.cursor = "grab";
+      setCanvasCursor("grab");
 
       const pos = pick.pickedPoint.add(lastCursorNormal.scale(0.03));
       hoverCursorRoot.position.copyFrom(pos);
@@ -1737,14 +1827,7 @@ export default function ApartmentTour({
       }
 
       const promise = (async () => {
-        const metaUrl = `${panoBasePath}${panoId}/meta.json`;
-        const metaRes = await fetch(metaUrl);
-
-        if (!metaRes.ok) {
-          throw new Error(`Failed to load pano meta: ${metaUrl}`);
-        }
-
-        const meta = (await metaRes.json()) as PanoMeta;
+        const meta = await loadPanoMeta(panoId);
         const projectedSize = getProjectedPanoSize(meta);
 
         const drawCanvas = document.createElement("canvas");
@@ -1758,8 +1841,7 @@ export default function ApartmentTour({
 
         ctx.imageSmoothingEnabled = true;
 
-        const previewUrl = `${panoBasePath}${panoId}/${meta.preview}`;
-        const previewImg = await loadImage(previewUrl);
+        const previewImg = await loadPanoPreview(panoId, meta);
         ctx.drawImage(previewImg, 0, 0, projectedSize.width, projectedSize.height);
 
         if (
@@ -1784,7 +1866,7 @@ export default function ApartmentTour({
         panoTextures.set(panoId, dynamicTexture);
         touchTexture(panoId);
 
-        const tiles = buildTileList(panoId, meta);
+        const tiles = getCachedTileList(panoId, meta);
         const missingTiles: string[] = [];
         const concurrency = 8;
 
@@ -1870,6 +1952,7 @@ export default function ApartmentTour({
         .slice(0, 3);
 
       for (const item of nearest) {
+        void preloadPanoPreview(item.image);
         void loadPanoTextureFromTiles(item.image);
       }
     };
@@ -1887,27 +1970,46 @@ export default function ApartmentTour({
         const currentPoint = getActiveMappedNavPoint();
         const shouldAnimate =
           options?.animate ?? (currentPoint != null && currentPoint.nav.id !== navId);
-        let texture: Texture | null = null;
+        const cachedTexture = showProjectionRef.current
+          ? (panoTextures.get(panoId) ?? null)
+          : null;
+        let texturePromise: Promise<Texture | null> | null = null;
 
         if (showProjectionRef.current) {
-          texture = await loadPanoTextureFromTiles(
+          texturePromise = loadPanoTextureFromTiles(
             navPoint.nav.image_filename,
           );
-          touchTexture(panoId);
-          evictOldTextures([panoId]);
-          void preloadNearestPanos(navPoint.nav.id);
         } else {
           restoreOriginalMaterials();
         }
 
         if (shouldAnimate) {
-          await animateMoveBetweenNavPoints(currentPoint, navPoint, texture);
+          await animateMoveBetweenNavPoints(currentPoint, navPoint, cachedTexture);
         } else {
+          const texture = texturePromise ? await texturePromise : null;
           await animateMoveBetweenNavPoints(null, navPoint, texture);
         }
 
         if (moveRequestId !== navMoveRequestId) {
           return;
+        }
+
+        if (texturePromise) {
+          const texture = await texturePromise;
+
+          if (moveRequestId !== navMoveRequestId) {
+            return;
+          }
+
+          touchTexture(panoId);
+          evictOldTextures([panoId]);
+
+          if (showProjectionRef.current && texture) {
+            applyProjectionToMeshes(texture, navPoint);
+            setProjectionOpacity(1);
+          }
+
+          void preloadNearestPanos(navPoint.nav.id);
         }
 
         const cameraPos = navPoint.worldPosition.clone();
@@ -2015,7 +2117,7 @@ export default function ApartmentTour({
       }
 
       hoverCursorRoot.setEnabled(false);
-      canvas.style.cursor = "grab";
+      setCanvasCursor("grab");
     };
 
     moveToNavRef.current = moveToNavPoint;
@@ -2330,7 +2432,7 @@ export default function ApartmentTour({
 
                 <div
                   ref={tabsScrollerRef}
-                  className="pointer-events-auto flex min-w-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto pb-3"
+                  className="pointer-events-auto flex min-w-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-5 pt-6 scroll-smooth sm:gap-4 sm:px-4 sm:pb-6 sm:pt-7"
                   onWheel={(event) => {
                     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
                       return;
@@ -2351,14 +2453,18 @@ export default function ApartmentTour({
                         type="button"
                         data-room-id={tab.id}
                         onClick={() => moveToNavRef.current?.(tab.id)}
-                        className={`group relative block w-[160px] shrink-0 snap-center text-left transition duration-300 sm:w-[178px] ${
+                        className={`group relative block w-[144px] shrink-0 snap-center text-left sm:w-[164px] lg:w-[178px] ${
                           isActive
-                            ? "translate-y-[-3px]"
-                            : "opacity-90 hover:-translate-y-[1px] hover:opacity-100"
+                            ? "z-10"
+                            : "z-0"
                         }`}
                       >
                         <div
-                          className={`relative overflow-hidden rounded-[22px] transition duration-300 `}
+                          className={`relative origin-bottom overflow-hidden rounded-[22px] will-change-transform transition-[transform,box-shadow,filter,opacity] duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] ${
+                            isActive
+                              ? "translate-y-[-4px] scale-[1.12] opacity-100 shadow-[0_20px_44px_rgba(0,0,0,0.28)]"
+                              : "translate-y-0 scale-[0.92] opacity-72 shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:translate-y-[-1px] group-hover:scale-[0.97] group-hover:opacity-90"
+                          }`}
                         >
                           <div className="pointer-events-none absolute inset-x-4 top-0 h-8 rounded-b-[999px] opacity-80" />
                           <div className="relative m-[3px] aspect-[100/64] overflow-hidden rounded-[18px]">
@@ -2366,14 +2472,14 @@ export default function ApartmentTour({
                               src={tab.image}
                               alt={tab.label}
                               fill
-                              sizes="(max-width: 640px) 160px, 178px"
+                              sizes="(max-width: 640px) 144px, (max-width: 1024px) 164px, 178px"
                               quality={64}
                               loading="lazy"
                               draggable={false}
-                              className={`object-cover transition duration-500 ${
+                              className={`object-cover will-change-transform transition duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] ${
                                 isActive
-                                  ? "scale-[1.015]"
-                                  : "scale-100 group-hover:scale-[1.03]"
+                                  ? "scale-[1.03]"
+                                  : "scale-[0.985] group-hover:scale-[1.01]"
                               }`}
                             />
                             {/* <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0)_30%,rgba(0,0,0,0.1)_100%)]" /> */}
@@ -2382,7 +2488,11 @@ export default function ApartmentTour({
                         </div>
                         <div className="px-2 pt-2.5">
                           <p
-                            className={`${uiFont.className} truncate text-[12px] font-semibold leading-none tracking-[-0.01em] text-white/95 sm:text-[13px]`}
+                            className={`${uiFont.className} truncate leading-none tracking-[-0.01em] transition-[font-size,opacity,transform] duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] ${
+                              isActive
+                                ? "translate-y-0 text-[13px] font-semibold text-white sm:text-[14px]"
+                                : "translate-y-[-1px] text-[11px] font-medium text-white/64 sm:text-[12px]"
+                            }`}
                           >
                             {tab.label}
                           </p>
