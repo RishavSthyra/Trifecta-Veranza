@@ -20,6 +20,7 @@ import MasterPlanArrowMarkers from "./MasterPlanArrowMarkers";
 import { masterPlanArrowPoints } from "@/data/masterPlanArrowPoints";
 import GlassSelect, { GlassSelectItem } from "./ui/GlassSelect";
 import MasterPlanFrameHoverStage from "./MasterPlanFrameHoverStage";
+import SelectedFlatDetailsPanel from "./SelectedFlatDetailsPanel";
 import {
   ArrowLeft,
   ArrowRight,
@@ -127,6 +128,62 @@ function getApartmentSignature(apartments: InventoryApartment[]) {
     .join("|");
 }
 
+function MasterPlanHotspotControls({
+  onPrevious,
+  onNext,
+  compact = false,
+}: {
+  onPrevious: () => void;
+  onNext: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <div
+      className={`pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.42),rgba(255,255,255,0.14))] shadow-[0_18px_46px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(20,20,24,0.46),rgba(20,20,24,0.2))] ${
+        compact ? "" : ""
+      } ${compact ? "p-1.5" : "p-2"}`}
+    >
+      <button
+        type="button"
+        onClick={onPrevious}
+        onContextMenu={(event) => event.preventDefault()}
+        className={`group inline-flex touch-manipulation items-center justify-center rounded-full border border-white/45 bg-white/72 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_24px_rgba(15,23,42,0.12)] transition duration-300 hover:bg-white/88 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/10 dark:text-white dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_24px_rgba(0,0,0,0.22)] dark:hover:bg-white/14 ${
+          compact
+            ? "h-9 w-9"
+            : "h-10 w-10 hover:-translate-x-0.5 sm:h-11 sm:w-11"
+        }`}
+        aria-label="Previous master plan hotspot"
+      >
+        <ArrowLeft
+          className={`h-4 w-4 transition duration-300 ${
+            compact ? "" : "group-hover:-translate-x-0.5"
+          }`}
+        />
+      </button>
+
+      <div className="h-7 w-px bg-gradient-to-b from-white/0 via-white/35 to-white/0 dark:via-white/12 sm:h-8" />
+
+      <button
+        type="button"
+        onClick={onNext}
+        onContextMenu={(event) => event.preventDefault()}
+        className={`group inline-flex touch-manipulation items-center justify-center rounded-full border border-white/45 bg-white/72 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_24px_rgba(15,23,42,0.12)] transition duration-300 hover:bg-white/88 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/10 dark:text-white dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_24px_rgba(0,0,0,0.22)] dark:hover:bg-white/14 ${
+          compact
+            ? "h-9 w-9"
+            : "h-10 w-10 hover:translate-x-0.5 sm:h-11 sm:w-11"
+        }`}
+        aria-label="Next master plan hotspot"
+      >
+        <ArrowRight
+          className={`h-4 w-4 transition duration-300 ${
+            compact ? "" : "group-hover:translate-x-0.5"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 export default function MasterPlanLayout({
   initialApartments = [],
 }: MasterPlanLayoutProps) {
@@ -134,6 +191,7 @@ export default function MasterPlanLayout({
 
   const rootRef = useRef<HTMLDivElement | null>(null);
   const reverseVideoRef = useRef<HTMLVideoElement | null>(null);
+  const selectedFlatPanelRef = useRef<HTMLDivElement | null>(null);
   const leavingRef = useRef(false);
   const touchStartYRef = useRef<number | null>(null);
   const inventorySignatureRef = useRef(getApartmentSignature(initialApartments));
@@ -151,19 +209,41 @@ export default function MasterPlanLayout({
   const [bhk, setBhk] = useState<(typeof bhkOptions)[number]>("All");
   const [facing, setFacing] = useState<(typeof facingOptions)[number]>("All");
   const [status, setStatus] = useState<(typeof statusOptions)[number]>("All");
-  const [minPrice, setMinPrice] = useState(0);
-  const [maxPrice, setMaxPrice] = useState(200);
   const [minArea, setMinArea] = useState(0);
 
   const [isLeaving, setIsLeaving] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
+  const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(1);
   const [isStageInteracting, setIsStageInteracting] = useState(false);
+  const [selectedApartment, setSelectedApartment] =
+    useState<InventoryApartment | null>(null);
+  const [selectedApartmentMeshId, setSelectedApartmentMeshId] = useState<
+    string | null
+  >(null);
   const deferredSearch = useDeferredValue(search);
 
   useEffect(() => {
     currentFrameRef.current = currentFrame;
   }, [currentFrame]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const compactViewportMedia = window.matchMedia("(max-width: 1279px)");
+    const syncCompactViewport = () => {
+      setIsCompactViewport(compactViewportMedia.matches);
+    };
+
+    syncCompactViewport();
+    compactViewportMedia.addEventListener("change", syncCompactViewport);
+
+    return () => {
+      compactViewportMedia.removeEventListener("change", syncCompactViewport);
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -281,8 +361,6 @@ export default function MasterPlanLayout({
       const matchesBhk = bhk === "All" || apartment.bhk === Number(bhk);
       const matchesFacing = facing === "All" || apartment.facing === facing;
       const matchesStatus = status === "All" || apartment.status === status;
-      const matchesPrice =
-        apartment.priceLakhs >= minPrice && apartment.priceLakhs <= maxPrice;
       const matchesArea = apartment.areaSqft >= minArea;
 
       return (
@@ -291,31 +369,18 @@ export default function MasterPlanLayout({
         matchesBhk &&
         matchesFacing &&
         matchesStatus &&
-        matchesPrice &&
         matchesArea
       );
     });
-  }, [
-    apartments,
-    deferredSearch,
-    selectedTower,
-    bhk,
-    facing,
-    status,
-    minPrice,
-    maxPrice,
-    minArea,
-  ]);
+  }, [apartments, deferredSearch, selectedTower, bhk, facing, status, minArea]);
   const hasActiveInventoryFilters = useMemo(
     () =>
       deferredSearch.trim().length > 0 ||
       bhk !== "All" ||
       facing !== "All" ||
       status !== "All" ||
-      minPrice > 0 ||
-      maxPrice < 200 ||
       minArea > 0,
-    [deferredSearch, bhk, facing, status, minPrice, maxPrice, minArea],
+    [deferredSearch, bhk, facing, status, minArea],
   );
 
   const resetFilters = () => {
@@ -323,8 +388,6 @@ export default function MasterPlanLayout({
     setBhk("All");
     setFacing("All");
     setStatus("All");
-    setMinPrice(0);
-    setMaxPrice(200);
     setMinArea(0);
   };
 
@@ -335,9 +398,78 @@ export default function MasterPlanLayout({
 
   const handleBackToTowerSelect = () => {
     resetFilters();
+    setSelectedApartment(null);
+    setSelectedApartmentMeshId(null);
     setSelectedTower(null);
     setIsMobileSheetOpen(true);
   };
+
+  const clearSelectedApartment = useCallback(() => {
+    setSelectedApartment(null);
+    setSelectedApartmentMeshId(null);
+
+    if (selectedTower) {
+      setIsMobileSheetOpen(true);
+    }
+  }, [selectedTower]);
+
+  const handleApartmentSelect = useCallback(
+    (apartment: InventoryApartment | null, apartmentMeshId: string | null) => {
+      if (!apartment || !apartmentMeshId) {
+        return;
+      }
+
+      setSelectedApartment(apartment);
+      setSelectedApartmentMeshId(apartmentMeshId);
+      setIsMobileSheetOpen(false);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!selectedApartment) {
+      return;
+    }
+
+    const syncedApartment =
+      apartments.find((apartment) => apartment.id === selectedApartment.id) ?? null;
+
+    if (!syncedApartment) {
+      setSelectedApartment(null);
+      setSelectedApartmentMeshId(null);
+      return;
+    }
+
+    if (syncedApartment !== selectedApartment) {
+      setSelectedApartment(syncedApartment);
+    }
+  }, [apartments, selectedApartment]);
+
+  useEffect(() => {
+    if (!selectedApartment) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+
+      if (
+        selectedFlatPanelRef.current &&
+        target instanceof Node &&
+        selectedFlatPanelRef.current.contains(target)
+      ) {
+        return;
+      }
+
+      clearSelectedApartment();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [clearSelectedApartment, selectedApartment]);
 
   const wrapFrame = useCallback(
     (frame: number) =>
@@ -411,10 +543,20 @@ export default function MasterPlanLayout({
   }, [router]);
 
   useEffect(() => {
+    const getScrollAreaElement = (target: EventTarget | null) => {
+      if (target instanceof HTMLElement) {
+        return target.closest("[data-scroll-area]");
+      }
+
+      if (target instanceof Node) {
+        return target.parentElement?.closest("[data-scroll-area]") ?? null;
+      }
+
+      return null;
+    };
+
     const isInsideScrollArea = (target: EventTarget | null) => {
-      return target instanceof HTMLElement
-        ? Boolean(target.closest("[data-scroll-area]"))
-        : false;
+      return Boolean(getScrollAreaElement(target));
     };
 
     const blockAllScrollLikeActions = (e: Event) => {
@@ -541,16 +683,21 @@ export default function MasterPlanLayout({
       ref={rootRef}
       className="relative h-dvh w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
     >
-      <MasterPlanFrameHoverStage
-        apartments={apartments}
-        currentFrame={currentFrame}
-        filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
-        inventoryError={inventoryError}
-        inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
-        onInteractionChange={setIsStageInteracting}
-        onSetFrame={setWrappedFrame}
-        selectedTower={selectedTower}
-      />
+      {!isCompactViewport ? (
+        <MasterPlanFrameHoverStage
+          apartments={apartments}
+          currentFrame={currentFrame}
+          dragEnabled
+          filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
+          inventoryError={inventoryError}
+          inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
+          onApartmentSelect={handleApartmentSelect}
+          onInteractionChange={setIsStageInteracting}
+          onSetFrame={setWrappedFrame}
+          selectedApartmentId={selectedApartmentMeshId}
+          selectedTower={selectedTower}
+        />
+      ) : null}
 
       <video
         ref={reverseVideoRef}
@@ -568,35 +715,16 @@ export default function MasterPlanLayout({
         />
       </video>
 
-      {!isLeaving && selectedTower === "Tower B" ? (
+      {!isCompactViewport && !isLeaving && selectedTower === "Tower B" ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
       ) : null}
 
-      {!isLeaving ? (
+      {!isCompactViewport && !isLeaving ? (
         <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-4 sm:top-28 md:top-30">
-          <div className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.42),rgba(255,255,255,0.14))] p-2 shadow-[0_18px_46px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(20,20,24,0.46),rgba(20,20,24,0.2))]">
-            <button
-              type="button"
-              onClick={() => goToHotspot(-1)}
-              onContextMenu={(event) => event.preventDefault()}
-              className="group inline-flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-white/45 bg-white/72 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_24px_rgba(15,23,42,0.12)] transition duration-300 hover:-translate-x-0.5 hover:bg-white/88 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/10 dark:text-white dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_24px_rgba(0,0,0,0.22)] dark:hover:bg-white/14 sm:h-11 sm:w-11"
-              aria-label="Previous master plan hotspot"
-            >
-              <ArrowLeft className="h-4 w-4 transition duration-300 group-hover:-translate-x-0.5" />
-            </button>
-
-            <div className="h-7 w-px bg-gradient-to-b from-white/0 via-white/35 to-white/0 dark:via-white/12 sm:h-8" />
-
-            <button
-              type="button"
-              onClick={() => goToHotspot(1)}
-              onContextMenu={(event) => event.preventDefault()}
-              className="group inline-flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-white/45 bg-white/72 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.8),0_8px_24px_rgba(15,23,42,0.12)] transition duration-300 hover:translate-x-0.5 hover:bg-white/88 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/10 dark:text-white dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_8px_24px_rgba(0,0,0,0.22)] dark:hover:bg-white/14 sm:h-11 sm:w-11"
-              aria-label="Next master plan hotspot"
-            >
-              <ArrowRight className="h-4 w-4 transition duration-300 group-hover:translate-x-0.5" />
-            </button>
-          </div>
+          <MasterPlanHotspotControls
+            onPrevious={() => goToHotspot(-1)}
+            onNext={() => goToHotspot(1)}
+          />
         </div>
       ) : null}
 
@@ -606,20 +734,123 @@ export default function MasterPlanLayout({
         <div className="surface-contain absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-blue-300/20 blur-3xl dark:bg-blue-500/10" />
       </div>
 
+      <div className="relative z-10 flex h-full flex-col xl:hidden">
+        <div className="relative w-full shrink-0">
+          <div className="relative h-[clamp(19rem,46vh,31rem)] overflow-hidden">
+            <MasterPlanFrameHoverStage
+              apartments={apartments}
+              currentFrame={currentFrame}
+              dragEnabled={false}
+              filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
+              inventoryError={inventoryError}
+              inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
+              onApartmentSelect={handleApartmentSelect}
+              onInteractionChange={setIsStageInteracting}
+              onSetFrame={setWrappedFrame}
+              selectedApartmentId={selectedApartmentMeshId}
+              selectedTower={selectedTower}
+            />
+
+            {!isLeaving && selectedTower ? (
+              <div className="pointer-events-none absolute inset-x-0 bottom-3 z-20 flex justify-center px-3">
+                <MasterPlanHotspotControls
+                  compact
+                  onPrevious={() => goToHotspot(-1)}
+                  onNext={() => goToHotspot(1)}
+                />
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="mt-2 min-h-0 flex-1 px-3 pb-3">
+          <div className="surface-contain flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_24px_64px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70">
+            {selectedApartment ? (
+              <div className="flex min-h-0 flex-1 items-center justify-center p-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                Flat details are open above.
+              </div>
+            ) : selectedTower ? (
+              <div
+                className="flex min-h-0 flex-1 flex-col gap-3 p-3"
+                data-scroll-area="compact-panel"
+              >
+                <MasterPlanFiltersCard
+                  search={search}
+                  onSearchChange={setSearch}
+                  selectedTower={selectedTower}
+                  bhk={bhk}
+                  onBhkChange={setBhk}
+                  facing={facing}
+                  onFacingChange={setFacing}
+                  status={status}
+                  onStatusChange={setStatus}
+                  minArea={minArea}
+                  onMinAreaChange={setMinArea}
+                  onReset={resetFilters}
+                  onBack={handleBackToTowerSelect}
+                  compact
+                />
+
+                <MasterPlanResultsCard
+                  filteredApartments={filteredApartments}
+                  isInventoryLoading={isInventoryLoading}
+                  inventoryError={inventoryError}
+                  compact
+                />
+              </div>
+            ) : (
+              <div
+                className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto p-4 [-webkit-overflow-scrolling:touch]"
+                data-scroll-area="compact-panel"
+              >
+                <TowerSelect
+                  embedded
+                  mobile
+                  selectedTower={selectedTower}
+                  onSelectTower={handleTowerSelect}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <AnimatePresence>
+        {selectedApartment ? (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.22, ease: smoothEase }}
+            className="pointer-events-none absolute inset-x-0 bottom-4 z-40 px-3 xl:hidden"
+          >
+            <SelectedFlatDetailsPanel
+              ref={selectedFlatPanelRef}
+              apartment={selectedApartment}
+              onClose={clearSelectedApartment}
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+
       <div
-        className="pointer-events-none relative z-10 h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8"
+        className="pointer-events-none relative z-10 hidden h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8 xl:block"
       >
         <div
           className={`grid h-full gap-6 ${
-            selectedTower
+            selectedTower && !selectedApartment
               ? "xl:grid-cols-[minmax(0,1fr)_420px]"
+              : selectedTower
+                ? "xl:grid-cols-[minmax(0,1fr)]"
               : "xl:grid-cols-[minmax(0,1fr)_540px]"
           }`}
         >
-          <div className="pointer-events-none hidden xl:block" />
+          {!selectedApartment ? (
+            <div className="pointer-events-none hidden xl:block" />
+          ) : null}
 
           <AnimatePresence mode="wait">
-            {!isLeaving && (
+            {!isLeaving && !selectedApartment ? (
               <motion.aside
                 key="sidebar"
                 variants={panelVariants}
@@ -646,10 +877,6 @@ export default function MasterPlanLayout({
                         onFacingChange={setFacing}
                         status={status}
                         onStatusChange={setStatus}
-                        minPrice={minPrice}
-                        onMinPriceChange={setMinPrice}
-                        maxPrice={maxPrice}
-                        onMaxPriceChange={setMaxPrice}
                         minArea={minArea}
                         onMinAreaChange={setMinArea}
                         onReset={resetFilters}
@@ -671,14 +898,14 @@ export default function MasterPlanLayout({
                   )}
                 </div>
               </motion.aside>
-            )}
+            ) : null}
           </AnimatePresence>
         </div>
 
         {!isLeaving ? (
           <>
             <AnimatePresence>
-              {selectedTower && isMobileSheetOpen ? (
+              {selectedTower && isMobileSheetOpen && !selectedApartment ? (
                 <motion.button
                   type="button"
                   initial={{ opacity: 0 }}
@@ -691,7 +918,7 @@ export default function MasterPlanLayout({
               ) : null}
             </AnimatePresence>
 
-            {!isMobileSheetOpen && selectedTower ? (
+            {!isMobileSheetOpen && selectedTower && !selectedApartment ? (
               <button
                 type="button"
                 onClick={() => setIsMobileSheetOpen(true)}
@@ -720,7 +947,7 @@ export default function MasterPlanLayout({
                 }`}
                 data-scroll-area={selectedTower ? "mobile-sheet" : undefined}
               >
-                {selectedTower ? (
+                {selectedTower && !selectedApartment ? (
                   <>
                     <div className="flex items-center justify-between border-b border-zinc-200/80 px-4 py-3 dark:border-white/10">
                       <div className="flex items-center gap-3">
@@ -754,10 +981,6 @@ export default function MasterPlanLayout({
                         onFacingChange={setFacing}
                         status={status}
                         onStatusChange={setStatus}
-                        minPrice={minPrice}
-                        onMinPriceChange={setMinPrice}
-                        maxPrice={maxPrice}
-                        onMaxPriceChange={setMaxPrice}
                         minArea={minArea}
                         onMinAreaChange={setMinArea}
                         onReset={resetFilters}
@@ -787,6 +1010,24 @@ export default function MasterPlanLayout({
             </motion.div>
           </>
         ) : null}
+
+        <AnimatePresence>
+          {selectedApartment ? (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.22, ease: smoothEase }}
+              className="pointer-events-none absolute inset-x-0 bottom-4 z-40 px-3 sm:bottom-6 sm:px-5 lg:px-8"
+            >
+              <SelectedFlatDetailsPanel
+                ref={selectedFlatPanelRef}
+                apartment={selectedApartment}
+                onClose={clearSelectedApartment}
+              />
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
     </div>
   );
@@ -802,10 +1043,6 @@ function MasterPlanFiltersCard({
   onFacingChange,
   status,
   onStatusChange,
-  minPrice,
-  onMinPriceChange,
-  maxPrice,
-  onMaxPriceChange,
   minArea,
   onMinAreaChange,
   onReset,
@@ -821,10 +1058,6 @@ function MasterPlanFiltersCard({
   onFacingChange: (value: (typeof facingOptions)[number]) => void;
   status: (typeof statusOptions)[number];
   onStatusChange: (value: (typeof statusOptions)[number]) => void;
-  minPrice: number;
-  onMinPriceChange: (value: number) => void;
-  maxPrice: number;
-  onMaxPriceChange: (value: number) => void;
   minArea: number;
   onMinAreaChange: (value: number) => void;
   onReset: () => void;
@@ -836,10 +1069,8 @@ function MasterPlanFiltersCard({
     Number(bhk !== "All") +
     Number(facing !== "All") +
     Number(status !== "All") +
-    Number(minPrice > 0) +
-    Number(maxPrice < 200) +
     Number(minArea > 0);
-  const [isCompactOpen, setIsCompactOpen] = useState(false);
+  const [isCompactOpen, setIsCompactOpen] = useState(compact);
 
   if (compact) {
     return (
@@ -877,7 +1108,7 @@ function MasterPlanFiltersCard({
             className="inline-flex h-10 items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
-            {isCompactOpen ? "Hide" : "Open"}
+            {isCompactOpen ? "Hide filters" : "Show filters"}
             <ChevronDown
               className={`h-3.5 w-3.5 transition ${isCompactOpen ? "rotate-180" : ""}`}
             />
@@ -906,8 +1137,6 @@ function MasterPlanFiltersCard({
             {bhk !== "All" ? <FilterChip label={`${bhk} BHK`} /> : null}
             {facing !== "All" ? <FilterChip label={facing} /> : null}
             {status !== "All" ? <FilterChip label={status} /> : null}
-            {minPrice > 0 ? <FilterChip label={`Min ${minPrice}L`} /> : null}
-            {maxPrice < 200 ? <FilterChip label={`Max ${maxPrice}L`} /> : null}
             {minArea > 0 ? <FilterChip label={`${minArea}+ sqft`} /> : null}
           </div>
         ) : null}
@@ -967,30 +1196,6 @@ function MasterPlanFiltersCard({
                 {selectedTower}
               </p>
             </div>
-
-            <FilterBlock compact className="col-span-2" label={`Min Price: Rs. ${minPrice}L`}>
-              <input
-                type="range"
-                min={0}
-                max={200}
-                step={5}
-                value={minPrice}
-                onChange={(e) => onMinPriceChange(Number(e.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
-              />
-            </FilterBlock>
-
-            <FilterBlock compact className="col-span-2" label={`Max Price: Rs. ${maxPrice}L`}>
-              <input
-                type="range"
-                min={0}
-                max={200}
-                step={5}
-                value={maxPrice}
-                onChange={(e) => onMaxPriceChange(Number(e.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
-              />
-            </FilterBlock>
 
             <FilterBlock compact className="col-span-2" label={`Min Area: ${minArea} sqft`}>
               <input
@@ -1112,30 +1317,6 @@ function MasterPlanFiltersCard({
               </GlassSelectItem>
             ))}
           </GlassSelect>
-        </FilterBlock>
-
-        <FilterBlock label={`Min Price: Rs. ${minPrice}L`}>
-          <input
-            type="range"
-            min={0}
-            max={200}
-            step={5}
-            value={minPrice}
-            onChange={(e) => onMinPriceChange(Number(e.target.value))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
-          />
-        </FilterBlock>
-
-        <FilterBlock label={`Max Price: Rs. ${maxPrice}L`}>
-          <input
-            type="range"
-            min={0}
-            max={200}
-            step={5}
-            value={maxPrice}
-            onChange={(e) => onMaxPriceChange(Number(e.target.value))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
-          />
         </FilterBlock>
 
         <FilterBlock label={`Min Area: ${minArea} sqft`}>
