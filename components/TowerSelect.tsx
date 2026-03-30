@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image, { type StaticImageData } from "next/image";
-import { CheckCircle2, ChevronRight } from "lucide-react";
+import { CheckCircle2, ChevronRight, Layers3 } from "lucide-react";
 import towerimg from "@/assets/Tower.avif";
 import type { TowerType } from "@/types/inventory";
 
@@ -11,7 +11,9 @@ export type { TowerType } from "@/types/inventory";
 type TowerSelectProps = {
   selectedTower?: TowerType | null;
   onSelectTower?: (tower: TowerType) => void;
+  onTopViewClick?: () => void;
   embedded?: boolean;
+  isTopViewActive?: boolean;
   mobile?: boolean;
 };
 
@@ -53,10 +55,14 @@ const towerCards: Array<{
 ];
 
 function TowerSelectPanel({
+  isTopViewActive = false,
+  onTopViewClick,
   selectedTower,
   onSelectTower,
   mobile = false,
 }: {
+  isTopViewActive?: boolean;
+  onTopViewClick?: () => void;
   selectedTower: TowerType | null;
   onSelectTower: (tower: TowerType) => void;
   mobile?: boolean;
@@ -65,15 +71,34 @@ function TowerSelectPanel({
     return (
       <aside className="w-full">
         <div className="px-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-zinc-500/85">
-            Master Plan
-          </p>
-          <h2 className="mt-1.5 text-[1.35rem] font-semibold tracking-[-0.03em] text-zinc-950">
-            Choose Your Tower
-          </h2>
-          <p className="mt-1 text-sm leading-5 text-zinc-600">
-            Pick a tower to open the matching flats.
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-zinc-500/85">
+                Master Plan
+              </p>
+              <h2 className="mt-1.5 text-[1.35rem] font-semibold tracking-[-0.03em] text-zinc-950">
+                Choose Your Tower
+              </h2>
+              <p className="mt-1 text-sm leading-5 text-zinc-600">
+                Pick a tower to open the matching flats.
+              </p>
+            </div>
+
+            {onTopViewClick ? (
+              <button
+                type="button"
+                onClick={onTopViewClick}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+                  isTopViewActive
+                    ? "border-zinc-900 bg-zinc-900 text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]"
+                    : "border-zinc-200 bg-white/92 text-zinc-700 hover:border-zinc-300 hover:bg-white"
+                }`}
+              >
+                <Layers3 className="h-3.5 w-3.5" />
+                Top View
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="mt-4 flex flex-col gap-3">
@@ -132,16 +157,35 @@ function TowerSelectPanel({
         <div className="pointer-events-none absolute -left-16 bottom-4 h-32 w-32 rounded-full bg-violet-200/25 blur-3xl" />
 
         <div className="relative mb-4 px-2 pt-1 xl:mb-4 2xl:mb-5">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-zinc-500/90">
-            Master Plan
-          </p>
-          <h2 className="mt-2 text-[1.42rem] font-semibold tracking-[-0.03em] text-zinc-950 xl:text-[1.5rem] 2xl:text-[1.8rem]">
-            Choose Your Tower
-          </h2>
-          <p className="mt-1.5 max-w-[24rem] text-[13px] leading-5 text-zinc-600 2xl:max-w-[28rem] 2xl:text-sm 2xl:leading-6">
-            Start with the tower, then we will open the matching inventory
-            filters.
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-zinc-500/90">
+                Master Plan
+              </p>
+              <h2 className="mt-2 text-[1.42rem] font-semibold tracking-[-0.03em] text-zinc-950 xl:text-[1.5rem] 2xl:text-[1.8rem]">
+                Choose Your Tower
+              </h2>
+              <p className="mt-1.5 max-w-[24rem] text-[13px] leading-5 text-zinc-600 2xl:max-w-[28rem] 2xl:text-sm 2xl:leading-6">
+                Start with the tower, then we will open the matching inventory
+                filters.
+              </p>
+            </div>
+
+            {onTopViewClick ? (
+              <button
+                type="button"
+                onClick={onTopViewClick}
+                className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+                  isTopViewActive
+                    ? "border-zinc-900 bg-zinc-900 text-white shadow-[0_14px_30px_rgba(15,23,42,0.18)]"
+                    : "border-zinc-200 bg-white/92 text-zinc-700 hover:border-zinc-300 hover:bg-white"
+                }`}
+              >
+                <Layers3 className="h-3.5 w-3.5" />
+                Top View
+              </button>
+            ) : null}
+          </div>
         </div>
 
         <div className="space-y-4 xl:space-y-4 2xl:space-y-6">
@@ -219,7 +263,9 @@ function TowerSelectPanel({
 export default function TowerSelect({
   selectedTower,
   onSelectTower,
+  onTopViewClick,
   embedded = false,
+  isTopViewActive = false,
   mobile = false,
 }: TowerSelectProps) {
   const [internalSelectedTower, setInternalSelectedTower] =
@@ -238,6 +284,8 @@ export default function TowerSelect({
   if (embedded) {
     return (
       <TowerSelectPanel
+        isTopViewActive={isTopViewActive}
+        onTopViewClick={onTopViewClick}
         mobile={mobile}
         selectedTower={activeTower}
         onSelectTower={handleSelectTower}
@@ -250,6 +298,8 @@ export default function TowerSelect({
       <div className="relative z-10 w-full px-4 py-6 md:px-6 lg:px-8">
         <div className="ml-auto w-full max-w-[420px]">
           <TowerSelectPanel
+            isTopViewActive={isTopViewActive}
+            onTopViewClick={onTopViewClick}
             mobile={mobile}
             selectedTower={activeTower}
             onSelectTower={handleSelectTower}

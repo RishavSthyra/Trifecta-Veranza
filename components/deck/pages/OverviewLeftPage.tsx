@@ -27,7 +27,7 @@ const OverviewLeftPage = forwardRef<HTMLDivElement, Props>(({ number: _number },
   return (
     <div
       ref={ref}
-      className="h-full w-full overflow-hidden rounded-[24px] bg-white sm:rounded-2xl"
+      className="h-full w-full overflow-hidden relative rounded-[24px] bg-white sm:rounded-2xl"
     >
       <motion.div
         variants={imageReveal}
@@ -36,10 +36,10 @@ const OverviewLeftPage = forwardRef<HTMLDivElement, Props>(({ number: _number },
         className="relative h-full w-full"
       >
         <Image
-          src={OverviewHero}
+          src={"https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774911464/HighresScreenshot00012.jpg"}
           alt="Project overview tower"
           fill
-          className="object-cover"
+          className="absolute h-full w-full object-cover object-[35%_90%]"
           priority
         />
       </motion.div>

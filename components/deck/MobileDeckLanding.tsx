@@ -167,11 +167,10 @@ export default function MobileDeckLanding() {
         <div className={`${softCardClass} overflow-hidden`}>
           <div className="relative aspect-[1.18] py-6 w-full sm:aspect-[1.5]">
             <Image
-              src={OverviewHero}
+              src={"https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774911464/HighresScreenshot00012.jpg"}
               alt="Project overview"
               fill
-              sizes="(max-width: 780px) 100vw, 780px"
-              className="object-cover"
+              className="object-[50%_60%]"
             />
             <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,13,8,0.02),rgba(18,13,8,0.02)_35%,rgba(18,13,8,0.22)_100%)]" />
           </div>

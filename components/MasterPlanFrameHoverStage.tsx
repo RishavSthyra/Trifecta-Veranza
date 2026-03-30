@@ -2129,6 +2129,7 @@ const AmenityMarkers = memo(function AmenityMarkers({
 }) {
   const { camera, size } = useThree();
   const [hoveredAmenityId, setHoveredAmenityId] = useState<string | null>(null);
+  const [pinnedAmenityId, setPinnedAmenityId] = useState<string | null>(null);
   const [visibleAmenitiesState, setVisibleAmenitiesState] = useState<
     Array<{ id: string; scale: number }>
   >([]);
@@ -2358,6 +2359,8 @@ const AmenityMarkers = memo(function AmenityMarkers({
     <group>
       {visibleAmenities.map((amenity) => {
         const Icon = AMENITY_ICON_COMPONENTS[amenity.iconKey];
+        const isAmenityActive =
+          hoveredAmenityId === amenity.id || pinnedAmenityId === amenity.id;
 
         return (
           <Html
@@ -2368,7 +2371,7 @@ const AmenityMarkers = memo(function AmenityMarkers({
             zIndexRange={[16, 0]}
           >
             <div className="relative -translate-y-[38%]">
-              {hoveredAmenityId === amenity.id ? (
+              {isAmenityActive ? (
                 <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[calc(100%+0.45rem)] whitespace-nowrap rounded-full border border-white/20 bg-black/82 px-2.5 py-1 text-[10px] font-medium tracking-[0.01em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-md">
                   {amenity.label}
                 </div>
@@ -2377,9 +2380,13 @@ const AmenityMarkers = memo(function AmenityMarkers({
               <button
                 type="button"
                 aria-label={amenity.label}
-                className="flex h-8 w-8 items-center justify-center rounded-full border border-black/25 bg-white text-black shadow-[0_10px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.92)] transition duration-200"
+                className={`flex h-8 w-8 items-center justify-center rounded-full border transition duration-200 ${
+                  isAmenityActive
+                    ? "border-black bg-black text-white shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
+                    : "border-black/25 bg-white text-black shadow-[0_10px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.92)] hover:shadow-[0_14px_30px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.96)]"
+                }`}
                 style={{
-                  transform: `scale(${amenity.scale * (hoveredAmenityId === amenity.id ? 1.08 : 1)})`,
+                  transform: `translateY(${isAmenityActive ? "-2px" : "0px"}) scale(${amenity.scale * (isAmenityActive ? 1.1 : 1)})`,
                 }}
                 onBlur={() => {
                   setHoveredAmenityId((currentAmenityId) =>
@@ -2398,13 +2405,27 @@ const AmenityMarkers = memo(function AmenityMarkers({
                   event.preventDefault();
                   event.stopPropagation();
                 }}
+                onPointerUp={(event) => {
+                  if (event.pointerType !== "touch" && event.pointerType !== "pen") {
+                    return;
+                  }
+
+                  event.preventDefault();
+                  event.stopPropagation();
+                  setHoveredAmenityId(amenity.id);
+                  setPinnedAmenityId((currentAmenityId) =>
+                    currentAmenityId === amenity.id ? null : amenity.id,
+                  );
+                }}
                 onFocus={() => {
                   setHoveredAmenityId(amenity.id);
                 }}
               >
                 <Icon
                   aria-hidden="true"
-                  className="h-4 w-4 stroke-[2.2]"
+                  className={`h-4 w-4 stroke-[2.2] transition duration-200 ${
+                    isAmenityActive ? "scale-110" : ""
+                  }`}
                 />
               </button>
             </div>
@@ -3193,6 +3214,7 @@ export default function MasterPlanFrameHoverStage({
   const lastDragVideoSyncTimeRef = useRef(0);
   const progressFrameRef = useRef<number | null>(null);
   const pendingProgressRef = useRef<number | null>(null);
+  const videoRevealFrameRef = useRef<number | null>(null);
   const displayProgressRef = useRef(frameToProgress(currentFrame));
   const dragTargetProgressRef = useRef(frameToProgress(currentFrame));
   const hoveredApartmentIdRef = useRef<string | null>(null);
@@ -3294,6 +3316,13 @@ export default function MasterPlanFrameHoverStage({
     if (progressFrameRef.current !== null) {
       window.cancelAnimationFrame(progressFrameRef.current);
       progressFrameRef.current = null;
+    }
+  }, []);
+
+  const stopVideoRevealFrame = useCallback(() => {
+    if (videoRevealFrameRef.current !== null) {
+      window.cancelAnimationFrame(videoRevealFrameRef.current);
+      videoRevealFrameRef.current = null;
     }
   }, []);
 
@@ -3702,7 +3731,21 @@ export default function MasterPlanFrameHoverStage({
       lastSyncedVideoFrameRef.current = null;
       lastDragVideoSyncTimeRef.current = 0;
       syncVideoTime(video, displayProgressRef.current, { force: true });
-      setIsVideoReady(true);
+      stopVideoRevealFrame();
+
+      const revealVideo = (remainingFrames: number) => {
+        videoRevealFrameRef.current = window.requestAnimationFrame(() => {
+          if (remainingFrames > 1) {
+            revealVideo(remainingFrames - 1);
+            return;
+          }
+
+          videoRevealFrameRef.current = null;
+          setIsVideoReady(true);
+        });
+      };
+
+      revealVideo(2);
     };
 
     const cleanup = bindVideoStream({
@@ -3713,9 +3756,10 @@ export default function MasterPlanFrameHoverStage({
     });
 
     return () => {
+      stopVideoRevealFrame();
       cleanup();
     };
-  }, [syncVideoTime]);
+  }, [stopVideoRevealFrame, syncVideoTime]);
 
   useEffect(() => {
     if (dragStateRef.current) {
@@ -4318,7 +4362,10 @@ export default function MasterPlanFrameHoverStage({
         className={`absolute inset-0 bg-cover bg-center transition-opacity duration-300 ${
           isVideoReady ? "opacity-0" : "opacity-100"
         }`}
-        style={{ backgroundImage: "url('/FALLBACK.png')" }}
+        style={{
+          backgroundImage:
+            "url('https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774907276/buildings.png')",
+        }}
       />
 
       <div className="absolute inset-0 overflow-hidden">

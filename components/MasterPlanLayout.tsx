@@ -17,6 +17,7 @@ import {
   type Easing,
 } from "framer-motion";
 import MasterPlanArrowMarkers from "./MasterPlanArrowMarkers";
+import MasterPlanTopViewStage from "./MasterPlanTopViewStage";
 import { masterPlanArrowPoints } from "@/data/masterPlanArrowPoints";
 import GlassSelect, { GlassSelectItem } from "./ui/GlassSelect";
 import MasterPlanFrameHoverStage from "./MasterPlanFrameHoverStage";
@@ -53,6 +54,9 @@ const SPECIAL_UNIT_VIDEO_URL =
 const SPECIAL_UNIT_VIDEO_REVERSE_URL =
   "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774880750/Tf_3-1_reversed.mp4";
 const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
+const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
+const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;
+const HOTSPOT_NAVIGATION_MS_PER_FRAME = 6.8;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
@@ -159,6 +163,37 @@ function getApartmentFlatToken(apartment: InventoryApartment) {
     .trim();
 }
 
+function wrapMasterPlanFrame(frame: number, totalFrames = TOTAL_MASTER_PLAN_FRAMES) {
+  return ((frame - 1 + totalFrames) % totalFrames) + 1;
+}
+
+function getShortestMasterPlanFrameDistance(
+  fromFrame: number,
+  toFrame: number,
+  totalFrames = TOTAL_MASTER_PLAN_FRAMES,
+) {
+  const normalizedFromFrame = wrapMasterPlanFrame(fromFrame, totalFrames);
+  const normalizedToFrame = wrapMasterPlanFrame(toFrame, totalFrames);
+  const directDistance = Math.abs(normalizedToFrame - normalizedFromFrame);
+
+  return Math.min(directDistance, totalFrames - directDistance);
+}
+
+function getMasterPlanFrameTransitionDuration(
+  fromFrame: number,
+  toFrame: number,
+) {
+  const frameDistance = getShortestMasterPlanFrameDistance(fromFrame, toFrame);
+
+  return Math.min(
+    HOTSPOT_NAVIGATION_MAX_DURATION_MS,
+    Math.max(
+      HOTSPOT_NAVIGATION_MIN_DURATION_MS,
+      frameDistance * HOTSPOT_NAVIGATION_MS_PER_FRAME,
+    ),
+  );
+}
+
 function isSpecialVideoApartment(apartment: InventoryApartment | null) {
   if (!apartment) {
     return false;
@@ -223,6 +258,51 @@ function MasterPlanHotspotControls({
   );
 }
 
+function MasterPlanModeToggle({
+  isTopViewMode,
+  onNormalView,
+  onTopView,
+}: {
+  isTopViewMode: boolean;
+  onNormalView: () => void;
+  onTopView: () => void;
+}) {
+  return (
+    <div className="pointer-events-auto inline-flex items-center gap-1.5 rounded-full border border-white/30 bg-black/68 p-1.5 text-white shadow-[0_18px_46px_rgba(0,0,0,0.3)] backdrop-blur-xl">
+      <button
+        type="button"
+        onClick={() => {
+          if (isTopViewMode) {
+            onNormalView();
+          }
+        }}
+        className={`rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+          !isTopViewMode
+            ? "bg-white text-black shadow-[0_10px_20px_rgba(255,255,255,0.18)]"
+            : "text-white/72 hover:text-white"
+        }`}
+      >
+        Normal View
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          if (!isTopViewMode) {
+            onTopView();
+          }
+        }}
+        className={`rounded-full px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
+          isTopViewMode
+            ? "bg-white text-black shadow-[0_10px_20px_rgba(255,255,255,0.18)]"
+            : "text-white/72 hover:text-white"
+        }`}
+      >
+        Top View
+      </button>
+    </div>
+  );
+}
+
 export default function MasterPlanLayout({
   initialApartments = [],
 }: MasterPlanLayoutProps) {
@@ -256,6 +336,7 @@ export default function MasterPlanLayout({
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [isTouchTabletViewport, setIsTouchTabletViewport] = useState(false);
+  const [isTopViewMode, setIsTopViewMode] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(1);
   const [isStageInteracting, setIsStageInteracting] = useState(false);
   const [selectedApartment, setSelectedApartment] =
@@ -286,6 +367,11 @@ export default function MasterPlanLayout({
     isCompactViewport || isTouchTabletViewport;
   const shouldUseTouchBackNavigation =
     shouldUseCompactLayout;
+  const shouldShowTopViewFullscreen =
+    isTopViewMode &&
+    !selectedTower &&
+    !selectedApartment &&
+    !isSpecialVideoExperienceActive;
   const activeSpecialVideoUrl = isSpecialVideoReversing
     ? SPECIAL_UNIT_VIDEO_REVERSE_URL
     : SPECIAL_UNIT_VIDEO_URL;
@@ -544,15 +630,25 @@ export default function MasterPlanLayout({
   };
 
   const handleTowerSelect = (tower: TowerType) => {
+    setIsTopViewMode(false);
     setSelectedTower(tower);
     setIsMobileSheetOpen(true);
   };
+
+  const handleTopViewToggle = useCallback(() => {
+    setSelectedApartment(null);
+    setSelectedApartmentMeshId(null);
+    setSelectedTower(null);
+    setIsMobileSheetOpen(true);
+    setIsTopViewMode((currentValue) => !currentValue);
+  }, []);
 
   const handleBackToTowerSelect = () => {
     resetFilters();
     setSelectedApartment(null);
     setSelectedApartmentMeshId(null);
     setSelectedTower(null);
+    setIsTopViewMode(false);
     setIsMobileSheetOpen(true);
   };
 
@@ -584,6 +680,17 @@ export default function MasterPlanLayout({
     setIsSpecialVideoReversing(false);
     setSpecialVideoApartment(null);
   }, []);
+
+  const handleNormalViewToggle = useCallback(() => {
+    closeSpecialUnitVideo();
+    setSelectedApartment(null);
+    setSelectedApartmentMeshId(null);
+    setSelectedTower(null);
+    currentFrameRef.current = SPECIAL_UNIT_VIDEO_FRAME;
+    setCurrentFrame(SPECIAL_UNIT_VIDEO_FRAME);
+    setIsMobileSheetOpen(true);
+    setIsTopViewMode(false);
+  }, [closeSpecialUnitVideo]);
 
   const handleSpecialVideoBack = useCallback(() => {
     if (isSpecialVideoReversing) {
@@ -624,13 +731,18 @@ export default function MasterPlanLayout({
         }
 
         setIsSpecialVideoLaunching(true);
+        const navigationDelayMs =
+          getMasterPlanFrameTransitionDuration(
+            currentFrameRef.current,
+            SPECIAL_UNIT_VIDEO_FRAME,
+          ) + 80;
         currentFrameRef.current = SPECIAL_UNIT_VIDEO_FRAME;
         setCurrentFrame(SPECIAL_UNIT_VIDEO_FRAME);
         specialUnitVideoTimeoutRef.current = window.setTimeout(() => {
           specialUnitVideoTimeoutRef.current = null;
           setIsSpecialVideoLaunching(false);
           setIsSpecialVideoOpen(true);
-        }, SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS);
+        }, Math.max(navigationDelayMs, SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS));
         return;
       }
 
@@ -1001,20 +1113,26 @@ export default function MasterPlanLayout({
       ref={rootRef}
       className="relative app-screen w-full overflow-hidden bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
     >
-      {!shouldUseCompactLayout ? (
-        <MasterPlanFrameHoverStage
-          apartments={apartments}
-          currentFrame={currentFrame}
-          dragEnabled
-          filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
-          inventoryError={inventoryError}
-          inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
-          onApartmentSelect={handleApartmentSelect}
-          onInteractionChange={setIsStageInteracting}
-          onSetFrame={setWrappedFrame}
-          selectedApartmentId={selectedApartmentMeshId}
-          selectedTower={selectedTower}
-        />
+      {shouldShowTopViewFullscreen ? <MasterPlanTopViewStage /> : null}
+
+      {!shouldUseCompactLayout && !shouldShowTopViewFullscreen ? (
+        isTopViewMode && !selectedTower ? (
+          <MasterPlanTopViewStage />
+        ) : (
+          <MasterPlanFrameHoverStage
+            apartments={apartments}
+            currentFrame={currentFrame}
+            dragEnabled
+            filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
+            inventoryError={inventoryError}
+            inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
+            onApartmentSelect={handleApartmentSelect}
+            onInteractionChange={setIsStageInteracting}
+            onSetFrame={setWrappedFrame}
+            selectedApartmentId={selectedApartmentMeshId}
+            selectedTower={selectedTower}
+          />
+        )
       ) : null}
 
       <video
@@ -1034,13 +1152,17 @@ export default function MasterPlanLayout({
       </video>
 
       {!shouldUseCompactLayout &&
+      !isTopViewMode &&
       !isLeaving &&
       !isSpecialVideoExperienceActive &&
       selectedTower === "Tower B" ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
       ) : null}
 
-      {!shouldUseCompactLayout && !isLeaving && !isSpecialVideoExperienceActive ? (
+      {!shouldUseCompactLayout &&
+      !isTopViewMode &&
+      !isLeaving &&
+      !isSpecialVideoExperienceActive ? (
         <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-4 sm:top-28 md:top-30">
           <MasterPlanHotspotControls
             onPrevious={() => goToHotspot(-1)}
@@ -1049,6 +1171,17 @@ export default function MasterPlanLayout({
         </div>
       ) : null}
 
+      {shouldShowTopViewFullscreen ? (
+        <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-4 sm:top-28 md:top-30">
+          <MasterPlanModeToggle
+            isTopViewMode
+            onNormalView={handleNormalViewToggle}
+            onTopView={handleTopViewToggle}
+          />
+        </div>
+      ) : null}
+
+      {!shouldShowTopViewFullscreen ? (
         <div
         className={`relative z-10 h-full flex-col transition-opacity duration-300 ${
           shouldUseCompactLayout ? "flex" : "flex xl:hidden"
@@ -1058,21 +1191,25 @@ export default function MasterPlanLayout({
       >
         <div className="relative w-full shrink-0">
           <div className="relative h-[clamp(20rem,50svh,32rem)] overflow-hidden">
-            <MasterPlanFrameHoverStage
-              apartments={apartments}
-              currentFrame={currentFrame}
-              dragEnabled={false}
-              filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
-              inventoryError={inventoryError}
-              inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
-              onApartmentSelect={handleApartmentSelect}
-              onInteractionChange={setIsStageInteracting}
-              onSetFrame={setWrappedFrame}
-              selectedApartmentId={selectedApartmentMeshId}
-              selectedTower={selectedTower}
-            />
+            {isTopViewMode && !selectedTower ? (
+              <MasterPlanTopViewStage />
+            ) : (
+              <MasterPlanFrameHoverStage
+                apartments={apartments}
+                currentFrame={currentFrame}
+                dragEnabled={false}
+                filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
+                inventoryError={inventoryError}
+                inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
+                onApartmentSelect={handleApartmentSelect}
+                onInteractionChange={setIsStageInteracting}
+                onSetFrame={setWrappedFrame}
+                selectedApartmentId={selectedApartmentMeshId}
+                selectedTower={selectedTower}
+              />
+            )}
 
-            {!isLeaving && !isSpecialVideoExperienceActive ? (
+            {!isTopViewMode && !isLeaving && !isSpecialVideoExperienceActive ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-[max(env(safe-area-inset-bottom),1rem)] z-30 flex justify-center px-4">
                 <MasterPlanHotspotControls
                   compact
@@ -1143,16 +1280,20 @@ export default function MasterPlanLayout({
               >
                 <TowerSelect
                   embedded
+                  isTopViewActive={isTopViewMode}
                   mobile
+                  onTopViewClick={handleTopViewToggle}
                   selectedTower={selectedTower}
                   onSelectTower={handleTowerSelect}
                 />
               </div>
             )}
           </div>
+          </div>
         </div>
-      </div>
+      ) : null}
 
+      {!shouldShowTopViewFullscreen ? (
       <div
         className={`pointer-events-none relative z-10 h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8 ${
           shouldUseCompactLayout ? "hidden" : "hidden xl:block"
@@ -1248,6 +1389,8 @@ export default function MasterPlanLayout({
                   ) : (
                     <TowerSelect
                       embedded
+                      isTopViewActive={isTopViewMode}
+                      onTopViewClick={handleTopViewToggle}
                       selectedTower={selectedTower}
                       onSelectTower={handleTowerSelect}
                     />
@@ -1364,7 +1507,9 @@ export default function MasterPlanLayout({
                   <div className="p-4">
                     <TowerSelect
                       embedded
+                      isTopViewActive={isTopViewMode}
                       mobile
+                      onTopViewClick={handleTopViewToggle}
                       selectedTower={selectedTower}
                       onSelectTower={handleTowerSelect}
                     />
@@ -1376,6 +1521,7 @@ export default function MasterPlanLayout({
         ) : null}
 
       </div>
+      ) : null}
 
       <AnimatePresence>
         {isSpecialVideoOpen ? (

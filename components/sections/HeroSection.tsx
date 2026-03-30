@@ -102,6 +102,10 @@ export default function HeroSection() {
     if (!entryVideo) return;
 
     heroVideo?.pause();
+    entryVideo.muted = true;
+    entryVideo.playsInline = true;
+    entryVideo.setAttribute("playsinline", "true");
+    entryVideo.setAttribute("webkit-playsinline", "true");
     entryVideo.pause();
     entryVideo.currentTime = 0;
     setIsEntryVideoVisible(true);
@@ -229,7 +233,7 @@ export default function HeroSection() {
         className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${
           videoReady ? "opacity-0" : "opacity-100"
         }`}
-        style={{ backgroundImage: "url('/FALLBACK.png')" }}
+        style={{ backgroundImage: "url('https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774907276/buildings.png')" }}
       />
 
       <video
@@ -254,9 +258,13 @@ export default function HeroSection() {
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           isEntryVideoVisible ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
+        crossOrigin="anonymous"
         muted
         playsInline
         preload="auto"
+        onCanPlay={() => {
+          setEntryVideoReady(true);
+        }}
         onLoadedData={() => {
           setEntryVideoReady(true);
 
@@ -264,11 +272,12 @@ export default function HeroSection() {
             void startEntryVideo();
           }
         }}
+        onError={() => router.push("/master-plan")}
         onEnded={() => router.push("/master-plan")}
       >
         <source
           src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774906461/Tf_Fixed_Final_2.mp4"
-          type="video/webm"
+          type="video/mp4"
         />
       </video>
 
