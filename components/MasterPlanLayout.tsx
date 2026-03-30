@@ -27,7 +27,6 @@ import {
   BedDouble,
   Building2,
   ChevronDown,
-  IndianRupee,
   MapPin,
   Search,
   SlidersHorizontal,
@@ -46,6 +45,14 @@ const bhkOptions = ["All", "2", "3"] as const;
 const INVENTORY_REFRESH_INTERVAL = 15000;
 const TOTAL_MASTER_PLAN_FRAMES = 360;
 const MASTER_PLAN_SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
+const SPECIAL_UNIT_VIDEO_FLAT = "3601";
+const SPECIAL_UNIT_VIDEO_HOTSPOT = "A1";
+const SPECIAL_UNIT_VIDEO_FRAME = 1;
+const SPECIAL_UNIT_VIDEO_URL =
+  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774879490/Tf_3-1.mp4";
+const SPECIAL_UNIT_VIDEO_REVERSE_URL =
+  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774880750/Tf_3-1_reversed.mp4";
+const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
@@ -146,6 +153,20 @@ function getApartmentSignature(apartments: InventoryApartment[]) {
     .join("|");
 }
 
+function getApartmentFlatToken(apartment: InventoryApartment) {
+  return (apartment.flatNumber || apartment.title || "")
+    .replace(/[^0-9]/g, "")
+    .trim();
+}
+
+function isSpecialVideoApartment(apartment: InventoryApartment | null) {
+  if (!apartment) {
+    return false;
+  }
+
+  return getApartmentFlatToken(apartment) === SPECIAL_UNIT_VIDEO_FLAT;
+}
+
 function MasterPlanHotspotControls({
   onPrevious,
   onNext,
@@ -210,6 +231,8 @@ export default function MasterPlanLayout({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const reverseVideoRef = useRef<HTMLVideoElement | null>(null);
   const selectedFlatPanelRef = useRef<HTMLDivElement | null>(null);
+  const specialUnitVideoRef = useRef<HTMLVideoElement | null>(null);
+  const specialUnitVideoTimeoutRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
   const touchStartYRef = useRef<number | null>(null);
   const inventorySignatureRef = useRef(getApartmentSignature(initialApartments));
@@ -239,16 +262,86 @@ export default function MasterPlanLayout({
   const [selectedApartmentMeshId, setSelectedApartmentMeshId] = useState<
     string | null
   >(null);
+  const [isSpecialVideoOpen, setIsSpecialVideoOpen] = useState(false);
+  const [isSpecialVideoLaunching, setIsSpecialVideoLaunching] = useState(false);
+  const [shouldAutoplaySpecialVideo, setShouldAutoplaySpecialVideo] =
+    useState(false);
+  const [isSpecialVideoCompleted, setIsSpecialVideoCompleted] = useState(false);
+  const [isSpecialVideoReversing, setIsSpecialVideoReversing] = useState(false);
+  const [specialVideoApartment, setSpecialVideoApartment] =
+    useState<InventoryApartment | null>(null);
   const deferredSearch = useDeferredValue(search);
   const selectedApartmentInventoryId = selectedApartment?.id ?? null;
   const activeHotspot = useMemo(
     () => getNearestMasterPlanHotspot(currentFrame),
     [currentFrame],
   );
+  const isSpecialVideoExperienceActive =
+    isSpecialVideoLaunching || isSpecialVideoOpen;
+  const activeSpecialVideoUrl = isSpecialVideoReversing
+    ? SPECIAL_UNIT_VIDEO_REVERSE_URL
+    : SPECIAL_UNIT_VIDEO_URL;
 
   useEffect(() => {
     currentFrameRef.current = currentFrame;
   }, [currentFrame]);
+
+  useEffect(() => {
+    const preloadLink = document.createElement("link");
+    preloadLink.rel = "preload";
+    preloadLink.as = "video";
+    preloadLink.href = SPECIAL_UNIT_VIDEO_URL;
+    preloadLink.crossOrigin = "anonymous";
+    document.head.appendChild(preloadLink);
+
+    const warmVideo = document.createElement("video");
+    warmVideo.preload = "auto";
+    warmVideo.muted = true;
+    warmVideo.playsInline = true;
+    warmVideo.crossOrigin = "anonymous";
+    warmVideo.src = SPECIAL_UNIT_VIDEO_URL;
+    warmVideo.load();
+
+    return () => {
+      if (specialUnitVideoTimeoutRef.current !== null) {
+        window.clearTimeout(specialUnitVideoTimeoutRef.current);
+        specialUnitVideoTimeoutRef.current = null;
+      }
+
+      preloadLink.remove();
+      warmVideo.pause();
+      warmVideo.removeAttribute("src");
+      warmVideo.load();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isSpecialVideoOpen || isSpecialVideoReversing) {
+      return;
+    }
+
+    const reversePreloadLink = document.createElement("link");
+    reversePreloadLink.rel = "preload";
+    reversePreloadLink.as = "video";
+    reversePreloadLink.href = SPECIAL_UNIT_VIDEO_REVERSE_URL;
+    reversePreloadLink.crossOrigin = "anonymous";
+    document.head.appendChild(reversePreloadLink);
+
+    const reverseWarmVideo = document.createElement("video");
+    reverseWarmVideo.preload = "auto";
+    reverseWarmVideo.muted = true;
+    reverseWarmVideo.playsInline = true;
+    reverseWarmVideo.crossOrigin = "anonymous";
+    reverseWarmVideo.src = SPECIAL_UNIT_VIDEO_REVERSE_URL;
+    reverseWarmVideo.load();
+
+    return () => {
+      reversePreloadLink.remove();
+      reverseWarmVideo.pause();
+      reverseWarmVideo.removeAttribute("src");
+      reverseWarmVideo.load();
+    };
+  }, [isSpecialVideoOpen, isSpecialVideoReversing]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -380,6 +473,7 @@ export default function MasterPlanLayout({
         .toLowerCase()
         .includes(deferredSearch.toLowerCase());
 
+      const matchesFloor = apartment.floor > 0;
       const matchesHotspot = isInventoryApartmentAllowedAtHotspot(
         apartment,
         activeHotspot,
@@ -391,6 +485,7 @@ export default function MasterPlanLayout({
       const matchesArea = apartment.areaSqft >= minArea;
 
       return (
+        matchesFloor &&
         matchesHotspot &&
         matchesSearch &&
         matchesTower &&
@@ -450,17 +545,81 @@ export default function MasterPlanLayout({
     }
   }, [selectedTower]);
 
+  const closeSpecialUnitVideo = useCallback(() => {
+    if (specialUnitVideoTimeoutRef.current !== null) {
+      window.clearTimeout(specialUnitVideoTimeoutRef.current);
+      specialUnitVideoTimeoutRef.current = null;
+    }
+
+    const video = specialUnitVideoRef.current;
+    if (video) {
+      video.pause();
+      video.currentTime = 0;
+    }
+
+    setIsSpecialVideoLaunching(false);
+    setShouldAutoplaySpecialVideo(false);
+    setIsSpecialVideoOpen(false);
+    setIsSpecialVideoCompleted(false);
+    setIsSpecialVideoReversing(false);
+    setSpecialVideoApartment(null);
+  }, []);
+
+  const handleSpecialVideoBack = useCallback(() => {
+    if (isSpecialVideoReversing) {
+      return;
+    }
+
+    setSelectedApartment(null);
+    setSelectedApartmentMeshId(null);
+    setIsSpecialVideoCompleted(false);
+    setIsSpecialVideoReversing(true);
+    setShouldAutoplaySpecialVideo(true);
+  }, [isSpecialVideoReversing]);
+
   const handleApartmentSelect = useCallback(
     (apartment: InventoryApartment | null, apartmentMeshId: string | null) => {
       if (!apartment || !apartmentMeshId) {
         return;
       }
 
+      if (isSpecialVideoApartment(apartment)) {
+        setSelectedApartment(null);
+        setSelectedApartmentMeshId(null);
+        setIsMobileSheetOpen(false);
+        setIsSpecialVideoCompleted(false);
+        setIsSpecialVideoReversing(false);
+        setShouldAutoplaySpecialVideo(true);
+        setSpecialVideoApartment(apartment);
+
+        if (specialUnitVideoTimeoutRef.current !== null) {
+          window.clearTimeout(specialUnitVideoTimeoutRef.current);
+          specialUnitVideoTimeoutRef.current = null;
+        }
+
+        if (activeHotspot === SPECIAL_UNIT_VIDEO_HOTSPOT) {
+          setIsSpecialVideoLaunching(false);
+          setIsSpecialVideoOpen(true);
+          return;
+        }
+
+        setIsSpecialVideoLaunching(true);
+        currentFrameRef.current = SPECIAL_UNIT_VIDEO_FRAME;
+        setCurrentFrame(SPECIAL_UNIT_VIDEO_FRAME);
+        specialUnitVideoTimeoutRef.current = window.setTimeout(() => {
+          specialUnitVideoTimeoutRef.current = null;
+          setIsSpecialVideoLaunching(false);
+          setIsSpecialVideoOpen(true);
+        }, SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS);
+        return;
+      }
+
+      closeSpecialUnitVideo();
       setSelectedApartment(apartment);
       setSelectedApartmentMeshId(apartmentMeshId);
       setIsMobileSheetOpen(false);
     },
-    [],
+    [activeHotspot, closeSpecialUnitVideo],
   );
 
   const handleApartmentListSelect = useCallback((apartment: InventoryApartment) => {
@@ -475,6 +634,11 @@ export default function MasterPlanLayout({
 
   useEffect(() => {
     if (!selectedApartment) {
+      return;
+    }
+
+    if (selectedApartment.floor <= 0) {
+      clearSelectedApartment();
       return;
     }
 
@@ -527,6 +691,66 @@ export default function MasterPlanLayout({
       document.removeEventListener("pointerdown", handlePointerDown, true);
     };
   }, [clearSelectedApartment, selectedApartment]);
+
+  useEffect(() => {
+    if (!isSpecialVideoOpen || !shouldAutoplaySpecialVideo) {
+      return;
+    }
+
+    const video = specialUnitVideoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (video.getAttribute("src") !== activeSpecialVideoUrl) {
+      video.src = activeSpecialVideoUrl;
+      video.load();
+    }
+
+    const playVideo = () => {
+      video.currentTime = 0;
+      setShouldAutoplaySpecialVideo(false);
+      void video.play().catch(() => {
+        // playback may still require a second user gesture on some devices
+      });
+    };
+
+    if (video.readyState >= 3) {
+      playVideo();
+      return;
+    }
+
+    const handleCanPlay = () => {
+      video.removeEventListener("canplay", handleCanPlay);
+      playVideo();
+    };
+
+    video.addEventListener("canplay", handleCanPlay);
+
+    return () => {
+      video.removeEventListener("canplay", handleCanPlay);
+    };
+  }, [activeSpecialVideoUrl, isSpecialVideoOpen, shouldAutoplaySpecialVideo]);
+
+  useEffect(() => {
+    if (!isSpecialVideoOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleSpecialVideoBack();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [handleSpecialVideoBack, isSpecialVideoOpen]);
 
   const wrapFrame = useCallback(
     (frame: number) =>
@@ -772,11 +996,14 @@ export default function MasterPlanLayout({
         />
       </video>
 
-      {!isCompactViewport && !isLeaving && selectedTower === "Tower B" ? (
+      {!isCompactViewport &&
+      !isLeaving &&
+      !isSpecialVideoExperienceActive &&
+      selectedTower === "Tower B" ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
       ) : null}
 
-      {!isCompactViewport && !isLeaving ? (
+      {!isCompactViewport && !isLeaving && !isSpecialVideoExperienceActive ? (
         <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-4 sm:top-28 md:top-30">
           <MasterPlanHotspotControls
             onPrevious={() => goToHotspot(-1)}
@@ -785,13 +1012,11 @@ export default function MasterPlanLayout({
         </div>
       ) : null}
 
-      <div className="pointer-events-none absolute inset-0 z-[1]">
-        <div className="surface-contain absolute -left-24 top-0 h-72 w-72 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-500/10" />
-        <div className="surface-contain absolute right-0 top-20 h-80 w-80 rounded-full bg-violet-300/20 blur-3xl dark:bg-violet-500/10" />
-        <div className="surface-contain absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-blue-300/20 blur-3xl dark:bg-blue-500/10" />
-      </div>
-
-      <div className="relative z-10 flex h-full flex-col xl:hidden">
+      <div
+        className={`relative z-10 flex h-full flex-col transition-opacity duration-300 xl:hidden ${
+          isSpecialVideoExperienceActive ? "pointer-events-none opacity-0" : "opacity-100"
+        }`}
+      >
         <div className="relative w-full shrink-0">
           <div className="relative h-[clamp(19rem,46vh,31rem)] overflow-hidden">
             <MasterPlanFrameHoverStage
@@ -893,7 +1118,9 @@ export default function MasterPlanLayout({
       </AnimatePresence>
 
       <div
-        className="pointer-events-none relative z-10 hidden h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8 xl:block"
+        className={`pointer-events-none relative z-10 hidden h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8 xl:block ${
+          isSpecialVideoExperienceActive ? "opacity-0" : "opacity-100"
+        }`}
       >
         <div
           className={`grid h-full gap-6 ${
@@ -1093,7 +1320,70 @@ export default function MasterPlanLayout({
             </motion.div>
           ) : null}
         </AnimatePresence>
+
       </div>
+
+      <AnimatePresence>
+        {isSpecialVideoOpen ? (
+          <motion.div
+            initial={{ opacity: 0, scale: 1.035 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.015 }}
+            transition={{ duration: 0.38, ease: smoothEase }}
+            className="pointer-events-auto absolute inset-0 z-[70] overflow-hidden bg-black"
+          >
+            <div className="absolute inset-0">
+              <video
+                ref={specialUnitVideoRef}
+                playsInline
+                preload="auto"
+                crossOrigin="anonymous"
+                className="h-full w-full object-cover"
+                onEnded={() => {
+                  if (isSpecialVideoReversing) {
+                    closeSpecialUnitVideo();
+                    return;
+                  }
+
+                  setIsSpecialVideoCompleted(true);
+                }}
+              />
+            </div>
+
+            <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+              <button
+                type="button"
+                onClick={handleSpecialVideoBack}
+                className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/78 px-4 py-2.5 text-sm font-medium text-zinc-900 shadow-[0_18px_44px_rgba(15,23,42,0.18)] backdrop-blur-xl transition hover:bg-white"
+                aria-label="Go back from unit 3601 preview"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </button>
+            </div>
+
+            <AnimatePresence>
+              {isSpecialVideoCompleted &&
+              !isSpecialVideoReversing &&
+              specialVideoApartment ? (
+                <motion.div
+                  initial={{ opacity: 0, y: 18 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 18 }}
+                  transition={{ duration: 0.28, ease: smoothEase }}
+                  className="absolute inset-x-0 bottom-4 z-20 px-3 sm:bottom-6 sm:px-5 lg:px-8"
+                >
+                  <SelectedFlatDetailsPanel
+                    apartment={specialVideoApartment}
+                    hideCloseButton
+                    onClose={() => {}}
+                  />
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1425,7 +1715,7 @@ function MasterPlanResultsCard({
         <div>
           <h3 className="text-base font-semibold">Matching Flats</h3>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Live inventory from MongoDB
+            View the Flats matching your requirement
           </p>
         </div>
         <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium dark:border-white/10 dark:bg-white/5">
@@ -1527,10 +1817,10 @@ function MasterPlanResultsCard({
                         <BedDouble className="h-3.5 w-3.5" />
                         {apartment.bhk} BHK
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
+                      {/* <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
                         <IndianRupee className="h-3.5 w-3.5" />
                         {apartment.priceLakhs}L
-                      </span>
+                      </span> */}
                     </div>
                   </div>
 

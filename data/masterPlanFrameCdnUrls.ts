@@ -1,6 +1,6 @@
 export const TOTAL_MASTER_PLAN_FRAMES = 360;
 export const MASTER_PLAN_SCRUB_HQ_VIDEO_PATH = encodeURI(
-  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774710495/360_Level_Sequence_2_Scrub_Hq_2_keyframes_sub100mb.mp4",
+  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774876862/Tf_final_100mb.mp4",
 );
 export const MASTER_PLAN_SCRUB_HQ_HLS_PATH = "/master-plan-scrub/hq/index.m3u8";
 export const MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH = encodeURI(

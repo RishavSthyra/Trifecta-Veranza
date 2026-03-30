@@ -17,6 +17,7 @@ import type { InventoryApartment } from "@/types/inventory";
 
 type SelectedFlatDetailsPanelProps = {
   apartment: InventoryApartment;
+  hideCloseButton?: boolean;
   onClose: () => void;
 };
 
@@ -75,7 +76,10 @@ const metaCardClassName =
 const SelectedFlatDetailsPanel = forwardRef<
   HTMLDivElement,
   SelectedFlatDetailsPanelProps
->(function SelectedFlatDetailsPanel({ apartment, onClose }, ref) {
+>(function SelectedFlatDetailsPanel(
+  { apartment, hideCloseButton = false, onClose },
+  ref,
+) {
   const router = useRouter();
   const dimensionItems = useMemo(
     () => parseRoomDimensions(apartment.roomDimensions),
@@ -149,14 +153,16 @@ const SelectedFlatDetailsPanel = forwardRef<
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/6 text-white/76 transition hover:bg-white/12 hover:text-white"
-              aria-label="Close flat details"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            {!hideCloseButton ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/6 text-white/76 transition hover:bg-white/12 hover:text-white"
+                aria-label="Close flat details"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
 
           <div className="mt-4 grid items-start gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.8fr)]">
@@ -304,8 +310,6 @@ const SelectedFlatDetailsPanel = forwardRef<
                         className="object-cover transition duration-700 group-hover:scale-[1.025]"
                       />
 
-                      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,10,14,0.04)_0%,rgba(8,10,14,0.08)_38%,rgba(8,10,14,0.28)_100%)]" />
-
                       <div className="absolute inset-0 flex items-center justify-center">
                         <button
                           type="button"
@@ -313,25 +317,25 @@ const SelectedFlatDetailsPanel = forwardRef<
                             event.stopPropagation();
                             handleOpenWalkthrough();
                           }}
-                          className="flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border border-white/28 bg-white/22 shadow-[0_18px_34px_rgba(15,23,42,0.18)] backdrop-blur-md transition duration-300 hover:scale-105 hover:bg-white/28 sm:h-[5.25rem] sm:w-[5.25rem]"
+                          className="flex h-[4.75rem] w-[4.75rem] items-center justify-center rounded-full border border-white/65 bg-white/82 shadow-[0_18px_34px_rgba(15,23,42,0.14)] backdrop-blur-md transition duration-300 hover:scale-105 hover:bg-white sm:h-[5.25rem] sm:w-[5.25rem]"
                           aria-label="Play preview"
                         >
-                          <Play className="ml-1 h-7 w-7 fill-white text-white sm:h-8 sm:w-8" />
+                          <Play className="ml-1 h-7 w-7 fill-zinc-900 text-zinc-900 sm:h-8 sm:w-8" />
                         </button>
                       </div>
 
                       <div className="absolute inset-x-0 bottom-0 p-4">
-                        <div className="flex items-end justify-between gap-3 rounded-[18px] border border-white/10 bg-[rgba(19,22,28,0.42)] p-3 backdrop-blur-md">
+                        <div className="flex items-end justify-between gap-3 rounded-[18px] border border-white/55 bg-white/70 p-3 backdrop-blur-md">
                           <div>
-                            <p className="text-[10px] uppercase tracking-[0.24em] text-white/48">
+                            <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">
                               Private View
                             </p>
-                            <p className="mt-1 text-sm font-medium text-white/92">
+                            <p className="mt-1 text-sm font-medium text-zinc-900">
                               Interior walkthrough preview
                             </p>
                           </div>
 
-                          <div className="rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-[11px] font-medium text-white/72">
+                          <div className="rounded-full border border-white/60 bg-white/85 px-3 py-1.5 text-[11px] font-medium text-zinc-700">
                             Video preview
                           </div>
                         </div>

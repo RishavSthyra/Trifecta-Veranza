@@ -1939,6 +1939,7 @@ function TrackingDebugOverlay({
 }
 
 const TowerScene = memo(function TowerScene({
+  apartments,
   currentFrame,
   filteredApartments,
   getApartmentStatus,
@@ -1954,6 +1955,7 @@ const TowerScene = memo(function TowerScene({
   showTowerMeshes,
   showTrackingDebug,
 }: {
+  apartments: InventoryApartment[];
   currentFrame: number;
   filteredApartments: InventoryApartment[];
   getApartmentStatus: (
@@ -2114,6 +2116,10 @@ const TowerScene = memo(function TowerScene({
     () => getNearestMasterPlanHotspot(currentFrame),
     [currentFrame],
   );
+  const apartmentIndex = useMemo(
+    () => buildInventoryApartmentIndex(apartments),
+    [apartments],
+  );
   const allowedApartmentIds = useMemo(
     () =>
       new Set(
@@ -2123,9 +2129,24 @@ const TowerScene = memo(function TowerScene({
       ),
     [activeApartments, activeHotspot, selectedTower],
   );
+  const inventoryBackedApartmentIds = useMemo(
+    () =>
+      new Set(
+        Array.from(allowedApartmentIds).filter((apartmentId) => {
+          const inventoryApartment = findInventoryApartmentInIndex(
+            apartmentIndex,
+            apartmentId,
+            selectedTower,
+          );
+
+          return Boolean(inventoryApartment && inventoryApartment.floor > 0);
+        }),
+      ),
+    [allowedApartmentIds, apartmentIndex, selectedTower],
+  );
   const activeApartmentTokenLookup = useMemo(
-    () => buildApartmentTokenLookup(allowedApartmentIds),
-    [allowedApartmentIds],
+    () => buildApartmentTokenLookup(inventoryBackedApartmentIds),
+    [inventoryBackedApartmentIds],
   );
   const combinedPickableMeshes = useMemo(
     () => [...preparedTowerA.pickableMeshes, ...preparedTowerB.pickableMeshes],
@@ -2149,14 +2170,12 @@ const TowerScene = memo(function TowerScene({
   ]);
   const hotspotScopedPickableMeshes = useMemo(
     () =>
-      hoverPickableMeshes.filter((mesh) =>
-        isApartmentIdAllowedAtHotspot(
-          resolveApartmentIdFromObject(mesh),
-          activeHotspot,
-          selectedTower,
-        ),
-      ),
-    [activeHotspot, hoverPickableMeshes, selectedTower],
+      hoverPickableMeshes.filter((mesh) => {
+        const apartmentId = resolveApartmentIdFromObject(mesh);
+
+        return apartmentId ? inventoryBackedApartmentIds.has(apartmentId) : false;
+      }),
+    [hoverPickableMeshes, inventoryBackedApartmentIds],
   );
   const filteredApartmentIds = useMemo(() => {
     if (
@@ -3249,45 +3268,41 @@ export default function MasterPlanFrameHoverStage({
     () => getNearestMasterPlanHotspot(trackingFrame),
     [trackingFrame],
   );
-  const hotspotHoveredApartmentId = useMemo(
-    () =>
-      hoveredApartmentId &&
-      isApartmentIdAllowedAtHotspot(
-        hoveredApartmentId,
-        activeHotspot,
-        selectedTower,
-      )
-        ? hoveredApartmentId
-        : null,
-    [activeHotspot, hoveredApartmentId, selectedTower],
-  );
-  const activeHoveredApartmentId =
-    allowHover ? hotspotHoveredApartmentId : null;
   const apartmentIndex = useMemo(
     () => buildInventoryApartmentIndex(apartments),
     [apartments],
   );
-  const getApartmentStatus = useCallback(
-    (apartmentId: string | null) =>
-      findInventoryApartmentInIndex(
-        apartmentIndex,
-        apartmentId,
-        selectedTower,
-      )?.status ?? null,
-    [apartmentIndex, selectedTower],
+  const hoveredInventoryCandidate = findInventoryApartmentInIndex(
+    apartmentIndex,
+    hoveredApartmentId,
+    selectedTower,
   );
+  const hotspotHoveredApartmentId =
+    hoveredApartmentId &&
+    Boolean(hoveredInventoryCandidate && hoveredInventoryCandidate.floor > 0) &&
+    isApartmentIdAllowedAtHotspot(
+      hoveredApartmentId,
+      activeHotspot,
+      selectedTower,
+    )
+      ? hoveredApartmentId
+      : null;
+  const activeHoveredApartmentId =
+    allowHover ? hotspotHoveredApartmentId : null;
+  const getApartmentStatus = (apartmentId: string | null) =>
+    findInventoryApartmentInIndex(
+      apartmentIndex,
+      apartmentId,
+      selectedTower,
+    )?.status ?? null;
   const hoveredApartment = useMemo(
     () => formatApartmentLabel(activeHoveredApartmentId, selectedTower),
     [activeHoveredApartmentId, selectedTower],
   );
-  const hoveredInventoryApartment = useMemo(
-    () =>
-      findInventoryApartmentInIndex(
-        apartmentIndex,
-        activeHoveredApartmentId,
-        selectedTower,
-      ),
-    [activeHoveredApartmentId, apartmentIndex, selectedTower],
+  const hoveredInventoryApartment = findInventoryApartmentInIndex(
+    apartmentIndex,
+    activeHoveredApartmentId,
+    selectedTower,
   );
   const hoveredFlatLabel = (
     hoveredInventoryApartment?.flatNumber ||
@@ -3301,23 +3316,20 @@ export default function MasterPlanFrameHoverStage({
     inventoryState,
     inventoryError,
   );
-  const selectApartmentByMeshId = useCallback(
-    (apartmentMeshId: string | null) => {
-      if (!onApartmentSelect) {
-        return;
-      }
+  const selectApartmentByMeshId = (apartmentMeshId: string | null) => {
+    if (!onApartmentSelect) {
+      return;
+    }
 
-      onApartmentSelect(
-        findInventoryApartmentInIndex(
-          apartmentIndex,
-          apartmentMeshId,
-          selectedTower,
-        ),
+    onApartmentSelect(
+      findInventoryApartmentInIndex(
+        apartmentIndex,
         apartmentMeshId,
-      );
-    },
-    [apartmentIndex, onApartmentSelect, selectedTower],
-  );
+        selectedTower,
+      ),
+      apartmentMeshId,
+    );
+  };
 
   useEffect(() => {
     onInteractionChange?.(isDragging || isSettling);
@@ -3551,6 +3563,7 @@ export default function MasterPlanFrameHoverStage({
                 <Suspense fallback={<LoadingState />}>
                   <AdaptiveDpr />
                   <TowerScene
+                    apartments={apartments}
                     currentFrame={trackingFrame}
                     filteredApartments={filteredApartments}
                     getApartmentStatus={getApartmentStatus}
