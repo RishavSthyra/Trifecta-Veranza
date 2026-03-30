@@ -42,6 +42,10 @@ import {
   MASTER_PLAN_SCRUB_VIDEO_FPS,
   TOTAL_MASTER_PLAN_FRAMES,
 } from "@/data/masterPlanFrameCdnUrls";
+import {
+  getNearestMasterPlanHotspot,
+  isApartmentIdAllowedAtHotspot,
+} from "@/lib/master-plan-hotspots";
 import trackingData from "@/data/trifecta_unreal_tracking_data.json";
 import type {
   InventoryApartment,
@@ -2106,9 +2110,22 @@ const TowerScene = memo(function TowerScene({
     preparedTowerB.apartments,
     selectedTower,
   ]);
+  const activeHotspot = useMemo(
+    () => getNearestMasterPlanHotspot(currentFrame),
+    [currentFrame],
+  );
+  const allowedApartmentIds = useMemo(
+    () =>
+      new Set(
+        Array.from(activeApartments.keys()).filter((apartmentId) =>
+          isApartmentIdAllowedAtHotspot(apartmentId, activeHotspot, selectedTower),
+        ),
+      ),
+    [activeApartments, activeHotspot, selectedTower],
+  );
   const activeApartmentTokenLookup = useMemo(
-    () => buildApartmentTokenLookup(activeApartments.keys()),
-    [activeApartments],
+    () => buildApartmentTokenLookup(allowedApartmentIds),
+    [allowedApartmentIds],
   );
   const combinedPickableMeshes = useMemo(
     () => [...preparedTowerA.pickableMeshes, ...preparedTowerB.pickableMeshes],
@@ -2130,6 +2147,17 @@ const TowerScene = memo(function TowerScene({
     preparedTowerB.pickableMeshes,
     selectedTower,
   ]);
+  const hotspotScopedPickableMeshes = useMemo(
+    () =>
+      hoverPickableMeshes.filter((mesh) =>
+        isApartmentIdAllowedAtHotspot(
+          resolveApartmentIdFromObject(mesh),
+          activeHotspot,
+          selectedTower,
+        ),
+      ),
+    [activeHotspot, hoverPickableMeshes, selectedTower],
+  );
   const filteredApartmentIds = useMemo(() => {
     if (
       !showApartmentMeshes ||
@@ -2205,7 +2233,7 @@ const TowerScene = memo(function TowerScene({
   );
   const pickApartmentAtClientPoint = useCallback(
     (clientX: number, clientY: number) => {
-      if (hoverPickableMeshes.length === 0) {
+      if (hotspotScopedPickableMeshes.length === 0) {
         return null;
       }
 
@@ -2223,7 +2251,10 @@ const TowerScene = memo(function TowerScene({
 
       raycaster.setFromCamera(pointer, cameraRef.current ?? camera);
 
-      const intersections = raycaster.intersectObjects(hoverPickableMeshes, false);
+      const intersections = raycaster.intersectObjects(
+        hotspotScopedPickableMeshes,
+        false,
+      );
       const frontFacingHit = intersections.find((intersection) => {
         const apartmentId = intersection.object.userData.apartmentId as
           | string
@@ -2254,7 +2285,7 @@ const TowerScene = memo(function TowerScene({
         null
       );
     },
-    [camera, gl, hoverPickableMeshes, raycaster],
+    [camera, gl, hotspotScopedPickableMeshes, raycaster],
   );
 
   useEffect(() => {
@@ -2301,7 +2332,20 @@ const TowerScene = memo(function TowerScene({
   const shouldShowSelectedApartment = selectedApartmentId !== null;
   const shouldRenderTowerProxies =
     showTowerMeshes || showTrackingDebug || shouldShowSelectedApartment;
-  const activeHoveredApartmentId = allowHover ? hoveredApartmentId : null;
+  const hotspotHoveredApartmentId = useMemo(
+    () =>
+      hoveredApartmentId &&
+      isApartmentIdAllowedAtHotspot(
+        hoveredApartmentId,
+        activeHotspot,
+        selectedTower,
+      )
+        ? hoveredApartmentId
+        : null,
+    [activeHotspot, hoveredApartmentId, selectedTower],
+  );
+  const activeHoveredApartmentId =
+    allowHover ? hotspotHoveredApartmentId : null;
   const shouldShowHighlightOverlay =
     (showApartmentMeshes || shouldShowSelectedApartment) &&
     (
@@ -2454,7 +2498,7 @@ const TowerScene = memo(function TowerScene({
         <HoverTracker
           allowHover
           onHoverChange={handleSceneHover}
-          pickableMeshes={hoverPickableMeshes}
+          pickableMeshes={hotspotScopedPickableMeshes}
         />
       ) : null}
 
@@ -3201,7 +3245,24 @@ export default function MasterPlanFrameHoverStage({
     [isDragging, isSettling, performanceProfile.tier, supportsPreciseHover],
   );
   const trackingFrame = getNearestSnapFrame(displayedFrame);
-  const activeHoveredApartmentId = allowHover ? hoveredApartmentId : null;
+  const activeHotspot = useMemo(
+    () => getNearestMasterPlanHotspot(displayedFrame),
+    [displayedFrame],
+  );
+  const hotspotHoveredApartmentId = useMemo(
+    () =>
+      hoveredApartmentId &&
+      isApartmentIdAllowedAtHotspot(
+        hoveredApartmentId,
+        activeHotspot,
+        selectedTower,
+      )
+        ? hoveredApartmentId
+        : null,
+    [activeHotspot, hoveredApartmentId, selectedTower],
+  );
+  const activeHoveredApartmentId =
+    allowHover ? hotspotHoveredApartmentId : null;
   const apartmentIndex = useMemo(
     () => buildInventoryApartmentIndex(apartments),
     [apartments],

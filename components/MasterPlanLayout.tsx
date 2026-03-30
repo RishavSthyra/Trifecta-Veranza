@@ -34,6 +34,10 @@ import {
   X,
 } from "lucide-react";
 import TowerSelect from "./TowerSelect";
+import {
+  getNearestMasterPlanHotspot,
+  isInventoryApartmentAllowedAtHotspot,
+} from "@/lib/master-plan-hotspots";
 import type { InventoryApartment, TowerType } from "@/types/inventory";
 
 const facingOptions = ["All", "North", "South", "East", "West"] as const;
@@ -237,6 +241,10 @@ export default function MasterPlanLayout({
   >(null);
   const deferredSearch = useDeferredValue(search);
   const selectedApartmentInventoryId = selectedApartment?.id ?? null;
+  const activeHotspot = useMemo(
+    () => getNearestMasterPlanHotspot(currentFrame),
+    [currentFrame],
+  );
 
   useEffect(() => {
     currentFrameRef.current = currentFrame;
@@ -372,6 +380,10 @@ export default function MasterPlanLayout({
         .toLowerCase()
         .includes(deferredSearch.toLowerCase());
 
+      const matchesHotspot = isInventoryApartmentAllowedAtHotspot(
+        apartment,
+        activeHotspot,
+      );
       const matchesTower = apartment.tower === selectedTower;
       const matchesBhk = bhk === "All" || apartment.bhk === Number(bhk);
       const matchesFacing = facing === "All" || apartment.facing === facing;
@@ -379,6 +391,7 @@ export default function MasterPlanLayout({
       const matchesArea = apartment.areaSqft >= minArea;
 
       return (
+        matchesHotspot &&
         matchesSearch &&
         matchesTower &&
         matchesBhk &&
@@ -387,7 +400,16 @@ export default function MasterPlanLayout({
         matchesArea
       );
     });
-  }, [apartments, deferredSearch, selectedTower, bhk, facing, status, minArea]);
+  }, [
+    activeHotspot,
+    apartments,
+    deferredSearch,
+    selectedTower,
+    bhk,
+    facing,
+    status,
+    minArea,
+  ]);
   const hasActiveInventoryFilters = useMemo(
     () =>
       deferredSearch.trim().length > 0 ||
@@ -450,6 +472,16 @@ export default function MasterPlanLayout({
 
     handleApartmentSelect(apartment, apartmentMeshId);
   }, [handleApartmentSelect]);
+
+  useEffect(() => {
+    if (!selectedApartment) {
+      return;
+    }
+
+    if (!isInventoryApartmentAllowedAtHotspot(selectedApartment, activeHotspot)) {
+      clearSelectedApartment();
+    }
+  }, [activeHotspot, clearSelectedApartment, selectedApartment]);
 
   useEffect(() => {
     if (!selectedApartment) {

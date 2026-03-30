@@ -267,7 +267,7 @@ export default function HeroSection() {
         onEnded={() => router.push("/master-plan")}
       >
         <source
-          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774328580/master_plan_video_aof5a5.webm"
+          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774875688/Tf_1.mp4"
           type="video/webm"
         />
       </video>
@@ -283,7 +283,7 @@ export default function HeroSection() {
         <source src={MASTER_PLAN_SCRUB_HQ_VIDEO_PATH} type="video/mp4" />
       </video>
 
-      <motion.div
+      {/* <motion.div
         animate={{ opacity: isTransitioningToMasterPlan ? 0.18 : 0.05 }}
         transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         className="absolute inset-0 bg-black"
@@ -294,7 +294,7 @@ export default function HeroSection() {
         }}
         transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.45)_100%)]"
-      />
+      /> */}
 
       <div className="hidden  absolute left-0 right-0 top-0 z-20 lg:flex items-center justify-between px-6 py-5 md:px-10">
         <button className="text-xs uppercase tracking-[0.25em] text-white/80">
