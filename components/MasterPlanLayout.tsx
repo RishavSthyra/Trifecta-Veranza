@@ -53,6 +53,8 @@ const SPECIAL_UNIT_VIDEO_URL =
   "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774879490/Tf_3-1.mp4";
 const SPECIAL_UNIT_VIDEO_REVERSE_URL =
   "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774880750/Tf_3-1_reversed.mp4";
+const MASTER_PLAN_EXIT_REVERSE_VIDEO_URL =
+  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774916774/Tf_Reversed.mp4";
 const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
 const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
 const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;
@@ -109,6 +111,13 @@ const itemAnim: Variants = {
     transition: { duration: 0.2 },
   },
 };
+
+function isSafariLikeUserAgent(userAgent: string) {
+  return (
+    /Safari/i.test(userAgent) &&
+    !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android/i.test(userAgent)
+  );
+}
 
 function getApartmentMeshId(apartment: InventoryApartment) {
   const towerCode = apartment.tower === "Tower B" ? "B" : "A";
@@ -335,6 +344,7 @@ export default function MasterPlanLayout({
   const [isLeaving, setIsLeaving] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [isSafariLike, setIsSafariLike] = useState(false);
   const [isTouchTabletViewport, setIsTouchTabletViewport] = useState(false);
   const [isTopViewMode, setIsTopViewMode] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(1);
@@ -393,6 +403,14 @@ export default function MasterPlanLayout({
   }, [isFlatPanelOpen]);
 
   useEffect(() => {
+    if (typeof navigator === "undefined") {
+      return;
+    }
+
+    setIsSafariLike(isSafariLikeUserAgent(navigator.userAgent ?? ""));
+  }, []);
+
+  useEffect(() => {
     const preloadLink = document.createElement("link");
     preloadLink.rel = "preload";
     preloadLink.as = "video";
@@ -448,6 +466,41 @@ export default function MasterPlanLayout({
       reverseWarmVideo.load();
     };
   }, [isSpecialVideoOpen, isSpecialVideoReversing]);
+
+  useEffect(() => {
+    if (!isSafariLike) {
+      return;
+    }
+
+    const preloadLink = document.createElement("link");
+    preloadLink.rel = "preload";
+    preloadLink.as = "video";
+    preloadLink.href = MASTER_PLAN_EXIT_REVERSE_VIDEO_URL;
+    preloadLink.crossOrigin = "anonymous";
+    document.head.appendChild(preloadLink);
+
+    const warmVideo = document.createElement("video");
+    warmVideo.preload = "auto";
+    warmVideo.muted = true;
+    warmVideo.playsInline = true;
+    warmVideo.crossOrigin = "anonymous";
+    warmVideo.src = MASTER_PLAN_EXIT_REVERSE_VIDEO_URL;
+    warmVideo.load();
+
+    const reverseVideo = reverseVideoRef.current;
+
+    if (reverseVideo) {
+      reverseVideo.preload = "auto";
+      reverseVideo.load();
+    }
+
+    return () => {
+      preloadLink.remove();
+      warmVideo.pause();
+      warmVideo.removeAttribute("src");
+      warmVideo.load();
+    };
+  }, [isSafariLike]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -949,6 +1002,36 @@ export default function MasterPlanLayout({
     reverseVideo.currentTime = 0;
 
     try {
+      if (reverseVideo.readyState < 2) {
+        await new Promise<void>((resolve, reject) => {
+          let settled = false;
+          const cleanup = () => {
+            reverseVideo.removeEventListener("canplay", handleCanPlay);
+            reverseVideo.removeEventListener("error", handleError);
+          };
+          const handleCanPlay = () => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve();
+          };
+          const handleError = () => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            reject(new Error("Failed to load reverse video."));
+          };
+
+          reverseVideo.addEventListener("canplay", handleCanPlay, {
+            once: true,
+          });
+          reverseVideo.addEventListener("error", handleError, {
+            once: true,
+          });
+          reverseVideo.load();
+        });
+      }
+
       await reverseVideo.play();
     } catch {
       router.push("/");
@@ -1139,17 +1222,23 @@ export default function MasterPlanLayout({
         ref={reverseVideoRef}
         muted
         playsInline
-        preload="none"
+        preload={isSafariLike ? "auto" : "metadata"}
+        crossOrigin="anonymous"
+        disablePictureInPicture
+        src={MASTER_PLAN_EXIT_REVERSE_VIDEO_URL}
         onEnded={() => router.push("/")}
         className={`gpu-layer absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
           isLeaving ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
-      >
-        <source
-          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774916774/Tf_Reversed.mp4"
-          type="video/webm"
-        />
-      </video>
+        style={
+          isSafariLike
+            ? {
+                transform: "translate3d(-0.35%, 0, 0) scale(1.018)",
+                transformOrigin: "center center",
+              }
+            : undefined
+        }
+      />
 
       {!shouldUseCompactLayout &&
       !isTopViewMode &&

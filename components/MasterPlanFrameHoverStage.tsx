@@ -119,6 +119,7 @@ const DEFAULT_MASTER_PLAN_PERFORMANCE_PROFILE: MasterPlanPerformanceProfile = {
     min: 0.45,
   },
   isConstrained: false,
+  isSafariLike: false,
   scrubVideoPreload: "auto",
   tier: "standard",
 };
@@ -152,6 +153,7 @@ type MasterPlanPerformanceProfile = {
     min: number;
   };
   isConstrained: boolean;
+  isSafariLike: boolean;
   scrubVideoPreload: "auto" | "metadata";
   tier: MasterPlanPerformanceTier;
 };
@@ -505,10 +507,14 @@ function getMasterPlanPerformanceProfile(): MasterPlanPerformanceProfile {
 
   const masterPlanNavigator = navigator as MasterPlanNavigator;
   const connection = masterPlanNavigator.connection;
+  const userAgent = navigator.userAgent ?? "";
   const hardwareConcurrency = navigator.hardwareConcurrency ?? 8;
   const deviceMemory = masterPlanNavigator.deviceMemory ?? 8;
   const effectiveType = connection?.effectiveType ?? "";
   const saveData = connection?.saveData ?? false;
+  const isSafariLike =
+    /Safari/i.test(userAgent) &&
+    !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android/i.test(userAgent);
   const hasSlowNetwork =
     effectiveType === "slow-2g" ||
     effectiveType === "2g" ||
@@ -520,7 +526,11 @@ function getMasterPlanPerformanceProfile(): MasterPlanPerformanceProfile {
   const hasConstrainedMemory = deviceMemory <= 4;
   const hasLowEndMemory = deviceMemory <= 2;
   const isConstrained =
-    saveData || hasSlowNetwork || hasConstrainedCpu || hasConstrainedMemory;
+    saveData ||
+    hasSlowNetwork ||
+    hasConstrainedCpu ||
+    hasConstrainedMemory ||
+    isSafariLike;
 
   if (!isConstrained) {
     return DEFAULT_MASTER_PLAN_PERFORMANCE_PROFILE;
@@ -533,16 +543,24 @@ function getMasterPlanPerformanceProfile(): MasterPlanPerformanceProfile {
 
   return {
     canvasPerformance: {
-      debounce: tier === "low" ? 220 : 180,
-      min: tier === "low" ? 0.28 : 0.35,
+      debounce: tier === "low" ? 220 : isSafariLike ? 140 : 180,
+      min: tier === "low" ? 0.28 : isSafariLike ? 0.38 : 0.35,
     },
     isConstrained: true,
-    scrubVideoPreload: "metadata",
+    isSafariLike,
+    scrubVideoPreload: isSafariLike ? "auto" : "metadata",
     tier,
   };
 }
 
-function getDragSeekBudgetMs(tier: MasterPlanPerformanceTier) {
+function getDragSeekBudgetMs(
+  tier: MasterPlanPerformanceTier,
+  isSafariLike: boolean,
+) {
+  if (isSafariLike) {
+    return tier === "low" ? 14 : 8;
+  }
+
   if (tier === "low") {
     return 24;
   }
@@ -558,14 +576,28 @@ function getCanvasDprRange(
   tier: MasterPlanPerformanceTier,
   {
     isDragging,
+    isSafariLike,
     isSettling,
     supportsPreciseHover,
   }: {
     isDragging: boolean;
+    isSafariLike: boolean;
     isSettling: boolean;
     supportsPreciseHover: boolean;
   },
 ): [number, number] {
+  if (isSafariLike) {
+    if (isDragging) {
+      return [0.42, 0.66];
+    }
+
+    if (isSettling) {
+      return [0.52, 0.78];
+    }
+
+    return supportsPreciseHover ? [0.72, 1.05] : [0.58, 0.9];
+  }
+
   if (tier === "low") {
     if (isDragging) {
       return [0.22, 0.34];
@@ -1212,6 +1244,7 @@ function vectorToDebugRow(vector: Vector3) {
 
 type VideoStreamBindingOptions = {
   hlsPath: string;
+  isSafariLike?: boolean;
   mp4Path: string;
   onReady: () => void;
   video: HTMLVideoElement;
@@ -1219,6 +1252,7 @@ type VideoStreamBindingOptions = {
 
 function bindVideoStream({
   hlsPath,
+  isSafariLike = false,
   mp4Path,
   onReady,
   video,
@@ -1241,12 +1275,13 @@ function bindVideoStream({
   };
 
   video.addEventListener("loadedmetadata", markReady);
+  video.addEventListener("loadeddata", markReady);
   video.addEventListener("canplay", markReady);
   video.addEventListener("error", applyMp4Fallback);
 
   applyMp4Fallback();
 
-  if (hlsPath && video.canPlayType("application/vnd.apple.mpegurl")) {
+  if (!isSafariLike && hlsPath && video.canPlayType("application/vnd.apple.mpegurl")) {
     video.src = hlsPath;
     video.load();
   }
@@ -1254,6 +1289,7 @@ function bindVideoStream({
   return () => {
     cancelled = true;
     video.removeEventListener("loadedmetadata", markReady);
+    video.removeEventListener("loadeddata", markReady);
     video.removeEventListener("canplay", markReady);
     video.removeEventListener("error", applyMp4Fallback);
     video.pause();
@@ -3258,8 +3294,12 @@ export default function MasterPlanFrameHoverStage({
     [sectionSize.height, sectionSize.width],
   );
   const dragSeekBudgetMs = useMemo(
-    () => getDragSeekBudgetMs(performanceProfile.tier),
-    [performanceProfile.tier],
+    () =>
+      getDragSeekBudgetMs(
+        performanceProfile.tier,
+        performanceProfile.isSafariLike,
+      ),
+    [performanceProfile.isSafariLike, performanceProfile.tier],
   );
   const invalidateCanvas = useCallback(() => {
     canvasInvalidateRef.current?.();
@@ -3439,9 +3479,9 @@ export default function MasterPlanFrameHoverStage({
         VIDEO_SYNC_THRESHOLD_SECONDS
       ) {
         if (
-          targetTime < video.currentTime &&
           Math.abs(video.currentTime - targetTime) > VIDEO_FAST_SEEK_THRESHOLD_SECONDS &&
-          typeof video.fastSeek === "function"
+          typeof video.fastSeek === "function" &&
+          (performanceProfile.isSafariLike || targetTime < video.currentTime)
         ) {
           lastDragVideoSyncTimeRef.current = now;
           video.fastSeek(targetTime);
@@ -3452,7 +3492,7 @@ export default function MasterPlanFrameHoverStage({
         video.currentTime = targetTime;
       }
     },
-    [dragSeekBudgetMs],
+    [dragSeekBudgetMs, performanceProfile.isSafariLike],
   );
 
   const syncVisibleVideoTime = useCallback(
@@ -3660,6 +3700,7 @@ export default function MasterPlanFrameHoverStage({
 
         if (
           current.isConstrained === next.isConstrained &&
+          current.isSafariLike === next.isSafariLike &&
           current.scrubVideoPreload === next.scrubVideoPreload &&
           current.tier === next.tier &&
           current.canvasPerformance.min === next.canvasPerformance.min &&
@@ -3750,6 +3791,7 @@ export default function MasterPlanFrameHoverStage({
 
     const cleanup = bindVideoStream({
       hlsPath: "",
+      isSafariLike: performanceProfile.isSafariLike,
       mp4Path: MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
       onReady: syncVideoState,
       video,
@@ -3759,7 +3801,7 @@ export default function MasterPlanFrameHoverStage({
       stopVideoRevealFrame();
       cleanup();
     };
-  }, [stopVideoRevealFrame, syncVideoTime]);
+  }, [performanceProfile.isSafariLike, stopVideoRevealFrame, syncVideoTime]);
 
   useEffect(() => {
     if (dragStateRef.current) {
@@ -3971,11 +4013,19 @@ export default function MasterPlanFrameHoverStage({
     () =>
       getCanvasDprRange(performanceProfile.tier, {
         isDragging,
+        isSafariLike: performanceProfile.isSafariLike,
         isSettling,
         supportsPreciseHover,
       }),
-    [isDragging, isSettling, performanceProfile.tier, supportsPreciseHover],
+    [
+      isDragging,
+      isSettling,
+      performanceProfile.isSafariLike,
+      performanceProfile.tier,
+      supportsPreciseHover,
+    ],
   );
+  const stageOverscanScale = performanceProfile.isSafariLike ? 1.02 : 1;
   const trackingFrame = getNearestSnapFrame(displayedFrame);
   const activeHotspot = useMemo(
     () => getNearestMasterPlanHotspot(trackingFrame),
@@ -4381,7 +4431,7 @@ export default function MasterPlanFrameHoverStage({
           <div
             className="absolute inset-0 will-change-transform"
             style={{
-              transform: `translate3d(${viewportTransform.x}px, ${viewportTransform.y}px, 0) scale(${viewportTransform.scale})`,
+              transform: `translate3d(${viewportTransform.x}px, ${viewportTransform.y}px, 0) scale(${viewportTransform.scale * stageOverscanScale})`,
               transformOrigin: "center center",
             }}
           >
