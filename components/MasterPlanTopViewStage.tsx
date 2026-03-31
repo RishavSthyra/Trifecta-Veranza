@@ -3,6 +3,12 @@
 import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  Euler,
+  MathUtils,
+  Quaternion,
+  Vector3,
+} from "three";
+import {
   Bike,
   Bird,
   BriefcaseBusiness,
@@ -30,6 +36,7 @@ const TOP_VIEW_VIDEO_URL =
   "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774910334/Sequence_01.mp4";
 const TOP_VIEW_PLACEHOLDER_IMAGE =
   "https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774907276/buildings.png";
+const TOP_VIEW_VIDEO_ASPECT = 16 / 9;
 
 const AMENITY_ICON_COMPONENTS: Record<MasterPlanAmenityIconKey, LucideIcon> = {
   bird: Bird,
@@ -57,56 +64,90 @@ const TOP_VIEW_BOUNDS = {
   top: 10,
 } as const;
 
-const coordinateExtents = masterPlanAmenities.reduce(
-  (accumulator, amenity) => ({
-    maxX: Math.max(accumulator.maxX, amenity.coordinate.x),
-    maxY: Math.max(accumulator.maxY, amenity.coordinate.y),
-    minX: Math.min(accumulator.minX, amenity.coordinate.x),
-    minY: Math.min(accumulator.minY, amenity.coordinate.y),
-  }),
-  {
-    maxX: Number.NEGATIVE_INFINITY,
-    maxY: Number.NEGATIVE_INFINITY,
-    minX: Number.POSITIVE_INFINITY,
-    minY: Number.POSITIVE_INFINITY,
+const TOP_VIEW_CAMERA = {
+  fov: 71.62112426757812,
+  position: {
+    x: -1360.8571052618827,
+    y: -1984.121696051613,
+    z: 36578.260066937,
   },
-);
+  rotation: {
+    pitch: -89.01585861374649,
+    roll: 4.62944967445894e-12,
+    yaw: 90.61279095256934,
+  },
+} as const;
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-function toPercent(value: number, min: number, max: number) {
-  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max)) {
-    return 0;
-  }
-
-  if (Math.abs(max - min) <= Number.EPSILON) {
-    return 0.5;
-  }
-
-  return clampNumber((value - min) / (max - min), 0, 1);
+function unrealToThreePosition(point: { x: number; y: number; z: number }) {
+  return new Vector3(point.x, point.z, point.y);
 }
 
+function unrealEulerToThreeQuaternion(rotation: {
+  pitch: number;
+  roll: number;
+  yaw: number;
+}) {
+  const euler = new Euler(
+    MathUtils.degToRad(rotation.pitch),
+    -MathUtils.degToRad(rotation.yaw) - Math.PI / 2,
+    -MathUtils.degToRad(rotation.roll),
+    "YXZ",
+  );
+
+  return new Quaternion().setFromEuler(euler);
+}
+
+const TOP_VIEW_CAMERA_VERTICAL_FOV = MathUtils.radToDeg(
+  2 *
+    Math.atan(
+      Math.tan(MathUtils.degToRad(TOP_VIEW_CAMERA.fov) / 2) /
+        TOP_VIEW_VIDEO_ASPECT,
+    ),
+);
+const TOP_VIEW_CAMERA_HORIZONTAL_FOV_RAD = MathUtils.degToRad(
+  TOP_VIEW_CAMERA.fov,
+);
+const TOP_VIEW_CAMERA_VERTICAL_FOV_RAD = MathUtils.degToRad(
+  TOP_VIEW_CAMERA_VERTICAL_FOV,
+);
+const topViewCameraPosition = unrealToThreePosition(TOP_VIEW_CAMERA.position);
+const topViewCameraQuaternion = unrealEulerToThreeQuaternion(
+  TOP_VIEW_CAMERA.rotation,
+);
+const topViewGroundRight = new Vector3(1, 0, 0)
+  .applyQuaternion(topViewCameraQuaternion)
+  .setY(0)
+  .normalize();
+const topViewGroundUp = new Vector3(0, 1, 0)
+  .applyQuaternion(topViewCameraQuaternion)
+  .setY(0)
+  .normalize();
+
 function mapAmenityToTopViewPosition(amenity: MasterPlanAmenity) {
-  const normalizedX = toPercent(
-    amenity.coordinate.x,
-    coordinateExtents.minX,
-    coordinateExtents.maxX,
-  );
-  const normalizedY = toPercent(
-    amenity.coordinate.y,
-    coordinateExtents.minY,
-    coordinateExtents.maxY,
-  );
+  const worldPoint = unrealToThreePosition(amenity.coordinate);
+  const groundDelta = worldPoint.clone().sub(topViewCameraPosition);
+  groundDelta.y = 0;
+  const localX = groundDelta.dot(topViewGroundRight);
+  const localY = groundDelta.dot(topViewGroundUp);
+  const depth = Math.max(topViewCameraPosition.y - worldPoint.y, 1);
+  const projectedX =
+    localX / (depth * Math.tan(TOP_VIEW_CAMERA_HORIZONTAL_FOV_RAD / 2));
+  const projectedY =
+    localY / (depth * Math.tan(TOP_VIEW_CAMERA_VERTICAL_FOV_RAD / 2));
 
   return {
     xPercent:
       TOP_VIEW_BOUNDS.left +
-      normalizedX * (TOP_VIEW_BOUNDS.right - TOP_VIEW_BOUNDS.left),
+      clampNumber((projectedX + 1) / 2, 0, 1) *
+        (TOP_VIEW_BOUNDS.right - TOP_VIEW_BOUNDS.left),
     yPercent:
       TOP_VIEW_BOUNDS.top +
-      normalizedY * (TOP_VIEW_BOUNDS.bottom - TOP_VIEW_BOUNDS.top),
+      clampNumber((1 - projectedY) / 2, 0, 1) *
+        (TOP_VIEW_BOUNDS.bottom - TOP_VIEW_BOUNDS.top),
   };
 }
 
