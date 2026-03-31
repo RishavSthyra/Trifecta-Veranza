@@ -11,6 +11,13 @@ import {
 } from "react";
 import navData from "@/data/nav.json";
 import {
+  CLOUDINARY_PANO_IMAGE_BASE_URL,
+  CLOUDINARY_PANO_RAW_BASE_URL,
+  getPanoMetaUrl,
+  getPanoPreviewUrl,
+  getPanoTileUrl,
+} from "@/lib/pano-cloudinary";
+import {
   AbstractMesh,
   Color3,
   Color4,
@@ -47,6 +54,7 @@ const uiFont = Manrope({
 type ApartmentTourProps = {
   modelUrl: string;
   panoBasePath?: string;
+  panoMetaBasePath?: string;
   thumbnailBasePath?: string;
   className?: string;
 };
@@ -276,8 +284,9 @@ void main(void) {
 
 export default function ApartmentTour({
   modelUrl,
-  panoBasePath = "/panos/",
-  thumbnailBasePath = "/panos/",
+  panoBasePath = CLOUDINARY_PANO_IMAGE_BASE_URL,
+  panoMetaBasePath = CLOUDINARY_PANO_RAW_BASE_URL,
+  thumbnailBasePath = CLOUDINARY_PANO_IMAGE_BASE_URL,
   className,
 }: ApartmentTourProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -285,8 +294,22 @@ export default function ApartmentTour({
   const moveToNavRef = useRef<((id: string) => void) | null>(null);
   const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
 
-  const NAV_POINTS = useMemo(() => navData as NavPoint[], []);
-  const START_NAV_ID = "BP_panoPath_Interior_F0000";
+  const ALL_NAV_POINTS = useMemo(() => navData as NavPoint[], []);
+  const DEFAULT_START_NAV_ID = "BP_panoPath_Interior_F0000";
+  const [availableNavIds, setAvailableNavIds] = useState<Set<string> | null>(
+    null,
+  );
+  const NAV_POINTS = useMemo(() => {
+    if (!availableNavIds) {
+      return [] as NavPoint[];
+    }
+
+    return ALL_NAV_POINTS.filter((item) => availableNavIds.has(item.id));
+  }, [ALL_NAV_POINTS, availableNavIds]);
+  const START_NAV_ID =
+    NAV_POINTS.find((item) => item.id === DEFAULT_START_NAV_ID)?.id ??
+    NAV_POINTS[0]?.id ??
+    DEFAULT_START_NAV_ID;
 
   const showProjectionRef = useRef(true);
   const activeRoomIdRef = useRef(START_NAV_ID);
@@ -299,7 +322,7 @@ export default function ApartmentTour({
         return {
           id: item.id,
           label: getRoomLabel(item.id, item.image_filename),
-          image: `${thumbnailBasePath}${panoId}/preview.jpg`,
+          image: getPanoPreviewUrl(panoId, "preview.jpg", thumbnailBasePath),
         };
       }),
     [NAV_POINTS, thumbnailBasePath],
@@ -331,6 +354,69 @@ export default function ApartmentTour({
   useEffect(() => {
     activeRoomIdRef.current = activeRoomId;
   }, [activeRoomId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const hydrateAvailableNavIds = async () => {
+      const availability = await Promise.allSettled(
+        ALL_NAV_POINTS.map(async (item) => {
+          const panoId = panoIdFromFilename(item.image_filename);
+          const response = await fetch(getPanoMetaUrl(panoId, panoMetaBasePath), {
+            cache: "force-cache",
+          });
+
+          if (!response.ok) {
+            return null;
+          }
+
+          return item.id;
+        }),
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      setAvailableNavIds(
+        new Set(
+          availability.flatMap((result) =>
+            result.status === "fulfilled" && result.value ? [result.value] : [],
+          ),
+        ),
+      );
+    };
+
+    void hydrateAvailableNavIds().catch((error) => {
+      if (!cancelled) {
+        console.error("Failed to resolve available Cloudinary panoramas:", error);
+        setAvailableNavIds(new Set());
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ALL_NAV_POINTS, panoMetaBasePath]);
+
+  useEffect(() => {
+    if (NAV_POINTS.length === 0) {
+      return;
+    }
+
+    const nextActiveRoomId = NAV_POINTS.some(
+      (item) => item.id === activeRoomIdRef.current,
+    )
+      ? activeRoomIdRef.current
+      : START_NAV_ID;
+
+    if (nextActiveRoomId === activeRoomIdRef.current) {
+      return;
+    }
+
+    activeRoomIdRef.current = nextActiveRoomId;
+    setActiveRoomId(nextActiveRoomId);
+  }, [NAV_POINTS, START_NAV_ID]);
 
   const activeRoomTab = useMemo(
     () => tabs.find((tab) => tab.id === activeRoomId) ?? tabs[0] ?? null,
@@ -384,6 +470,10 @@ export default function ApartmentTour({
   }, [activeRoomId, tabs]);
 
   useEffect(() => {
+    if (NAV_POINTS.length === 0) {
+      return;
+    }
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -970,7 +1060,7 @@ export default function ApartmentTour({
         return meta.tiles.map((t) => ({
           col: t.col,
           row: t.row,
-          url: `${panoBasePath}${panoId}/tiles/${t.file}`,
+          url: getPanoTileUrl(panoId, `tiles/${t.file}`, panoBasePath),
         }));
       }
 
@@ -984,9 +1074,13 @@ export default function ApartmentTour({
           list.push({
             col,
             row,
-            url: `${panoBasePath}${panoId}/${tileTemplate
-              .replace("{col}", String(col))
-              .replace("{row}", String(row))}`,
+            url: getPanoTileUrl(
+              panoId,
+              tileTemplate
+                .replace("{col}", String(col))
+                .replace("{row}", String(row)),
+              panoBasePath,
+            ),
           });
         }
       }
@@ -1005,7 +1099,7 @@ export default function ApartmentTour({
       }
 
       const promise = (async () => {
-        const metaUrl = `${panoBasePath}${panoId}/meta.json`;
+        const metaUrl = getPanoMetaUrl(panoId, panoMetaBasePath);
         const metaRes = await fetch(metaUrl);
 
         if (!metaRes.ok) {
@@ -1044,7 +1138,7 @@ export default function ApartmentTour({
       }
 
       const previewPromise = loadImage(
-        `${panoBasePath}${panoId}/${meta.preview}`,
+        getPanoPreviewUrl(panoId, meta.preview, panoBasePath),
       ).catch((error) => {
         panoPreviewPromiseCache.delete(panoId);
         throw error;
@@ -2253,7 +2347,7 @@ export default function ApartmentTour({
       scene.dispose();
       engine.dispose();
     };
-  }, [NAV_POINTS, START_NAV_ID, modelUrl, panoBasePath, showDebug]);
+  }, [NAV_POINTS, START_NAV_ID, modelUrl, panoBasePath, panoMetaBasePath, showDebug]);
 
   const fmtUi = (n: number | null | undefined) =>
     typeof n === "number" ? n.toFixed(3) : "--";

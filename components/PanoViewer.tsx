@@ -12,6 +12,13 @@ import "@photo-sphere-viewer/virtual-tour-plugin/index.css";
 import "@photo-sphere-viewer/markers-plugin/index.css";
 
 import navData from "@/data/nav.json";
+import {
+  CLOUDINARY_PANO_IMAGE_BASE_URL,
+  CLOUDINARY_PANO_RAW_BASE_URL,
+  getPanoMetaUrl,
+  getPanoPreviewUrl,
+  getPanoTileUrl,
+} from "@/lib/pano-cloudinary";
 
 type NavItem = {
   id: string;
@@ -122,11 +129,21 @@ function canUseTiledPanorama(meta: PanoMeta) {
   return isPowerOfTwo(meta.cols) && isPowerOfTwo(meta.rows);
 }
 
-function getPreviewUrl(panoId: string, meta: PanoMeta) {
-  return `/panos/${panoId}/${meta.preview}`;
+function getPreviewUrl(
+  panoId: string,
+  meta: PanoMeta,
+  imageBaseUrl = CLOUDINARY_PANO_IMAGE_BASE_URL,
+) {
+  return getPanoPreviewUrl(panoId, meta.preview, imageBaseUrl);
 }
 
-function getTileUrl(panoId: string, meta: PanoMeta, col: number, row: number) {
+function getTileUrl(
+  panoId: string,
+  meta: PanoMeta,
+  col: number,
+  row: number,
+  imageBaseUrl = CLOUDINARY_PANO_IMAGE_BASE_URL,
+) {
   const actualCols = meta.actualCols ?? meta.cols;
   const actualRows = meta.actualRows ?? meta.rows;
 
@@ -139,15 +156,17 @@ function getTileUrl(panoId: string, meta: PanoMeta, col: number, row: number) {
   );
 
   if (explicitTile) {
-    return `/panos/${panoId}/tiles/${explicitTile.file}`;
+    return getPanoTileUrl(panoId, `tiles/${explicitTile.file}`, imageBaseUrl);
   }
 
   const template =
     meta.tileUrl ?? `tiles/tile_{col}_{row}.${meta.tileFormat ?? "jpg"}`;
 
-  return `/panos/${panoId}/${template
-    .replace("{col}", String(col))
-    .replace("{row}", String(row))}`;
+  return getPanoTileUrl(
+    panoId,
+    template.replace("{col}", String(col)).replace("{row}", String(row)),
+    imageBaseUrl,
+  );
 }
 
 function distance(a: NavItem, b: NavItem) {
@@ -178,11 +197,20 @@ function getLinkYaw(source: NavItem, target: NavItem) {
   return normalizeAngle(worldYaw - cameraHeading);
 }
 
-async function buildNodes(items: NavItem[]) {
+async function buildNodes(
+  items: NavItem[],
+  {
+    imageBaseUrl = CLOUDINARY_PANO_IMAGE_BASE_URL,
+    metaBaseUrl = CLOUDINARY_PANO_RAW_BASE_URL,
+  }: {
+    imageBaseUrl?: string;
+    metaBaseUrl?: string;
+  } = {},
+) {
   const metaEntries = await Promise.all(
     items.map(async (item) => {
       const panoId = imageToPanoId(item.image_filename);
-      const res = await fetch(`/panos/${panoId}/meta.json`);
+      const res = await fetch(getPanoMetaUrl(panoId, metaBaseUrl));
 
       if (!res.ok) {
         console.warn("Skipping missing pano:", panoId);
@@ -221,17 +249,17 @@ async function buildNodes(items: NavItem[]) {
     return {
       id: item.id,
       name: label,
-      thumbnail: getPreviewUrl(panoId, meta),
+      thumbnail: getPreviewUrl(panoId, meta, imageBaseUrl),
       panorama: usesTiledAdapter
         ? {
             width: meta.width,
             cols: meta.cols,
             rows: meta.rows,
-            baseUrl: getPreviewUrl(panoId, meta),
+            baseUrl: getPreviewUrl(panoId, meta, imageBaseUrl),
             tileUrl: (col: number, row: number) =>
-              getTileUrl(panoId, meta, col, row),
+              getTileUrl(panoId, meta, col, row, imageBaseUrl),
           }
-        : getPreviewUrl(panoId, meta),
+        : getPreviewUrl(panoId, meta, imageBaseUrl),
       links: neighbors.map((target) => ({
         nodeId: target.id,
         position: {
@@ -380,7 +408,7 @@ export default function PanoViewer() {
       });
 
       viewerInstanceRef.current = viewer;
-      viewer.addEventListener("panorama-error", ({ error }: any) => {
+      viewer.addEventListener("panorama-error", ({ error }: { error: unknown }) => {
         console.error("PanoViewer panorama load error:", error);
       });
 
@@ -392,14 +420,16 @@ export default function PanoViewer() {
       markersRef.current = markersPlugin;
       virtualTourRef.current = virtualTourPlugin;
 
-      function syncInfoMarkers(node: any) {
+      function syncInfoMarkers(node: BuiltNode) {
         const panoId = node.data?.panoId ?? node.name;
         const markers = buildInfoMarkersForPano(panoId);
-        markersPlugin.setMarkers(markers as any[]);
+        markersPlugin.setMarkers(
+          markers as Parameters<MarkersPlugin["setMarkers"]>[0],
+        );
         setActiveNodeId(node.id);
       }
 
-      virtualTourPlugin.addEventListener("node-changed", ({ node }: any) => {
+      virtualTourPlugin.addEventListener("node-changed", ({ node }: { node: BuiltNode }) => {
         syncInfoMarkers(node);
       });
 
