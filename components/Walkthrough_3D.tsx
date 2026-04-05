@@ -1,6 +1,6 @@
 "use client";
 
-import { Cormorant_Garamond, Manrope } from "next/font/google";
+import { Manrope } from "next/font/google";
 import NextImage from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -37,11 +37,6 @@ import {
   Vector3,
 } from "@babylonjs/core";
 import "@babylonjs/loaders/glTF";
-
-const editorialFont = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
 
 const uiFont = Manrope({
   subsets: ["latin"],
@@ -430,7 +425,7 @@ export default function ApartmentTour({
   const moveToNavRef = useRef<((id: string) => void) | null>(null);
   const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
   const [isViewerMasked, setIsViewerMasked] = useState(true);
-  const [showProjection, setShowProjection] = useState(true);
+  const showProjection = true;
   const requestedBareShellMode = useMemo(() => {
     const mode = searchParams.get("mode")?.toLowerCase();
     return mode === "bare-shell" || mode === "bareshell";
@@ -673,11 +668,6 @@ export default function ApartmentTour({
     activeRoomIdRef.current = nextActiveRoomId;
     setActiveRoomId(nextActiveRoomId);
   }, [NAV_POINTS, START_NAV_ID]);
-
-  const activeRoomTab = useMemo(
-    () => tabs.find((tab) => tab.id === activeRoomId) ?? tabs[0] ?? null,
-    [activeRoomId, tabs],
-  );
 
   const moveCarouselBy = useCallback(
     (direction: -1 | 1) => {
@@ -3048,63 +3038,24 @@ export default function ApartmentTour({
         }}
       />
 
+      <div className="pointer-events-none absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+        <div className="pointer-events-auto">
+          <button
+            onClick={() => setIsBareShellMode((prev) => !prev)}
+            className={`rounded-full border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] transition duration-300 sm:px-5 sm:text-[11px] ${
+              isBareShellMode
+                ? "border-[#d9b56f]/34 bg-[linear-gradient(135deg,rgba(231,199,129,0.92),rgba(180,129,53,0.76))] text-[#23170d] shadow-[0_10px_24px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,247,222,0.42)] hover:brightness-105"
+                : "border-white/14 bg-black/10 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-[8px] hover:bg-white/[0.08]"
+            }`}
+          >
+            {isBareShellMode ? "View Furnished" : "View Bare Shell"}
+          </button>
+        </div>
+      </div>
+
       <div className="pointer-events-none absolute inset-x-0 bottom-0 px-3 pb-4 sm:px-6 sm:pb-6">
         <div className="mx-auto max-w-[1640px]">
           <div className="relative">
-            <div className="mb-4 flex items-start justify-between gap-4 px-1 sm:mb-5 sm:px-2">
-              <div className="pointer-events-none min-w-0">
-                <h2
-                  className={`${editorialFont.className} text-[2.1rem] font-semibold leading-none tracking-[-0.05em] text-white [text-shadow:0_10px_28px_rgba(0,0,0,0.28)] sm:text-[2.7rem]`}
-                >
-                  Interior
-                </h2>
-                <p
-                  className={`${uiFont.className} mt-1 truncate text-[11px] font-medium tracking-[0.14em] text-white/72 sm:text-[12px]`}
-                >
-                  {activeRoomTab?.label ?? "Select a room"}
-                </p>
-              </div>
-
-              <div className="pointer-events-none shrink-0">
-                <div className="pointer-events-auto flex items-center gap-2">
-                <button
-                  onClick={() => setIsBareShellMode((prev) => !prev)}
-                  className={`rounded-full border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] transition duration-300 sm:px-5 sm:text-[11px] ${
-                    isBareShellMode
-                      ? "border-[#d9b56f]/34 bg-[linear-gradient(135deg,rgba(231,199,129,0.92),rgba(180,129,53,0.76))] text-[#23170d] shadow-[0_10px_24px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,247,222,0.42)] hover:brightness-105"
-                      : "border-white/14 bg-black/10 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-[8px] hover:bg-white/[0.08]"
-                  }`}
-                >
-                  {isBareShellMode ? "Show Furnished" : "Bare Shell"}
-                </button>
-
-                {/* <button
-                  onClick={() => setShowProjection((prev) => !prev)}
-                  className={`rounded-full border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] transition duration-300 sm:px-5 sm:text-[11px] ${
-                    showProjection
-                      ? "border-white/14 bg-black/10 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-[8px] hover:bg-white/[0.08]"
-                      : "border-[#d9b56f]/34 bg-[linear-gradient(135deg,rgba(231,199,129,0.92),rgba(180,129,53,0.76))] text-[#23170d] shadow-[0_10px_24px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,247,222,0.42)] hover:brightness-105"
-                  }`}
-                >
-                  {showProjection ? "Show GLB Only" : "Show Pano Projection"}
-                </button> */}
-
-                {/*
-                <button
-                  onClick={() => setShowDebug((prev) => !prev)}
-                  className={`rounded-full border px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition duration-300 sm:px-5 ${
-                    showDebug
-                      ? "border-emerald-300/35 bg-[linear-gradient(135deg,rgba(110,231,183,0.92),rgba(16,185,129,0.82))] text-[#082118] shadow-[0_10px_24px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(220,252,231,0.5)] hover:brightness-105"
-                      : "border-white/14 bg-white/[0.08] text-white/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] hover:bg-white/[0.14]"
-                  }`}
-                >
-                  {showDebug ? "Hide Debug" : "Show Debug"}
-                </button>
-                */}
-                </div>
-              </div>
-            </div>
-
             {showDebug ? (
               <div className="pointer-events-auto absolute inset-x-0 top-16 z-10 mx-auto mt-4 max-w-[1480px] rounded-[24px] border border-white/10 bg-black/30 p-4 text-xs text-white/85 backdrop-blur">
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -3195,7 +3146,7 @@ export default function ApartmentTour({
                 <button
                   type="button"
                   onClick={() => moveCarouselBy(-1)}
-                  className={`${uiFont.className} pointer-events-auto inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-lg text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-200 active:scale-95 hover:bg-white/[0.06] sm:h-10 sm:w-10`}
+                  className={`${uiFont.className} pointer-events-auto inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-base text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-200 active:scale-95 hover:bg-white/[0.06] sm:h-9 sm:w-9`}
                   aria-label="Previous room"
                 >
                   &#8249;
@@ -3203,7 +3154,7 @@ export default function ApartmentTour({
 
                 <div
                   ref={tabsScrollerRef}
-                  className="pointer-events-auto flex min-w-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-2 pb-4 pt-5 scroll-smooth [-webkit-overflow-scrolling:touch] sm:gap-4 sm:px-4 sm:pb-6 sm:pt-7"
+                  className="pointer-events-auto flex min-w-0 flex-1 snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-2 pb-3 pt-4 scroll-smooth [-webkit-overflow-scrolling:touch] sm:gap-3 sm:px-3 sm:pb-5 sm:pt-6"
                   onWheel={(event) => {
                     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
                       return;
@@ -3224,7 +3175,7 @@ export default function ApartmentTour({
                         type="button"
                         data-room-id={tab.id}
                         onClick={() => moveToNavRef.current?.(tab.id)}
-                        className={`group relative block w-[132px] shrink-0 snap-center touch-manipulation text-left sm:w-[164px] lg:w-[178px] ${
+                        className={`group relative block w-[118px] shrink-0 snap-center touch-manipulation text-left sm:w-[132px] lg:w-[144px] xl:w-[154px] ${
                           isActive
                             ? "z-10"
                             : "z-0"
@@ -3233,8 +3184,8 @@ export default function ApartmentTour({
                         <div
                           className={`relative origin-bottom overflow-hidden rounded-[22px] will-change-transform transition-[transform,box-shadow,filter,opacity] duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] ${
                             isActive
-                              ? "translate-y-[-4px] scale-[1.12] opacity-100 shadow-[0_20px_44px_rgba(0,0,0,0.28)]"
-                              : "translate-y-0 scale-[0.92] opacity-72 shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:translate-y-[-1px] group-hover:scale-[0.97] group-hover:opacity-90"
+                              ? "translate-y-[-3px] scale-[1.05] opacity-100 shadow-[0_18px_36px_rgba(0,0,0,0.24)]"
+                              : "translate-y-0 scale-[0.94] opacity-72 shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:translate-y-[-1px] group-hover:scale-[0.98] group-hover:opacity-90"
                           }`}
                         >
                           <div className="pointer-events-none absolute inset-x-4 top-0 h-8 rounded-b-[999px] opacity-80" />
@@ -3243,7 +3194,7 @@ export default function ApartmentTour({
                               src={tab.image}
                               alt={tab.label}
                               fill
-                              sizes="(max-width: 640px) 144px, (max-width: 1024px) 164px, 178px"
+                              sizes="(max-width: 640px) 118px, (max-width: 1024px) 132px, (max-width: 1440px) 144px, 154px"
                               quality={64}
                               loading="eager"
                               priority={index < 8}
@@ -3281,7 +3232,7 @@ export default function ApartmentTour({
                 <button
                   type="button"
                   onClick={() => moveCarouselBy(1)}
-                  className={`${uiFont.className} pointer-events-auto inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-lg text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-200 active:scale-95 hover:bg-white/[0.06] sm:h-10 sm:w-10`}
+                  className={`${uiFont.className} pointer-events-auto inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-base text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-200 active:scale-95 hover:bg-white/[0.06] sm:h-9 sm:w-9`}
                   aria-label="Next room"
                 >
                   &#8250;

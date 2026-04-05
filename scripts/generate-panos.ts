@@ -19,8 +19,9 @@ sharp.simd(true)
 const FILE_CONCURRENCY = Math.max(1, Math.min(4, Math.floor(CPU_THREADS / 4)))
 const TILE_CONCURRENCY = Math.max(16, CPU_THREADS * 2)
 
-const TARGET_COLS = 64
-const TARGET_ROWS = 32
+// CHANGED: 8 x 4 grid = 32 tiles total
+const TARGET_COLS = 8
+const TARGET_ROWS = 4
 
 const SHARP_INPUT_OPTIONS = {
   limitInputPixels: false,
@@ -99,7 +100,7 @@ async function processImage(file: string): Promise<void> {
   if (fullWidth % cols !== 0 || fullHeight % rows !== 0) {
     throw new Error(
       [
-        `Panorama "${file}" is not evenly divisible by the target PSV grid.`,
+        `Panorama "${file}" is not evenly divisible by the target grid.`,
         `Image size: ${fullWidth} x ${fullHeight}`,
         `Target grid: ${cols} x ${rows}`,
         `Remainders: width % cols = ${fullWidth % cols}, height % rows = ${fullHeight % rows}`,
@@ -178,7 +179,8 @@ async function processImage(file: string): Promise<void> {
     height: fullHeight,
     cols,
     rows,
-    tileSize: tileWidth,
+    tileWidth,
+    tileHeight,
     preview: "preview.jpg",
     tileFormat: "jpg",
     tileUrl: "tiles/tile_{col}_{row}.jpg",
@@ -192,8 +194,6 @@ async function processImage(file: string): Promise<void> {
 
   console.log("done:", file, {
     ...metaJson,
-    tileWidth,
-    tileHeight,
     totalTiles: cols * rows,
   })
 }
@@ -216,6 +216,7 @@ async function run(): Promise<void> {
   console.log("sharp concurrency:", CPU_THREADS)
   console.log("file concurrency:", FILE_CONCURRENCY)
   console.log("tile concurrency:", TILE_CONCURRENCY)
+  console.log("target grid:", `${TARGET_COLS} x ${TARGET_ROWS}`)
 
   const totalStart = Date.now()
 

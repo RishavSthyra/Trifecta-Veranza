@@ -2800,6 +2800,7 @@ export default function MasterPlanFrameHoverStage({
   const canvasInvalidateRef = useRef<(() => void) | null>(null);
   const dragFrameRef = useRef<number | null>(null);
   const hoverCooldownTimeoutRef = useRef<number | null>(null);
+  const hoverClearTimeoutRef = useRef<number | null>(null);
   const displayedFrameRef = useRef(wrapFrame(currentFrame));
   const displayedFrameStateRef = useRef(wrapFrame(currentFrame));
   const isSettlingRef = useRef(false);
@@ -3061,13 +3062,27 @@ export default function MasterPlanFrameHoverStage({
     setIsHoverCoolingDown(false);
   }, []);
 
+  const cancelPendingHoverClear = useCallback(() => {
+    if (hoverClearTimeoutRef.current !== null) {
+      window.clearTimeout(hoverClearTimeoutRef.current);
+      hoverClearTimeoutRef.current = null;
+    }
+  }, []);
+
   const clearHoveredApartment = useCallback(() => {
+    cancelPendingHoverClear();
     hoveredApartmentIdRef.current = null;
     lastTooltipPointerRef.current = null;
+
+    if (tooltipFrameRef.current !== null) {
+      window.cancelAnimationFrame(tooltipFrameRef.current);
+      tooltipFrameRef.current = null;
+    }
+
     setHoveredApartmentId((currentHoveredApartmentId) =>
       currentHoveredApartmentId === null ? currentHoveredApartmentId : null,
     );
-  }, []);
+  }, [cancelPendingHoverClear]);
 
   const startHoverCooldown = useCallback(() => {
     clearHoverCooldown();
@@ -3755,6 +3770,7 @@ export default function MasterPlanFrameHoverStage({
 
   useEffect(() => {
     return () => {
+      cancelPendingHoverClear();
       clearHoverCooldown();
       pendingPointerDeltaXRef.current = 0;
       lastTooltipPointerRef.current = null;
@@ -3765,7 +3781,13 @@ export default function MasterPlanFrameHoverStage({
         window.cancelAnimationFrame(tooltipFrameRef.current);
       }
     };
-  }, [clearHoverCooldown, stopDragLoop, stopMotionAnimation, stopScheduledProgress]);
+  }, [
+    cancelPendingHoverClear,
+    clearHoverCooldown,
+    stopDragLoop,
+    stopMotionAnimation,
+    stopScheduledProgress,
+  ]);
 
   const snapInfo = useMemo(
     () => getNearestSnapFrameInfo(displayedFrame),
@@ -3903,8 +3925,9 @@ export default function MasterPlanFrameHoverStage({
       };
 
       const rect = sectionRef.current.getBoundingClientRect();
-      const tooltipWidth = 180;
-      const tooltipHeight = 62;
+      const tooltipBounds = tooltipRef.current.getBoundingClientRect();
+      const tooltipWidth = tooltipBounds.width || 180;
+      const tooltipHeight = tooltipBounds.height || 62;
       const offsetX = 16;
       const offsetY = 16;
 
@@ -3952,6 +3975,23 @@ export default function MasterPlanFrameHoverStage({
         return;
       }
 
+      if (!apartmentId) {
+        if (hoveredApartmentIdRef.current === null) {
+          return;
+        }
+
+        if (hoverClearTimeoutRef.current !== null) {
+          return;
+        }
+
+        hoverClearTimeoutRef.current = window.setTimeout(() => {
+          hoverClearTimeoutRef.current = null;
+          clearHoveredApartment();
+        }, 72);
+        return;
+      }
+
+      cancelPendingHoverClear();
       updateTooltipPosition(pointerPosition);
 
       if (hoveredApartmentIdRef.current === apartmentId) {
@@ -3964,7 +4004,7 @@ export default function MasterPlanFrameHoverStage({
         setHoveredApartmentId(apartmentId);
       });
     },
-    [allowHover, updateTooltipPosition],
+    [allowHover, cancelPendingHoverClear, clearHoveredApartment, updateTooltipPosition],
   );
 
   const handleCanvasInvalidateReady = useCallback((invalidateCanvas: () => void) => {

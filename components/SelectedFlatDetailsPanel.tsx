@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { forwardRef, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft,
   BedDouble,
   Building2,
   Expand,
@@ -20,7 +19,6 @@ type SelectedFlatDetailsPanelProps = {
   apartment: InventoryApartment;
   compact?: boolean;
   hideCloseButton?: boolean;
-  showBackButton?: boolean;
   onClose: () => void;
 };
 
@@ -84,7 +82,6 @@ const SelectedFlatDetailsPanel = forwardRef<
     apartment,
     compact = false,
     hideCloseButton = false,
-    showBackButton = false,
     onClose,
   },
   ref,
@@ -146,20 +143,9 @@ const SelectedFlatDetailsPanel = forwardRef<
         <div className="custom-scrollbar relative flex min-h-0 max-h-[min(96dvh,64rem)] flex-col overflow-y-auto overscroll-contain rounded-[32px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] [-webkit-overflow-scrolling:touch] touch-pan-y">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,228,196,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(171,135,86,0.10),transparent_28%)]" />
 
-          <div className="relative flex min-h-0 flex-1 flex-col p-4 sm:p-5">
+          <div className="relative flex flex-col p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
-              {showBackButton ? (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/78 transition hover:bg-white/12 hover:text-white"
-                  aria-label="Back to inventory filters"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-              ) : (
-                <div className="h-10 w-10 shrink-0" />
-              )}
+              <div className="h-10 w-10 shrink-0 opacity-0" aria-hidden="true" />
 
               <div className="min-w-0 flex-1 text-center">
                 <p className="text-[10px] uppercase tracking-[0.28em] text-white/38">
@@ -294,7 +280,7 @@ const SelectedFlatDetailsPanel = forwardRef<
               })}
             </div>
 
-            <div className="mt-4 flex min-h-0 flex-1 flex-col">
+            <div className="mt-4 flex flex-col">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.26em] text-white/38">
@@ -310,7 +296,7 @@ const SelectedFlatDetailsPanel = forwardRef<
                 </div>
               </div>
 
-              <div className="custom-scrollbar mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch] touch-pan-y">
+              <div className="mt-4 pr-1">
                 <div className="space-y-3 pb-1">
                   {dimensionItems.length > 0 ? (
                     dimensionItems.map((item, index) => (

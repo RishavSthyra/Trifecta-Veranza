@@ -1437,14 +1437,13 @@ export default function MasterPlanLayout({
           >
             {selectedApartment ? (
               <div
-                className="custom-scrollbar flex min-h-0 flex-1 items-start justify-center overflow-y-auto overscroll-contain px-1 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-[max(env(safe-area-inset-top),1rem)] [-webkit-overflow-scrolling:touch] touch-pan-y"
+                className="flex min-h-0 flex-1 items-start justify-center overflow-hidden px-1 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-[max(env(safe-area-inset-top),1rem)]"
                 data-scroll-area="compact-panel"
               >
                 <SelectedFlatDetailsPanel
                   ref={selectedFlatPanelRef}
                   apartment={selectedApartment}
                   compact
-                  showBackButton
                   onClose={clearSelectedApartment}
                 />
               </div>
@@ -1898,8 +1897,7 @@ export default function MasterPlanLayout({
                   <SelectedFlatDetailsPanel
                     apartment={specialVideoApartment}
                     compact
-                    hideCloseButton
-                    showBackButton
+                    hideCloseButton={false}
                     onClose={handleSpecialVideoBack}
                   />
                 </motion.div>

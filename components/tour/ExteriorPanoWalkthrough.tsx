@@ -19,7 +19,6 @@ import {
   Goal,
   LandPlot,
   Leaf,
-  Loader2,
   Menu,
   PartyPopper,
   TentTree,
@@ -367,7 +366,7 @@ export default function ExteriorPanoWalkthrough({
     "";
 
   const [activeNodeId, setActiveNodeId] = useState(initialRequestedNodeId);
-  const [loadState, setLoadState] = useState<PanoLoadState>(
+  const [, setLoadState] = useState<PanoLoadState>(
     createLoadState("idle", "Preparing panorama"),
   );
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -1136,7 +1135,7 @@ export default function ExteriorPanoWalkthrough({
             type="button"
             aria-label="Open amenities menu"
             onClick={() => setIsMobileAmenitiesOpen(true)}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.2rem] border border-white/10 bg-black/26 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-black/36 lg:hidden"
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.2rem] border border-white/10 bg-black/26 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-black/36"
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -1149,38 +1148,8 @@ export default function ExteriorPanoWalkthrough({
         </div>
       </div>
 
-      <div className="pointer-events-auto absolute left-3 top-24 z-30 hidden w-[380px] xl:w-[420px] lg:block">
-        <div className="rounded-[1.8rem] border border-white/10 bg-black/24 p-4 shadow-[0_20px_54px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <div className={`${uiFont.className} text-[11px] uppercase tracking-[0.32em] text-white/40`}>
-                Amenity guide
-              </div>
-              <div className={`${editorialFont.className} mt-2 text-[2rem] leading-none text-white`}>
-                Project Amenities
-              </div>
-            </div>
-
-            <div className={`${uiFont.className} rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-white/48`}>
-              {exteriorAmenities.length}
-            </div>
-          </div>
-
-          <div className="mt-4 max-h-[calc(100dvh-18rem)] space-y-3 overflow-y-auto pr-1">
-            {exteriorAmenities.map((amenity) => (
-              <AmenityCard
-                key={amenity.id}
-                amenity={amenity}
-                isActive={activeAmenityId === amenity.id}
-                onClick={() => void jumpToNode(amenity.primaryNodeId)}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
       <div
-        className={`absolute inset-0 z-40 flex lg:hidden ${
+        className={`absolute inset-0 z-40 flex ${
           isMobileAmenitiesOpen ? "pointer-events-auto" : "pointer-events-none"
         }`}
       >
@@ -1194,7 +1163,7 @@ export default function ExteriorPanoWalkthrough({
         />
 
         <div
-          className={`relative h-full w-[min(90vw,360px)] border-r border-white/10 bg-[linear-gradient(180deg,rgba(4,6,10,0.96)_0%,rgba(7,10,15,0.94)_100%)] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition duration-300 ${
+          className={`relative h-full w-[min(90vw,360px)] border-r border-white/10 bg-[linear-gradient(180deg,rgba(4,6,10,0.96)_0%,rgba(7,10,15,0.94)_100%)] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition duration-300 lg:w-[420px] ${
             isMobileAmenitiesOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
@@ -1236,7 +1205,7 @@ export default function ExteriorPanoWalkthrough({
               />
             ))}
 
-            <div className="pt-4">
+            <div className="pt-4 lg:hidden">
               <div className={`${uiFont.className} text-[10px] uppercase tracking-[0.32em] text-white/42`}>
                 Minimap
               </div>
@@ -1398,7 +1367,6 @@ export default function ExteriorPanoWalkthrough({
               ))}
             </div>
           </div>
-
         </div>
       </div>
 
