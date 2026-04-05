@@ -1,6 +1,6 @@
 export const TOTAL_MASTER_PLAN_FRAMES = 360;
 export const MASTER_PLAN_SCRUB_HQ_VIDEO_PATH = encodeURI(
-  "https://cdn.sthyra.com/videos/360_Level_sequence_3_optimized.mp4",
+  "https://cdn.sthyra.com/videos/360_Level_sequence_3_optimized_super.mp4",
 );
 export const MASTER_PLAN_SCRUB_HQ_HLS_PATH = "/master-plan-scrub/hq/index.m3u8";
 

@@ -40,6 +40,7 @@ import {
   getNearestMasterPlanHotspot,
   isInventoryApartmentAllowedAtHotspot,
 } from "@/lib/master-plan-hotspots";
+import type { MasterPlanHotspotKey } from "@/lib/master-plan-hotspots";
 import type { InventoryApartment, TowerType } from "@/types/inventory";
 
 const facingOptions = ["All", "North", "South", "East", "West"] as const;
@@ -52,9 +53,9 @@ const SPECIAL_UNIT_VIDEO_FLAT = "3601";
 const SPECIAL_UNIT_VIDEO_HOTSPOT = "A1";
 const SPECIAL_UNIT_VIDEO_FRAME = 1;
 const SPECIAL_UNIT_VIDEO_URL =
-  "https://cdn.sthyra.com/videos/Unit__Viefdw_optimized.mp4";
+  "https://cdn.sthyra.com/videos/Unit%20%20View.mp4";
 const SPECIAL_UNIT_VIDEO_REVERSE_URL =
-  "https://cdn.sthyra.com/videos/Unit__Viefdw_3s_reversed.mp4";
+  "https://cdn.sthyra.com/videos/Unit%20View%203S%20Reversed%20New_Compressed.mp4";
 const MASTER_PLAN_EXIT_REVERSE_VIDEO_URL =
   "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774916774/Tf_Reversed.mp4";
 const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
@@ -883,6 +884,10 @@ export default function MasterPlanLayout({
   );
 
   const handleApartmentListSelect = useCallback((apartment: InventoryApartment) => {
+    if (!isInventoryApartmentAllowedAtHotspot(apartment, activeHotspot)) {
+      return;
+    }
+
     const apartmentMeshId = getApartmentMeshId(apartment);
 
     if (!apartmentMeshId) {
@@ -890,7 +895,7 @@ export default function MasterPlanLayout({
     }
 
     handleApartmentSelect(apartment, apartmentMeshId);
-  }, [handleApartmentSelect]);
+  }, [activeHotspot, handleApartmentSelect]);
 
   useEffect(() => {
     if (!selectedApartment) {
@@ -1337,7 +1342,7 @@ export default function MasterPlanLayout({
       !isTopViewMode &&
       !isLeaving &&
       !isSpecialVideoOpen &&
-      selectedTower === "Tower B" ? (
+      !selectedTower ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
       ) : null}
 
@@ -1474,6 +1479,7 @@ export default function MasterPlanLayout({
                   isInventoryLoading={isInventoryLoading}
                   inventoryError={inventoryError}
                   onApartmentSelect={handleApartmentListSelect}
+                  activeHotspot={activeHotspot}
                   selectedApartmentId={selectedApartmentInventoryId}
                   compact
                 />
@@ -1686,6 +1692,7 @@ export default function MasterPlanLayout({
                           isInventoryLoading={isInventoryLoading}
                           inventoryError={inventoryError}
                           onApartmentSelect={handleApartmentListSelect}
+                          activeHotspot={activeHotspot}
                           selectedApartmentId={selectedApartmentInventoryId}
                         />
                       </>
@@ -1812,6 +1819,7 @@ export default function MasterPlanLayout({
                         isInventoryLoading={isInventoryLoading}
                         inventoryError={inventoryError}
                         onApartmentSelect={handleApartmentListSelect}
+                        activeHotspot={activeHotspot}
                         selectedApartmentId={selectedApartmentInventoryId}
                         compact
                       />
@@ -2219,6 +2227,7 @@ function MasterPlanResultsCard({
   isInventoryLoading,
   inventoryError,
   onApartmentSelect,
+  activeHotspot,
   selectedApartmentId,
   compact = false,
 }: {
@@ -2226,6 +2235,7 @@ function MasterPlanResultsCard({
   isInventoryLoading: boolean;
   inventoryError: string | null;
   onApartmentSelect: (apartment: InventoryApartment) => void;
+  activeHotspot: MasterPlanHotspotKey;
   selectedApartmentId: string | null;
   compact?: boolean;
 }) {
@@ -2289,87 +2299,105 @@ function MasterPlanResultsCard({
                 </div>
               </motion.div>
             ) : filteredApartments.length > 0 ? (
-              filteredApartments.map((apartment) => (
-                <motion.button
-                  key={apartment.id}
-                  layout="position"
-                  variants={itemAnim}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  onClick={() => onApartmentSelect(apartment)}
-                  className={`group flex w-full text-left shadow-sm transition dark:to-white/5 ${
-                    apartment.id === selectedApartmentId
-                      ? "border-[#d4b57b]/70 bg-linear-to-br from-[#fff7ea] to-[#f7edd6] shadow-[0_18px_42px_rgba(186,146,79,0.18)] dark:border-[#d4b57b]/35 dark:from-[#3b3223] dark:to-[#211d16]"
-                      : "dark:border-white/10 dark:from-white/10"
-                  } ${
-                    compact
-                      ? "flex-col gap-3 rounded-[20px] border px-3.5 py-3"
-                      : "items-center justify-between rounded-[22px] border px-4 py-3"
-                  } ${
-                    apartment.id === selectedApartmentId
-                      ? "border-[#e0c493]/70"
-                      : compact
-                        ? "border-zinc-200/60 bg-linear-to-br from-white to-zinc-50"
-                        : "border-zinc-200/50 bg-linear-to-br from-white to-zinc-50"
-                  }`}
-                >
-                  <div className="min-w-0 w-full">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-zinc-900 dark:text-white">
-                        {apartment.title}
-                      </p>
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                          apartment.status === "Available"
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
-                            : apartment.status === "Sold"
-                              ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
-                              : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-                        }`}
-                      >
-                        {apartment.status}
-                      </span>
-                    </div>
+              filteredApartments.map((apartment) => {
+                const isViewableAtHotspot = isInventoryApartmentAllowedAtHotspot(
+                  apartment,
+                  activeHotspot,
+                );
 
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                      <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                        <Building2 className="h-3.5 w-3.5" />
-                        {apartment.tower}
-                      </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                        <BedDouble className="h-3.5 w-3.5" />
-                        {apartment.bhk} BHK
-                      </span>
-                      {/* <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                        <IndianRupee className="h-3.5 w-3.5" />
-                        {apartment.priceLakhs}L
-                      </span> */}
-                    </div>
-                  </div>
+                return (
+                  <motion.button
+                    key={apartment.id}
+                    layout="position"
+                    variants={itemAnim}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    onClick={() => {
+                      if (!isViewableAtHotspot) {
+                        return;
+                      }
 
-                  <div
-                    className={`text-xs text-zinc-500 dark:text-zinc-400 ${
+                      onApartmentSelect(apartment);
+                    }}
+                    className={`group flex w-full text-left shadow-sm transition dark:to-white/5 ${
+                      apartment.id === selectedApartmentId
+                        ? "border-[#d4b57b]/70 bg-linear-to-br from-[#fff7ea] to-[#f7edd6] shadow-[0_18px_42px_rgba(186,146,79,0.18)] dark:border-[#d4b57b]/35 dark:from-[#3b3223] dark:to-[#211d16]"
+                        : "dark:border-white/10 dark:from-white/10"
+                    } ${
                       compact
-                        ? "flex w-full items-center justify-between gap-3"
-                        : "ml-4 shrink-0 text-right"
+                        ? "flex-col gap-3 rounded-[20px] border px-3.5 py-3"
+                        : "items-center justify-between rounded-[22px] border px-4 py-3"
+                    } ${
+                      apartment.id === selectedApartmentId
+                        ? "border-[#e0c493]/70"
+                        : compact
+                          ? "border-zinc-200/60 bg-linear-to-br from-white to-zinc-50"
+                          : "border-zinc-200/50 bg-linear-to-br from-white to-zinc-50"
+                    } ${
+                      isViewableAtHotspot
+                        ? "cursor-pointer"
+                        : "cursor-not-allowed opacity-60 saturate-75"
                     }`}
                   >
-                    <div className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                      <MapPin className="h-3.5 w-3.5" />
-                      {apartment.facing}
+                    <div className="min-w-0 w-full">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                          {apartment.title}
+                        </p>
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            apartment.status === "Available"
+                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                              : apartment.status === "Sold"
+                                ? "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300"
+                                : "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                          }`}
+                        >
+                          {apartment.status}
+                        </span>
+                        {!isViewableAtHotspot ? (
+                          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold text-zinc-600 dark:bg-white/8 dark:text-zinc-300">
+                            Not viewable here
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
+                          <Building2 className="h-3.5 w-3.5" />
+                          {apartment.tower}
+                        </span>
+                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
+                          <BedDouble className="h-3.5 w-3.5" />
+                          {apartment.bhk} BHK
+                        </span>
+                      </div>
                     </div>
-                    <div className={compact ? "text-right" : ""}>
-                      <p className="font-medium text-zinc-700 dark:text-zinc-300">
-                        {apartment.areaSqft} sqft
-                      </p>
-                      <p className="mt-1 text-[11px]">
-                        Floor {apartment.floorLabel}
-                      </p>
+
+                    <div
+                      className={`text-xs text-zinc-500 dark:text-zinc-400 ${
+                        compact
+                          ? "flex w-full items-center justify-between gap-3"
+                          : "ml-4 shrink-0 text-right"
+                      }`}
+                    >
+                      <div className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
+                        <MapPin className="h-3.5 w-3.5" />
+                        {apartment.facing}
+                      </div>
+                      <div className={compact ? "text-right" : ""}>
+                        <p className="font-medium text-zinc-700 dark:text-zinc-300">
+                          {apartment.areaSqft} sqft
+                        </p>
+                        <p className="mt-1 text-[11px]">
+                          Floor {apartment.floorLabel}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                </motion.button>
-              ))
+                  </motion.button>
+                );
+              })
             ) : (
               <motion.div
                 key="empty"
