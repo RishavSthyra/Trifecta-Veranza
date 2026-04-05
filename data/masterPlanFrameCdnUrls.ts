@@ -3,11 +3,14 @@ export const MASTER_PLAN_SCRUB_HQ_VIDEO_PATH = encodeURI(
   "https://cdn.sthyra.com/videos/360_Level_sequence_3_optimized.mp4",
 );
 export const MASTER_PLAN_SCRUB_HQ_HLS_PATH = "/master-plan-scrub/hq/index.m3u8";
-export const MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH = encodeURI(
-  "/360_Level_Sequence_2_Scrub_proxy_keyframes.mp4",
-);
+
+// The lighter interaction proxy is not currently deployed with this app build.
+// Fall back to the production HQ scrub source so Safari / constrained devices
+// do not end up with a black stage from a missing asset.
+export const MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH =
+  MASTER_PLAN_SCRUB_HQ_VIDEO_PATH;
 export const MASTER_PLAN_SCRUB_INTERACTION_HLS_PATH =
-  "/master-plan-scrub/interaction/index.m3u8";
+  MASTER_PLAN_SCRUB_HQ_HLS_PATH;
   
 export const MASTER_PLAN_SCRUB_VIDEO_PATH = MASTER_PLAN_SCRUB_HQ_VIDEO_PATH;
 export const MASTER_PLAN_SCRUB_VIDEO_FPS = 60;

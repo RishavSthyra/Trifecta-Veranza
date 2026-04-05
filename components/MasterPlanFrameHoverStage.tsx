@@ -1201,6 +1201,10 @@ function bindVideoStream({
   let cancelled = false;
 
   const markReady = () => {
+    if (cancelled) {
+      return;
+    }
+
     onReady();
   };
 
@@ -1215,9 +1219,9 @@ function bindVideoStream({
     }
   };
 
-  video.addEventListener("loadedmetadata", markReady);
   video.addEventListener("loadeddata", markReady);
   video.addEventListener("canplay", markReady);
+  video.addEventListener("seeked", markReady);
   video.addEventListener("error", applyMp4Fallback);
 
   applyMp4Fallback();
@@ -1227,11 +1231,15 @@ function bindVideoStream({
     video.load();
   }
 
+  if (video.readyState >= 2) {
+    markReady();
+  }
+
   return () => {
     cancelled = true;
-    video.removeEventListener("loadedmetadata", markReady);
     video.removeEventListener("loadeddata", markReady);
     video.removeEventListener("canplay", markReady);
+    video.removeEventListener("seeked", markReady);
     video.removeEventListener("error", applyMp4Fallback);
     video.pause();
     video.removeAttribute("src");
@@ -3100,9 +3108,11 @@ export default function MasterPlanFrameHoverStage({
         VIDEO_SYNC_THRESHOLD_SECONDS
       ) {
         if (
+          !dragStateRef.current &&
+          !performanceProfile.isSafariLike &&
           Math.abs(video.currentTime - targetTime) > VIDEO_FAST_SEEK_THRESHOLD_SECONDS &&
           typeof video.fastSeek === "function" &&
-          (performanceProfile.isSafariLike || targetTime < video.currentTime)
+          targetTime < video.currentTime
         ) {
           lastDragVideoSyncTimeRef.current = now;
           lastDragVideoSyncFrameRef.current = targetFrame;

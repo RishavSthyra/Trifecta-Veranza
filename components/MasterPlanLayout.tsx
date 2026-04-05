@@ -325,6 +325,7 @@ export default function MasterPlanLayout({
   const reverseVideoRef = useRef<HTMLVideoElement | null>(null);
   const selectedFlatPanelRef = useRef<HTMLDivElement | null>(null);
   const specialUnitVideoRef = useRef<HTMLVideoElement | null>(null);
+  const specialVideoLoadedUrlRef = useRef<string | null>(null);
   const specialUnitVideoTimeoutRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
   const touchStartYRef = useRef<number | null>(null);
@@ -360,6 +361,9 @@ export default function MasterPlanLayout({
   >(null);
   const [isSpecialVideoOpen, setIsSpecialVideoOpen] = useState(false);
   const [isSpecialVideoLaunching, setIsSpecialVideoLaunching] = useState(false);
+  const [isSpecialVideoReady, setIsSpecialVideoReady] = useState(false);
+  const [isSpecialVideoQueuedToOpen, setIsSpecialVideoQueuedToOpen] =
+    useState(false);
   const [shouldAutoplaySpecialVideo, setShouldAutoplaySpecialVideo] =
     useState(false);
   const [isSpecialVideoCompleted, setIsSpecialVideoCompleted] = useState(false);
@@ -375,7 +379,7 @@ export default function MasterPlanLayout({
   const isSpecialVideoExperienceActive =
     isSpecialVideoLaunching || isSpecialVideoOpen;
   const isSpecialVideoOverlayMounted =
-    isSpecialVideoLaunching || isSpecialVideoOpen;
+    Boolean(specialVideoApartment) || isSpecialVideoLaunching || isSpecialVideoOpen;
   const isFlatPanelOpen = Boolean(
     selectedApartment || (isSpecialVideoCompleted && specialVideoApartment),
   );
@@ -484,10 +488,32 @@ export default function MasterPlanLayout({
       return;
     }
 
+    const markReady = () => {
+      specialVideoLoadedUrlRef.current = activeSpecialVideoUrl;
+      setIsSpecialVideoReady(true);
+    };
+
     if (video.getAttribute("src") !== activeSpecialVideoUrl) {
+      specialVideoLoadedUrlRef.current = null;
+      setIsSpecialVideoReady(false);
+      video.pause();
+      video.currentTime = 0;
       video.src = activeSpecialVideoUrl;
       video.load();
+    } else if (
+      specialVideoLoadedUrlRef.current === activeSpecialVideoUrl ||
+      video.readyState >= 3
+    ) {
+      markReady();
     }
+
+    video.addEventListener("loadeddata", markReady);
+    video.addEventListener("canplay", markReady);
+
+    return () => {
+      video.removeEventListener("loadeddata", markReady);
+      video.removeEventListener("canplay", markReady);
+    };
   }, [activeSpecialVideoUrl, isSpecialVideoOverlayMounted]);
 
   useEffect(() => {
@@ -753,11 +779,14 @@ export default function MasterPlanLayout({
     }
 
     setIsSpecialVideoLaunching(false);
+    setIsSpecialVideoQueuedToOpen(false);
+    setIsSpecialVideoReady(false);
     setShouldAutoplaySpecialVideo(false);
     setIsSpecialVideoOpen(false);
     setIsSpecialVideoCompleted(false);
     setIsSpecialVideoReversing(false);
     setSpecialVideoApartment(null);
+    specialVideoLoadedUrlRef.current = null;
   }, []);
 
   const handleNormalViewToggle = useCallback(() => {
@@ -795,8 +824,11 @@ export default function MasterPlanLayout({
         setIsMobileSheetOpen(false);
         setIsSpecialVideoCompleted(false);
         setIsSpecialVideoReversing(false);
+        setIsSpecialVideoReady(false);
+        setIsSpecialVideoQueuedToOpen(false);
         setShouldAutoplaySpecialVideo(true);
         setSpecialVideoApartment(apartment);
+        specialVideoLoadedUrlRef.current = null;
 
         if (specialUnitVideoTimeoutRef.current !== null) {
           window.clearTimeout(specialUnitVideoTimeoutRef.current);
@@ -804,12 +836,14 @@ export default function MasterPlanLayout({
         }
 
         if (activeHotspot === SPECIAL_UNIT_VIDEO_HOTSPOT) {
-          setIsSpecialVideoLaunching(false);
-          setIsSpecialVideoOpen(true);
+          setIsSpecialVideoLaunching(true);
+          setIsSpecialVideoOpen(false);
+          setIsSpecialVideoQueuedToOpen(true);
           return;
         }
 
         setIsSpecialVideoLaunching(true);
+        setIsSpecialVideoOpen(false);
         const navigationDelayMs =
           getMasterPlanFrameTransitionDuration(
             currentFrameRef.current,
@@ -819,8 +853,7 @@ export default function MasterPlanLayout({
         setCurrentFrame(SPECIAL_UNIT_VIDEO_FRAME);
         specialUnitVideoTimeoutRef.current = window.setTimeout(() => {
           specialUnitVideoTimeoutRef.current = null;
-          setIsSpecialVideoLaunching(false);
-          setIsSpecialVideoOpen(true);
+          setIsSpecialVideoQueuedToOpen(true);
         }, Math.max(navigationDelayMs, SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS));
         return;
       }
@@ -857,6 +890,24 @@ export default function MasterPlanLayout({
       clearSelectedApartment();
     }
   }, [activeHotspot, clearSelectedApartment, selectedApartment]);
+
+  useEffect(() => {
+    if (
+      !isSpecialVideoLaunching ||
+      !isSpecialVideoQueuedToOpen ||
+      !isSpecialVideoReady
+    ) {
+      return;
+    }
+
+    setIsSpecialVideoLaunching(false);
+    setIsSpecialVideoOpen(true);
+    setIsSpecialVideoQueuedToOpen(false);
+  }, [
+    isSpecialVideoLaunching,
+    isSpecialVideoQueuedToOpen,
+    isSpecialVideoReady,
+  ]);
 
   useEffect(() => {
     if (!selectedApartment) {
@@ -1734,9 +1785,11 @@ export default function MasterPlanLayout({
             <div className="absolute inset-0">
               <video
                 ref={specialUnitVideoRef}
+                muted
                 playsInline
                 preload="auto"
                 crossOrigin="anonymous"
+                disablePictureInPicture
                 className="h-full w-full object-cover"
                 onEnded={() => {
                   if (isSpecialVideoReversing) {
