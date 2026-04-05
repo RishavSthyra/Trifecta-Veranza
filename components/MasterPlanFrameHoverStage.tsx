@@ -4243,7 +4243,7 @@ export default function MasterPlanFrameHoverStage({
         }`}
         style={{
           backgroundImage:
-            "url('https://cdn.sthyra.com/images/first_frame.webp')",
+            "url('https://cdn.sthyra.com/images/first_frame_new.webp')",
         }}
       />
 

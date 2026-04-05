@@ -17,9 +17,7 @@ import {
   type Variants,
   type Easing,
 } from "framer-motion";
-import MasterPlanArrowMarkers from "./MasterPlanArrowMarkers";
 import MasterPlanTopViewStage from "./MasterPlanTopViewStage";
-import { masterPlanArrowPoints } from "@/data/masterPlanArrowPoints";
 import GlassSelect, { GlassSelectItem } from "./ui/GlassSelect";
 import MasterPlanFrameHoverStage from "./MasterPlanFrameHoverStage";
 import SelectedFlatDetailsPanel from "./SelectedFlatDetailsPanel";
@@ -1338,13 +1336,6 @@ export default function MasterPlanLayout({
         }
       />
 
-      {!shouldUseCompactLayout &&
-      !isTopViewMode &&
-      !isLeaving &&
-      !isSpecialVideoOpen &&
-      !selectedTower ? (
-        <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
-      ) : null}
 
       {!shouldUseCompactLayout &&
       !isTopViewMode &&
