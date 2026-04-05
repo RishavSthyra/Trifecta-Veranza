@@ -374,6 +374,8 @@ export default function MasterPlanLayout({
   );
   const isSpecialVideoExperienceActive =
     isSpecialVideoLaunching || isSpecialVideoOpen;
+  const isSpecialVideoOverlayMounted =
+    isSpecialVideoLaunching || isSpecialVideoOpen;
   const isFlatPanelOpen = Boolean(
     selectedApartment || (isSpecialVideoCompleted && specialVideoApartment),
   );
@@ -470,6 +472,23 @@ export default function MasterPlanLayout({
       reverseWarmVideo.load();
     };
   }, [isSpecialVideoOpen, isSpecialVideoReversing]);
+
+  useEffect(() => {
+    if (!isSpecialVideoOverlayMounted) {
+      return;
+    }
+
+    const video = specialUnitVideoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    if (video.getAttribute("src") !== activeSpecialVideoUrl) {
+      video.src = activeSpecialVideoUrl;
+      video.load();
+    }
+  }, [activeSpecialVideoUrl, isSpecialVideoOverlayMounted]);
 
   useEffect(() => {
     if (!isSafariLike) {
@@ -1250,7 +1269,7 @@ export default function MasterPlanLayout({
       {!shouldUseCompactLayout &&
       !isTopViewMode &&
       !isLeaving &&
-      !isSpecialVideoExperienceActive &&
+      !isSpecialVideoOpen &&
       selectedTower === "Tower B" ? (
         <MasterPlanArrowMarkers points={masterPlanArrowPoints} />
       ) : null}
@@ -1258,7 +1277,7 @@ export default function MasterPlanLayout({
       {!shouldUseCompactLayout &&
       !isTopViewMode &&
       !isLeaving &&
-      !isSpecialVideoExperienceActive ? (
+      !isSpecialVideoOpen ? (
         <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-4 sm:top-28 md:top-30">
           <MasterPlanHotspotControls
             onPrevious={() => goToHotspot(-1)}
@@ -1282,7 +1301,7 @@ export default function MasterPlanLayout({
         className={`relative z-10 h-full flex-col transition-opacity duration-300 ${
           shouldUseCompactLayout ? "flex" : "flex xl:hidden"
         } ${
-          isSpecialVideoExperienceActive ? "pointer-events-none opacity-0" : "opacity-100"
+          isSpecialVideoOpen ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
         <div className="relative w-full shrink-0">
@@ -1305,8 +1324,14 @@ export default function MasterPlanLayout({
               />
             )}
 
-            {!isTopViewMode && !isLeaving && !isSpecialVideoExperienceActive ? (
-              <div className="pointer-events-none absolute inset-x-0 bottom-[max(env(safe-area-inset-bottom),1rem)] z-30 flex justify-center px-4">
+            {!isTopViewMode && !isLeaving && !isSpecialVideoOpen ? (
+              <div
+                className={`pointer-events-none absolute inset-x-0 z-30 flex justify-center px-4 ${
+                  shouldUseCompactLayout
+                    ? "bottom-3"
+                    : "bottom-[max(env(safe-area-inset-bottom),1rem)]"
+                }`}
+              >
                 <MasterPlanHotspotControls
                   compact
                   onPrevious={() => goToHotspot(-1)}
@@ -1317,7 +1342,13 @@ export default function MasterPlanLayout({
           </div>
         </div>
 
-        <div className="mt-2 min-h-0 flex-1 px-3 pb-3">
+        <div
+          className={`mt-2 min-h-0 flex-1 px-3 ${
+            shouldUseCompactLayout
+              ? "pb-[calc(env(safe-area-inset-bottom)+6.25rem)]"
+              : "pb-3"
+          }`}
+        >
           <div
             className={
               selectedApartment
@@ -1340,7 +1371,7 @@ export default function MasterPlanLayout({
               </div>
             ) : selectedTower ? (
               <div
-                className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-3"
+                className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-3 [-webkit-overflow-scrolling:touch] touch-pan-y"
                 data-scroll-area="compact-panel"
               >
                 <MasterPlanFiltersCard
@@ -1394,7 +1425,7 @@ export default function MasterPlanLayout({
         className={`pointer-events-none relative z-10 h-full w-full px-4 py-6 transition-opacity duration-500 md:px-6 lg:px-8 ${
           shouldUseCompactLayout ? "hidden" : "hidden xl:block"
         } ${
-          isSpecialVideoExperienceActive ? "opacity-0" : "opacity-100"
+          isSpecialVideoOpen ? "opacity-0" : "opacity-100"
         }`}
       >
         <div
@@ -1578,8 +1609,12 @@ export default function MasterPlanLayout({
               <button
                 type="button"
                 onClick={() => setIsMobileSheetOpen(true)}
-                className={`pointer-events-auto absolute bottom-6 right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl ${
+                className={`pointer-events-auto absolute right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl ${
                   shouldUseCompactLayout ? "" : "xl:hidden"
+                } ${
+                  shouldUseCompactLayout
+                    ? "bottom-[calc(env(safe-area-inset-bottom)+5.75rem)]"
+                    : "bottom-6"
                 }`}
               >
                 <SlidersHorizontal className="h-4 w-4" />
@@ -1595,10 +1630,14 @@ export default function MasterPlanLayout({
                   : { y: "110%", opacity: 0 }
               }
               transition={{ duration: 0.45, ease: smoothEase }}
-              className={`gpu-layer absolute inset-x-3 bottom-3 z-30 ${
+              className={`gpu-layer absolute inset-x-3 z-30 ${
                 shouldUseCompactLayout ? "" : "xl:hidden"
               } ${
                 isMobileSheetOpen ? "pointer-events-auto" : "pointer-events-none"
+              } ${
+                shouldUseCompactLayout
+                  ? "bottom-[calc(env(safe-area-inset-bottom)+5.75rem)]"
+                  : "bottom-3"
               }`}
             >
               <div
@@ -1679,13 +1718,18 @@ export default function MasterPlanLayout({
       ) : null}
 
       <AnimatePresence>
-        {isSpecialVideoOpen ? (
+        {isSpecialVideoOverlayMounted ? (
           <motion.div
-            initial={{ opacity: 0, scale: 1.035 }}
-            animate={{ opacity: 1, scale: 1 }}
+            initial={false}
+            animate={{
+              opacity: isSpecialVideoOpen ? 1 : 0,
+              scale: isSpecialVideoOpen ? 1 : 1.02,
+            }}
             exit={{ opacity: 0, scale: 1.015 }}
             transition={{ duration: 0.38, ease: smoothEase }}
-            className="pointer-events-auto absolute inset-0 z-[70] overflow-hidden bg-black"
+            className={`absolute inset-0 z-[70] overflow-hidden bg-black ${
+              isSpecialVideoOpen ? "pointer-events-auto" : "pointer-events-none"
+            }`}
           >
             <div className="absolute inset-0">
               <video

@@ -10,6 +10,18 @@ import QuoteRequestController from "@/components/QuoteRequestController";
 import { Footprints } from 'lucide-react';
 import { FloatingDock } from "@/components/ui/floating-dock";
 
+function shouldUseMergedChrome() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return (
+    window.matchMedia("(max-width: 1279px)").matches ||
+    window.matchMedia("(pointer: coarse)").matches ||
+    window.matchMedia("(any-pointer: coarse)").matches
+  );
+}
+
 const dockItems = [
   {
     title: "Home",
@@ -41,10 +53,14 @@ const dockItems = [
 export default function RouteChrome() {
   const pathname = usePathname();
   const [isMasterPlanFlatOpen, setIsMasterPlanFlatOpen] = useState(false);
-  const [shouldMergeDockIntoCta, setShouldMergeDockIntoCta] = useState(false);
+  const [shouldMergeDockIntoCta, setShouldMergeDockIntoCta] = useState(
+    shouldUseMergedChrome,
+  );
   const isAdminRoute = pathname.startsWith("/admin");
   const isExteriorWalkthroughRoute =
-    pathname === "/exterios-walkthrough" || pathname === "/exterior-tour";
+    pathname === "/exterios-walkthrough" ||
+    pathname === "/exterior-tour" ||
+    pathname === "/exterior-walkthrough";
   const isImmersiveRoute =
     pathname === "/tower-hover-test" || pathname === "/project-layout";
   const isDocklessRoute = pathname === "/test";
@@ -59,18 +75,26 @@ export default function RouteChrome() {
       return;
     }
 
-    const touchViewportMedia = window.matchMedia("(max-width: 1366px)");
+    const compactViewportMedia = window.matchMedia("(max-width: 1279px)");
+    const touchViewportMedia = window.matchMedia("(pointer: coarse)");
+    const anyTouchViewportMedia = window.matchMedia("(any-pointer: coarse)");
     const syncTouchViewport = () => {
       setShouldMergeDockIntoCta(
-        touchViewportMedia.matches && window.navigator.maxTouchPoints > 0,
+        compactViewportMedia.matches ||
+          touchViewportMedia.matches ||
+          anyTouchViewportMedia.matches,
       );
     };
 
     syncTouchViewport();
+    compactViewportMedia.addEventListener("change", syncTouchViewport);
     touchViewportMedia.addEventListener("change", syncTouchViewport);
+    anyTouchViewportMedia.addEventListener("change", syncTouchViewport);
 
     return () => {
+      compactViewportMedia.removeEventListener("change", syncTouchViewport);
       touchViewportMedia.removeEventListener("change", syncTouchViewport);
+      anyTouchViewportMedia.removeEventListener("change", syncTouchViewport);
     };
   }, []);
 
@@ -107,8 +131,8 @@ export default function RouteChrome() {
       {!shouldHideDock ? (
         <FloatingDock
           items={dockItems}
-          desktopClassName="fixed left-6 top-1/2 z-50 hidden -translate-y-1/2 md:flex"
-          mobileClassName="fixed bottom-4 right-4 z-50 md:hidden"
+          desktopClassName="fixed left-6 top-1/2 z-50 hidden -translate-y-1/2 xl:flex"
+          mobileClassName="hidden"
         />
       ) : null}
 

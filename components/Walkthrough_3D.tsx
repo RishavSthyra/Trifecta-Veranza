@@ -758,18 +758,24 @@ export default function ApartmentTour({
         window.matchMedia?.("(pointer: coarse)").matches ||
         navigator.maxTouchPoints > 0
       );
+    const cpuCores =
+      typeof navigator !== "undefined" &&
+      typeof navigator.hardwareConcurrency === "number"
+        ? navigator.hardwareConcurrency
+        : 6;
     const isLowMemoryDevice = deviceMemoryGb <= 4;
-    const MAX_TEXTURE_CACHE = isLowMemoryDevice ? 4 : 7;
-    const MAX_PROJECTED_PANO_WIDTH = 8192;
-    const ACTIVE_PANO_TILE_CONCURRENCY = isLowMemoryDevice ? 18 : 28;
-    const PRELOAD_PANO_TILE_CONCURRENCY = isLowMemoryDevice ? 8 : 12;
-    const ACTIVE_PANO_PRIORITY_TILE_COUNT = isLowMemoryDevice ? 220 : 320;
-    const PRELOAD_PANO_PRIORITY_TILE_COUNT = isLowMemoryDevice ? 72 : 120;
-    const NEAREST_PANO_PRELOAD_COUNT = isLowMemoryDevice ? 3 : 4;
+    const isConstrainedDevice = isLowMemoryDevice || hasTouchInput || cpuCores <= 6;
+    const MAX_TEXTURE_CACHE = isConstrainedDevice ? 4 : 7;
+    const MAX_PROJECTED_PANO_WIDTH = isConstrainedDevice ? 6144 : 8192;
+    const ACTIVE_PANO_TILE_CONCURRENCY = isConstrainedDevice ? 14 : 28;
+    const PRELOAD_PANO_TILE_CONCURRENCY = isConstrainedDevice ? 6 : 12;
+    const ACTIVE_PANO_PRIORITY_TILE_COUNT = isConstrainedDevice ? 180 : 320;
+    const PRELOAD_PANO_PRIORITY_TILE_COUNT = isConstrainedDevice ? 56 : 120;
+    const NEAREST_PANO_PRELOAD_COUNT = isConstrainedDevice ? 2 : 4;
     const NEAREST_PANO_PRELOAD_DELAY_MS = 180;
     const NAV_MARKER_RADIUS = 0.17;
     const NAV_MARKER_HEIGHT_OFFSET = 0.06;
-    const MAX_VISIBLE_NAV_MARKERS = 4;
+    const MAX_VISIBLE_NAV_MARKERS = isConstrainedDevice ? 3 : 4;
     const CLICK_MOVE_THRESHOLD_PX = 8;
     const NAV_TRANSITION_DURATION_MS = 560;
     const PANO_PROJECTION_Y_OFFSET = 0;
@@ -783,10 +789,10 @@ export default function ApartmentTour({
     };
 
     // Faster tile loading for bare shell mode
-    const BARE_SHELL_TILE_CONCURRENCY = isLowMemoryDevice ? 28 : 48;
-    const BARE_SHELL_PRIORITY_TILE_COUNT = isLowMemoryDevice ? 320 : 560;
-    const BARE_SHELL_PRELOAD_TILE_CONCURRENCY = isLowMemoryDevice ? 14 : 22;
-    const BARE_SHELL_PRELOAD_PRIORITY_TILE_COUNT = isLowMemoryDevice ? 120 : 200;
+    const BARE_SHELL_TILE_CONCURRENCY = isConstrainedDevice ? 18 : 48;
+    const BARE_SHELL_PRIORITY_TILE_COUNT = isConstrainedDevice ? 220 : 560;
+    const BARE_SHELL_PRELOAD_TILE_CONCURRENCY = isConstrainedDevice ? 8 : 22;
+    const BARE_SHELL_PRELOAD_PRIORITY_TILE_COUNT = isConstrainedDevice ? 84 : 200;
 
     const getEffectivePanoBasePath = () =>
       isBareShellModeRef.current ? BARE_SHELL_PANO_IMAGE_BASE_URL : panoBasePath;
@@ -809,10 +815,10 @@ export default function ApartmentTour({
       powerPreference: "high-performance",
     });
     engine.setHardwareScalingLevel(
-      hasTouchInput
+      isConstrainedDevice
         ? window.devicePixelRatio >= 2
-          ? 1.55
-          : 1.25
+          ? 2
+          : 1.6
         : window.devicePixelRatio >= 2
           ? 1.2
           : 1,
@@ -821,6 +827,7 @@ export default function ApartmentTour({
     const scene = new Scene(engine);
     scene.clearColor = new Color4(0.95, 0.95, 0.97, 1);
     scene.collisionsEnabled = false;
+    scene.skipPointerMovePicking = true;
 
     const light = new HemisphericLight("hemi", new Vector3(0, 1, 0), scene);
     light.intensity = 1.0;
@@ -2952,7 +2959,9 @@ export default function ApartmentTour({
 
     engine.runRenderLoop(() => {
       if (disposed) return;
-      updateHoverCursor();
+      if (!hasTouchInput) {
+        updateHoverCursor();
+      }
       syncNavMarkerVisuals();
       scene.render();
     });
@@ -3069,7 +3078,7 @@ export default function ApartmentTour({
                   {isBareShellMode ? "Show Furnished" : "Bare Shell"}
                 </button>
 
-                <button
+                {/* <button
                   onClick={() => setShowProjection((prev) => !prev)}
                   className={`rounded-full border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] transition duration-300 sm:px-5 sm:text-[11px] ${
                     showProjection
@@ -3078,7 +3087,7 @@ export default function ApartmentTour({
                   }`}
                 >
                   {showProjection ? "Show GLB Only" : "Show Pano Projection"}
-                </button>
+                </button> */}
 
                 {/*
                 <button

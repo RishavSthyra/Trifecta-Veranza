@@ -394,7 +394,7 @@ const amenityDefinitions: ExteriorAmenityDefinition[] = [
 ];
 
 export const EXTERIOR_MINIMAP_IMAGE_URL =
-  "https://cdn.sthyra.com/images/mini-map-darker.png";
+  "https://cdn.sthyra.com/images/mini-map-darker_smal.webp";
 
 export const EXTERIOR_MINIMAP_BOUNDS = {
   bottomLeft: {

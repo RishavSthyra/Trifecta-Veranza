@@ -1402,7 +1402,7 @@ export default function ExteriorPanoWalkthrough({
         </div>
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4 sm:p-6">
+      {/* <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4 sm:p-6">
         <div className={`${uiFont.className} flex items-center gap-3 rounded-full border border-white/10 bg-black/18 px-4 py-2 text-xs uppercase tracking-[0.24em] text-white/56 shadow-[0_14px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl`}>
           {loadState.phase === "preview" || loadState.phase === "detail" ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1410,7 +1410,7 @@ export default function ExteriorPanoWalkthrough({
           <span>{loadState.message}</span>
           <span>{Math.round(loadState.detailProgress * 100)}%</span>
         </div>
-      </div>
+      </div> */}
     </section>
   );
 }

@@ -35,7 +35,7 @@ import {
 const TOP_VIEW_VIDEO_URL =
   "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774910334/Sequence_01.mp4";
 const TOP_VIEW_PLACEHOLDER_IMAGE =
-  "https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774907276/buildings.png";
+  "https://cdn.sthyra.com/images/first_frame.webp";
 const TOP_VIEW_VIDEO_ASPECT = 16 / 9;
 
 const AMENITY_ICON_COMPONENTS: Record<MasterPlanAmenityIconKey, LucideIcon> = {

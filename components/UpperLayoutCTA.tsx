@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence, type Transition } from "framer-motion";
@@ -8,7 +8,7 @@ import { FiPhone, FiDownload, FiDollarSign, FiGrid, FiHome } from "react-icons/f
 import { BiHome } from "react-icons/bi";
 import { IoMapOutline } from "react-icons/io5";
 import { PiMapPinAreaFill } from "react-icons/pi";
-import { User } from "lucide-react";
+import { Footprints, User } from "lucide-react";
 
 interface CtaButtonType {
   name: string;
@@ -23,6 +23,18 @@ type UpperLayoutCTAProps = {
   mergeRouteLinks?: boolean;
 };
 
+function shouldBottomDockCta() {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return (
+    window.matchMedia("(max-width: 1279px)").matches ||
+    window.matchMedia("(pointer: coarse)").matches ||
+    window.matchMedia("(any-pointer: coarse)").matches
+  );
+}
+
 const spring: Transition = {
   type: "spring",
   stiffness: 280,
@@ -35,9 +47,49 @@ export default function UpperLayoutCTA({
 }: UpperLayoutCTAProps) {
   const pathname = usePathname();
   const [hovered, setHovered] = useState<string | null>(null);
+  const [shouldDockAtBottom, setShouldDockAtBottom] = useState(
+    shouldBottomDockCta,
+  );
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const scrollerDragRef = useRef<{
+    dragging: boolean;
+    lastX: number;
+    pointerId: number | null;
+  }>({
+    dragging: false,
+    lastX: 0,
+    pointerId: null,
+  });
   const isMasterPlanRoute = pathname === "/master-plan";
-  const isExteriorWalkthroughRoute =
-    pathname === "/exterios-walkthrough" || pathname === "/exterior-tour";
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const compactViewportMedia = window.matchMedia("(max-width: 1279px)");
+    const touchViewportMedia = window.matchMedia("(pointer: coarse)");
+    const anyTouchViewportMedia = window.matchMedia("(any-pointer: coarse)");
+
+    const syncBottomDock = () => {
+      setShouldDockAtBottom(
+        compactViewportMedia.matches ||
+          touchViewportMedia.matches ||
+          anyTouchViewportMedia.matches,
+      );
+    };
+
+    syncBottomDock();
+    compactViewportMedia.addEventListener("change", syncBottomDock);
+    touchViewportMedia.addEventListener("change", syncBottomDock);
+    anyTouchViewportMedia.addEventListener("change", syncBottomDock);
+
+    return () => {
+      compactViewportMedia.removeEventListener("change", syncBottomDock);
+      touchViewportMedia.removeEventListener("change", syncBottomDock);
+      anyTouchViewportMedia.removeEventListener("change", syncBottomDock);
+    };
+  }, []);
 
   const primaryButtons: CtaButtonType[] = [
     {
@@ -107,29 +159,75 @@ export default function UpperLayoutCTA({
         isHighlight: false,
         icon: <IoMapOutline className="h-4 w-4" />,
       },
+      {
+        name: "Walkthrough",
+        link: "/exterior-walkthrough",
+        action: "link",
+        isHighlight: false,
+        icon: <Footprints className="h-4 w-4" />,
+      },
     ].filter((button) => !(isMasterPlanRoute && button.name === "Home"));
   }, [isMasterPlanRoute, mergeRouteLinks]);
 
   const buttons = [...primaryButtons, ...routeButtons];
-  const shouldShowLabels = !mergeRouteLinks;
+  const shouldShowLabels = !mergeRouteLinks && !shouldDockAtBottom;
+  const shouldEnableRailDrag = shouldDockAtBottom;
+
+  const handleScrollerPointerDown = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    if (!shouldEnableRailDrag || !scrollerRef.current) {
+      return;
+    }
+
+    const nextDragState = scrollerDragRef.current;
+    nextDragState.dragging = true;
+    nextDragState.lastX = event.clientX;
+    nextDragState.pointerId = event.pointerId;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleScrollerPointerMove = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    const dragState = scrollerDragRef.current;
+    const scroller = scrollerRef.current;
+
+    if (
+      !shouldEnableRailDrag ||
+      !dragState.dragging ||
+      dragState.pointerId !== event.pointerId ||
+      !scroller
+    ) {
+      return;
+    }
+
+    const deltaX = event.clientX - dragState.lastX;
+    dragState.lastX = event.clientX;
+    scroller.scrollLeft -= deltaX;
+  };
+
+  const handleScrollerPointerUp = (
+    event: React.PointerEvent<HTMLDivElement>,
+  ) => {
+    const dragState = scrollerDragRef.current;
+
+    if (dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    dragState.dragging = false;
+    dragState.pointerId = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  };
 
   return (
     <>
-      {isExteriorWalkthroughRoute ? (
-        <div className="pointer-events-none absolute right-3 top-3 z-50 md:hidden">
-          <Link
-            href="/"
-            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-[1.2rem] border border-white/10 bg-black/72 text-white shadow-[0_18px_42px_rgba(0,0,0,0.34)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-black/82"
-            aria-label="Go home"
-          >
-            <FiHome className="h-5 w-5" />
-          </Link>
-        </div>
-      ) : null}
-
       <div
-        className={`pointer-events-none absolute left-1/2 top-3 z-50 w-full max-w-[calc(100vw-1rem)] -translate-x-1/2 px-2 md:top-0 md:max-w-none md:px-0 ${
-          isExteriorWalkthroughRoute ? "hidden md:block" : ""
+        className={`pointer-events-none fixed inset-x-0 z-50 flex justify-center px-2 md:px-0 ${
+          shouldDockAtBottom
+            ? "bottom-[max(env(safe-area-inset-bottom),0.85rem)]"
+            : "top-3 md:top-0"
         }`}
       >
       <motion.div
@@ -140,14 +238,20 @@ export default function UpperLayoutCTA({
         <motion.div
           layout
           transition={spring}
-          className="relative max-w-full overflow-visible rounded-full border border-white/20 bg-black px-3 py-3 shadow-[0_20px_90px_rgba(0,0,0,0.8)] backdrop-blur-xl md:rounded-t-[75px] md:px-16 md:py-4"
+          className={`relative max-w-full overflow-visible rounded-full border border-white/20 bg-black px-3 py-3 shadow-[0_20px_90px_rgba(0,0,0,0.8)] backdrop-blur-xl ${
+            shouldDockAtBottom
+              ? "md:px-5 md:py-3"
+              : "md:rounded-t-[75px] md:px-16 md:py-4"
+          }`}
         >
           {/* Right Wave */}
           <svg
             width="130"
             height="58"
             viewBox="0 0 130 58"
-            className="absolute -right-[113px] -top-1 hidden md:block"
+            className={`absolute -right-[113px] -top-1 hidden ${
+              shouldDockAtBottom ? "" : "md:block"
+            }`}
           >
             <path
               d="M0,58 L0,0 L130,0 A130,58 0 0,0 0,58 Z"
@@ -160,7 +264,9 @@ export default function UpperLayoutCTA({
             width="130"
             height="58"
             viewBox="0 0 130 58"
-            className="absolute -left-[113px]  -top-1 hidden md:block"
+            className={`absolute -left-[113px] -top-1 hidden ${
+              shouldDockAtBottom ? "" : "md:block"
+            }`}
           >
             <path
               d="M130,58 L130,0 L0,0 A130,58 0 0,1 130,58 Z"
@@ -169,9 +275,18 @@ export default function UpperLayoutCTA({
           </svg>
 
           <motion.div
+            ref={scrollerRef}
             layout
             transition={spring}
-            className="flex max-w-[calc(100vw-2rem)] items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:max-w-none md:gap-2"
+            onPointerDown={handleScrollerPointerDown}
+            onPointerMove={handleScrollerPointerMove}
+            onPointerUp={handleScrollerPointerUp}
+            onPointerCancel={handleScrollerPointerUp}
+            className={`flex max-w-[calc(100vw-2rem)] items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+              shouldEnableRailDrag
+                ? "cursor-grab touch-pan-x active:cursor-grabbing"
+                : ""
+            } ${shouldDockAtBottom ? "md:max-w-[calc(100vw-2rem)]" : "md:max-w-none"} md:gap-2`}
           >
             {buttons.map((button) => {
               const isHovered = shouldShowLabels && hovered === button.name;

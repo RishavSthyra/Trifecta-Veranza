@@ -25,6 +25,7 @@ import {
   EdgesGeometry,
   Euler,
   Group,
+  LineBasicMaterial,
   MathUtils,
   Material,
   Matrix4,
@@ -39,10 +40,13 @@ import {
 import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.js";
 import {
   MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
+  MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH,
   MASTER_PLAN_SCRUB_VIDEO_FPS,
   TOTAL_MASTER_PLAN_FRAMES,
 } from "@/data/masterPlanFrameCdnUrls";
 import {
+  MASTER_PLAN_HOTSPOT_KEYS,
+  type MasterPlanHotspotKey,
   getNearestMasterPlanHotspot,
   isApartmentIdAllowedAtHotspot,
 } from "@/lib/master-plan-hotspots";
@@ -63,19 +67,28 @@ const TARGET_MODEL_HEIGHT = 10;
 const TOTAL_FRAMES = TOTAL_MASTER_PLAN_FRAMES;
 const SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
 const DRAG_THRESHOLD_PX = 8;
-const DRAG_PIXELS_PER_FRAME = 8;
-const DRAG_MAX_LEAD_FRAMES = 32;
-const DRAG_MAX_POINTER_PIXELS_PER_MS = 2.2;
 const SNAP_ANIMATION_MIN_DURATION_MS = 180;
 const SNAP_ANIMATION_MAX_DURATION_MS = 340;
 const SNAP_ANIMATION_MS_PER_FRAME = 3.6;
 const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
 const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;
 const HOTSPOT_NAVIGATION_MS_PER_FRAME = 6.8;
-const DRAG_VIDEO_SYNC_FRAME_STEP = 1;
+const DRAG_VIDEO_SYNC_MS_STANDARD = 24;
+const DRAG_VIDEO_SYNC_MS_CONSTRAINED = 40;
+const DRAG_VIDEO_SYNC_MS_LOW = 56;
+const DRAG_VIDEO_FRAME_SKIP_STANDARD = 2;
+const DRAG_VIDEO_FRAME_SKIP_CONSTRAINED = 3;
+const DRAG_VIDEO_FRAME_SKIP_LOW = 4;
+const DISPLAYED_FRAME_COMMIT_MS_STANDARD = 24;
+const DISPLAYED_FRAME_COMMIT_MS_CONSTRAINED = 40;
+const DISPLAYED_FRAME_COMMIT_MS_LOW = 64;
 const HOVER_COOLDOWN_MS = 80;
 const TOWER_MESH_PREWARM_FRAMES = 6;
-const TRACKING_VIDEO_ASPECT = 16 / 9;
+const TOWER_MESH_ENTER_WINDOW = 6;
+const TOWER_MESH_EXIT_WINDOW = 9;
+const APARTMENT_MESH_ENTER_WINDOW = 0;
+const APARTMENT_MESH_EXIT_WINDOW = 2;
+const TRACKING_VIDEO_ASPECT = 3840 / 2560;
 const VIDEO_SYNC_THRESHOLD_SECONDS = 1 / (MASTER_PLAN_SCRUB_VIDEO_FPS * 1.5);
 const VIDEO_FAST_SEEK_THRESHOLD_SECONDS = 0.18;
 const ENABLE_TRACKING_DEBUG = false;
@@ -99,6 +112,8 @@ const BASE_CAMERA_POSITION: [number, number, number] = [10.5, 7.25, 13.5];
 const BASE_MODEL_OFFSET: [number, number, number] = [1.8, 0, 0];
 
 type InventoryLoadState = "loading" | "ready" | "error";
+type InteractionMode = "idle" | "dragging" | "settling" | "cooldown";
+type HighlightRenderMode = "full" | "medium" | "light";
 type PointerPosition = { x: number; y: number };
 type CoverViewport = {
   height: number;
@@ -211,6 +226,12 @@ type UnrealVector3Like = {
   z: number;
 };
 
+type ScrubVideoSources = {
+  high: string;
+  low: string;
+  medium: string;
+};
+
 const TOWER_A_TRACKING_KEYS = [
   "A1",
   "A2",
@@ -242,6 +263,10 @@ const DEBUG_PROXY_MATERIAL = new MeshBasicMaterial({
   transparent: true,
 });
 const PROXY_MATERIAL_ARRAY_CACHE = new Map<string, Material[]>();
+const HIGHLIGHT_FILL_MATERIAL_CACHE = new Map<string, MeshBasicMaterial>();
+const HIGHLIGHT_LINE_MATERIAL_CACHE = new Map<string, LineBasicMaterial>();
+const EMPTY_MESHES: Mesh[] = [];
+const EMPTY_APARTMENT_IDS = new Set<string>();
 
 function getHighlightEdgesGeometry(geometry: Mesh["geometry"]) {
   const cachedGeometry = HIGHLIGHT_EDGE_GEOMETRY_CACHE.get(geometry);
@@ -307,6 +332,47 @@ function getProxyMaterials(
   const nextMaterials = Array.from({ length: material.length }, () => sharedMaterial);
   PROXY_MATERIAL_ARRAY_CACHE.set(cacheKey, nextMaterials);
   return nextMaterials;
+}
+
+function getHighlightFillMaterial(color: string, opacity: number) {
+  const key = `${color}:${opacity}`;
+  const cachedMaterial = HIGHLIGHT_FILL_MATERIAL_CACHE.get(key);
+
+  if (cachedMaterial) {
+    return cachedMaterial;
+  }
+
+  const material = new MeshBasicMaterial({
+    color,
+    depthTest: false,
+    depthWrite: false,
+    opacity,
+    side: DoubleSide,
+    toneMapped: false,
+    transparent: true,
+  });
+
+  HIGHLIGHT_FILL_MATERIAL_CACHE.set(key, material);
+  return material;
+}
+
+function getHighlightLineMaterial(color: string, thickness: number) {
+  const key = `${color}:${thickness}`;
+  const cachedMaterial = HIGHLIGHT_LINE_MATERIAL_CACHE.get(key);
+
+  if (cachedMaterial) {
+    return cachedMaterial;
+  }
+
+  const material = new LineBasicMaterial({
+    color,
+    depthTest: false,
+    linewidth: thickness,
+    toneMapped: false,
+  });
+
+  HIGHLIGHT_LINE_MATERIAL_CACHE.set(key, material);
+  return material;
 }
 
 function extractApartmentIdFromName(name: string) {
@@ -496,23 +562,96 @@ function getMasterPlanPerformanceProfile(): MasterPlanPerformanceProfile {
   };
 }
 
-function getDragSeekBudgetMs(
-  tier: MasterPlanPerformanceTier,
-  isSafariLike: boolean,
-) {
-  if (isSafariLike) {
-    return tier === "low" ? 14 : 8;
-  }
-
+function getDragVideoSyncIntervalMs(tier: MasterPlanPerformanceTier) {
   if (tier === "low") {
-    return 24;
+    return DRAG_VIDEO_SYNC_MS_LOW;
   }
 
   if (tier === "constrained") {
-    return 18;
+    return DRAG_VIDEO_SYNC_MS_CONSTRAINED;
   }
 
-  return 12;
+  return DRAG_VIDEO_SYNC_MS_STANDARD;
+}
+
+function getDragVideoFrameSkip(tier: MasterPlanPerformanceTier) {
+  if (tier === "low") {
+    return DRAG_VIDEO_FRAME_SKIP_LOW;
+  }
+
+  if (tier === "constrained") {
+    return DRAG_VIDEO_FRAME_SKIP_CONSTRAINED;
+  }
+
+  return DRAG_VIDEO_FRAME_SKIP_STANDARD;
+}
+
+function getDisplayedFrameCommitIntervalMs(tier: MasterPlanPerformanceTier) {
+  if (tier === "low") {
+    return DISPLAYED_FRAME_COMMIT_MS_LOW;
+  }
+
+  if (tier === "constrained") {
+    return DISPLAYED_FRAME_COMMIT_MS_CONSTRAINED;
+  }
+
+  return DISPLAYED_FRAME_COMMIT_MS_STANDARD;
+}
+
+function updateVisibilityWithHysteresis(
+  isCurrentlyVisible: boolean,
+  distanceToSnap: number,
+  enterWindow: number,
+  exitWindow: number,
+) {
+  if (isCurrentlyVisible) {
+    return distanceToSnap <= exitWindow;
+  }
+
+  return distanceToSnap <= enterWindow;
+}
+
+function getDragConfig(tier: MasterPlanPerformanceTier) {
+  if (tier === "low") {
+    return {
+      maxLeadFrames: 18,
+      maxPointerPixelsPerMs: 1.4,
+      pixelsPerFrame: 12,
+    };
+  }
+
+  if (tier === "constrained") {
+    return {
+      maxLeadFrames: 24,
+      maxPointerPixelsPerMs: 1.8,
+      pixelsPerFrame: 10,
+    };
+  }
+
+  return {
+    maxLeadFrames: 32,
+    maxPointerPixelsPerMs: 2.2,
+    pixelsPerFrame: 8,
+  };
+}
+
+function normalizeAspect(aspect: number) {
+  return Math.round(aspect * 1000) / 1000;
+}
+
+function getScrubVideoPath(
+  tier: MasterPlanPerformanceTier,
+  sources: ScrubVideoSources,
+) {
+  if (tier === "low") {
+    return sources.low;
+  }
+
+  if (tier === "constrained") {
+    return sources.medium;
+  }
+
+  return sources.high;
 }
 
 function getCanvasDprRange(
@@ -1208,6 +1347,32 @@ function buildApartmentTokenLookup(apartmentIds: Iterable<string>) {
   return lookup;
 }
 
+function buildHotspotPickMap(
+  meshes: Mesh[],
+  validApartmentIdsByHotspot: Map<MasterPlanHotspotKey, Set<string>>,
+) {
+  const result = new Map<MasterPlanHotspotKey, Mesh[]>();
+
+  MASTER_PLAN_HOTSPOT_KEYS.forEach((hotspotKey) => {
+    const allowedIds = validApartmentIdsByHotspot.get(hotspotKey);
+
+    if (!allowedIds || allowedIds.size === 0) {
+      result.set(hotspotKey, EMPTY_MESHES);
+      return;
+    }
+
+    result.set(
+      hotspotKey,
+      meshes.filter((mesh) => {
+        const apartmentId = mesh.userData.apartmentId as string | undefined;
+        return apartmentId ? allowedIds.has(apartmentId) : false;
+      }),
+    );
+  });
+
+  return result;
+}
+
 function buildInventoryApartmentIndex(
   apartments: InventoryApartment[],
 ): InventoryApartmentIndex {
@@ -1569,6 +1734,10 @@ const HighlightEdgeLines = memo(function HighlightEdgeLines({
     () => getHighlightEdgesGeometry(geometry),
     [geometry],
   );
+  const material = useMemo(
+    () => getHighlightLineMaterial(color, thickness),
+    [color, thickness],
+  );
   const renderMatrix = useMemo(
     () =>
       scaleMultiplier === 1
@@ -1581,18 +1750,12 @@ const HighlightEdgeLines = memo(function HighlightEdgeLines({
     <lineSegments
       frustumCulled={false}
       geometry={edgesGeometry}
+      material={material}
       matrix={renderMatrix}
       matrixAutoUpdate={false}
       raycast={() => null}
       renderOrder={renderOrder}
-    >
-      <lineBasicMaterial
-        color={color}
-        depthTest={false}
-        linewidth={thickness}
-        toneMapped={false}
-      />
-    </lineSegments>
+    />
   );
 });
 
@@ -1601,6 +1764,7 @@ const HighlightOverlay = memo(function HighlightOverlay({
   getApartmentStatus,
   hoveredApartmentId,
   apartments,
+  renderMode,
   selectedApartmentId,
   simplifyFilteredVisuals,
 }: {
@@ -1610,6 +1774,7 @@ const HighlightOverlay = memo(function HighlightOverlay({
   ) => InventoryStatus | null | undefined;
   hoveredApartmentId: string | null;
   apartments: PreparedTowerModel["apartments"];
+  renderMode: HighlightRenderMode;
   selectedApartmentId: string | null;
   simplifyFilteredVisuals: boolean;
 }) {
@@ -1684,7 +1849,11 @@ const HighlightOverlay = memo(function HighlightOverlay({
     hoveredApartmentId,
     selectedApartmentId,
   ]);
+  const renderFill = renderMode !== "light";
+  const renderOuterEdges = renderMode === "full";
+  const edgeThickness = renderMode === "light" ? 1 : 2;
   const shouldSimplifyFilteredEdges =
+    renderMode !== "full" ||
     simplifyFilteredVisuals ||
     filteredMeshes.length >= FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD;
 
@@ -1700,33 +1869,29 @@ const HighlightOverlay = memo(function HighlightOverlay({
     <group>
       {filteredMeshes.map((meshData) => (
         <group key={`filter-${meshData.meshData.key}`}>
-          <mesh
-            frustumCulled={false}
-            geometry={meshData.meshData.geometry}
-            matrix={meshData.meshData.matrix}
-            matrixAutoUpdate={false}
-            raycast={() => null}
-            renderOrder={10}
-          >
-            <meshBasicMaterial
-              color={meshData.palette.fill}
-              depthTest={false}
-              depthWrite={false}
-              opacity={meshData.palette.fillOpacity}
-              side={DoubleSide}
-              toneMapped={false}
-              transparent
+          {renderFill ? (
+            <mesh
+              frustumCulled={false}
+              geometry={meshData.meshData.geometry}
+              material={getHighlightFillMaterial(
+                meshData.palette.fill,
+                meshData.palette.fillOpacity,
+              )}
+              matrix={meshData.meshData.matrix}
+              matrixAutoUpdate={false}
+              raycast={() => null}
+              renderOrder={10}
             />
-          </mesh>
+          ) : null}
           <HighlightEdgeLines
             color={meshData.palette.innerEdge}
             geometry={meshData.meshData.geometry}
             matrix={meshData.meshData.matrix}
             renderOrder={11}
             scaleMultiplier={1.006}
-            thickness={2}
+            thickness={edgeThickness}
           />
-          {!shouldSimplifyFilteredEdges ? (
+          {!shouldSimplifyFilteredEdges && renderOuterEdges ? (
             <HighlightEdgeLines
               color={meshData.palette.outerEdge}
               geometry={meshData.meshData.geometry}
@@ -1740,77 +1905,73 @@ const HighlightOverlay = memo(function HighlightOverlay({
 
       {selectedMeshes.map((meshData) => (
         <group key={`selected-${meshData.meshData.key}`}>
-          <mesh
-            frustumCulled={false}
-            geometry={meshData.meshData.geometry}
-            matrix={meshData.meshData.matrix}
-            matrixAutoUpdate={false}
-            raycast={() => null}
-            renderOrder={14}
-          >
-            <meshBasicMaterial
-              color={meshData.palette.fill}
-              depthTest={false}
-              depthWrite={false}
-              opacity={meshData.palette.fillOpacity}
-              side={DoubleSide}
-              toneMapped={false}
-              transparent
+          {renderFill ? (
+            <mesh
+              frustumCulled={false}
+              geometry={meshData.meshData.geometry}
+              material={getHighlightFillMaterial(
+                meshData.palette.fill,
+                meshData.palette.fillOpacity,
+              )}
+              matrix={meshData.meshData.matrix}
+              matrixAutoUpdate={false}
+              raycast={() => null}
+              renderOrder={14}
             />
-          </mesh>
+          ) : null}
           <HighlightEdgeLines
             color={meshData.palette.innerEdge}
             geometry={meshData.meshData.geometry}
             matrix={meshData.meshData.matrix}
             renderOrder={15}
             scaleMultiplier={1.008}
-            thickness={2}
+            thickness={edgeThickness}
           />
-          <HighlightEdgeLines
-            color={meshData.palette.outerEdge}
-            geometry={meshData.meshData.geometry}
-            matrix={meshData.meshData.matrix}
-            renderOrder={16}
-            thickness={4}
-          />
+          {renderOuterEdges ? (
+            <HighlightEdgeLines
+              color={meshData.palette.outerEdge}
+              geometry={meshData.meshData.geometry}
+              matrix={meshData.meshData.matrix}
+              renderOrder={16}
+              thickness={4}
+            />
+          ) : null}
         </group>
       ))}
 
       {hoveredMeshes.map((meshData) => (
         <group key={`hover-${meshData.meshData.key}`}>
-          <mesh
-            frustumCulled={false}
-            geometry={meshData.meshData.geometry}
-            matrix={meshData.meshData.matrix}
-            matrixAutoUpdate={false}
-            raycast={() => null}
-            renderOrder={12}
-          >
-            <meshBasicMaterial
-              color={meshData.palette.fill}
-              depthTest={false}
-              depthWrite={false}
-              opacity={meshData.palette.fillOpacity}
-              side={DoubleSide}
-              toneMapped={false}
-              transparent
+          {renderFill ? (
+            <mesh
+              frustumCulled={false}
+              geometry={meshData.meshData.geometry}
+              material={getHighlightFillMaterial(
+                meshData.palette.fill,
+                meshData.palette.fillOpacity,
+              )}
+              matrix={meshData.meshData.matrix}
+              matrixAutoUpdate={false}
+              raycast={() => null}
+              renderOrder={12}
             />
-          </mesh>
+          ) : null}
           <HighlightEdgeLines
             color={meshData.palette.innerEdge}
             geometry={meshData.meshData.geometry}
             matrix={meshData.meshData.matrix}
             renderOrder={13}
             scaleMultiplier={1.008}
-            thickness={2}
+            thickness={edgeThickness}
           />
-          <HighlightEdgeLines
-            color={meshData.palette.outerEdge}
-            geometry={meshData.meshData.geometry}
-            matrix={meshData.meshData.matrix}
-            renderOrder={14}
-            thickness={4}
-          />
+          {renderOuterEdges ? (
+            <HighlightEdgeLines
+              color={meshData.palette.outerEdge}
+              geometry={meshData.meshData.geometry}
+              matrix={meshData.meshData.matrix}
+              renderOrder={14}
+              thickness={4}
+            />
+          ) : null}
         </group>
       ))}
     </group>
@@ -1819,10 +1980,12 @@ const HighlightOverlay = memo(function HighlightOverlay({
 
 const HoverTracker = memo(function HoverTracker({
   allowHover,
+  interactionMode,
   onHoverChange,
   pickableMeshes,
 }: {
   allowHover: boolean;
+  interactionMode: InteractionMode;
   onHoverChange: (
     apartmentId: string | null,
     pointerPosition: PointerPosition | null,
@@ -1830,11 +1993,14 @@ const HoverTracker = memo(function HoverTracker({
   pickableMeshes: Mesh[];
 }) {
   const { camera, gl, raycaster } = useThree();
+  const pointerRef = useRef(new Vector2());
+  const worldNormalRef = useRef(new Vector3());
+  const pointerPositionRef = useRef<PointerPosition>({ x: 0, y: 0 });
 
   useEffect(() => {
     const element = gl.domElement;
-    const pointer = new Vector2();
-    const worldNormal = new Vector3();
+    const pointer = pointerRef.current;
+    const worldNormal = worldNormalRef.current;
     let frameId = 0;
     let latestClientX = 0;
     let latestClientY = 0;
@@ -1849,7 +2015,11 @@ const HoverTracker = memo(function HoverTracker({
       onHoverChange(apartmentId, pointerPosition);
     };
 
-    if (!allowHover || pickableMeshes.length === 0) {
+    if (
+      interactionMode !== "idle" ||
+      !allowHover ||
+      pickableMeshes.length === 0
+    ) {
       updateHover(null, null);
       return;
     }
@@ -1862,10 +2032,8 @@ const HoverTracker = memo(function HoverTracker({
         return;
       }
 
-      const pointerPosition = {
-        x: latestClientX,
-        y: latestClientY,
-      };
+      pointerPositionRef.current.x = latestClientX;
+      pointerPositionRef.current.y = latestClientY;
 
       if (element.clientWidth <= 0 || element.clientHeight <= 0) {
         updateHover(null, null);
@@ -1907,7 +2075,7 @@ const HoverTracker = memo(function HoverTracker({
 
       updateHover(
         (hit?.object.userData.apartmentId as string | undefined) ?? null,
-        pointerPosition,
+        pointerPositionRef.current,
       );
     };
 
@@ -1951,13 +2119,22 @@ const HoverTracker = memo(function HoverTracker({
       element.removeEventListener("pointerleave", handlePointerLeave);
       element.removeEventListener("pointercancel", handlePointerLeave);
     };
-  }, [allowHover, camera, gl, onHoverChange, pickableMeshes, raycaster]);
+  }, [
+    allowHover,
+    camera,
+    gl,
+    interactionMode,
+    onHoverChange,
+    pickableMeshes,
+    raycaster,
+  ]);
 
   return null;
 });
 
 const TowerScene = memo(function TowerScene({
   apartments,
+  interactionMode,
   currentFrame,
   filteredApartments,
   getApartmentStatus,
@@ -1972,8 +2149,10 @@ const TowerScene = memo(function TowerScene({
   showApartmentMeshes,
   showTowerMeshes,
   showTrackingDebug,
+  trackingVideoAspect,
 }: {
   apartments: InventoryApartment[];
+  interactionMode: InteractionMode;
   currentFrame: number;
   filteredApartments: InventoryApartment[];
   getApartmentStatus: (
@@ -1995,6 +2174,7 @@ const TowerScene = memo(function TowerScene({
   showApartmentMeshes: boolean;
   showTowerMeshes: boolean;
   showTrackingDebug: boolean;
+  trackingVideoAspect: number;
 }) {
   const { camera, gl, invalidate, raycaster } = useThree();
   const towerAGltf = useGLTF(MODEL_PATH_A);
@@ -2031,6 +2211,10 @@ const TowerScene = memo(function TowerScene({
   );
   const primaryPreparedModel =
     activeTowerCode === "B" ? preparedTowerB : preparedTowerA;
+  const normalizedTrackingVideoAspect = useMemo(
+    () => normalizeAspect(trackingVideoAspect),
+    [trackingVideoAspect],
+  );
   const cameraTargetY = primaryPreparedModel.scaledHeight * 0.52;
   const trackingFrameInfo = useMemo(
     () => getNearestSnapFrameInfo(currentFrame),
@@ -2055,9 +2239,13 @@ const TowerScene = memo(function TowerScene({
   const trackingCameraPath = useMemo(
     () =>
       towerATrackingTransforms.length > 0 || towerBTrackingTransforms.length > 0
-        ? getTowerTrackingCameraPath(TRACKING_VIDEO_ASPECT)
+        ? getTowerTrackingCameraPath(normalizedTrackingVideoAspect)
         : [],
-    [towerATrackingTransforms.length, towerBTrackingTransforms.length],
+    [
+      normalizedTrackingVideoAspect,
+      towerATrackingTransforms.length,
+      towerBTrackingTransforms.length,
+    ],
   );
   const trackingSnapshots = useMemo(
     () =>
@@ -2138,29 +2326,36 @@ const TowerScene = memo(function TowerScene({
     () => buildInventoryApartmentIndex(apartments),
     [apartments],
   );
-  const allowedApartmentIds = useMemo(
-    () =>
-      new Set(
-        Array.from(activeApartments.keys()).filter((apartmentId) =>
-          isApartmentIdAllowedAtHotspot(apartmentId, activeHotspot, selectedTower),
-        ),
-      ),
-    [activeApartments, activeHotspot, selectedTower],
-  );
-  const inventoryBackedApartmentIds = useMemo(
-    () =>
-      new Set(
-        Array.from(allowedApartmentIds).filter((apartmentId) => {
-          const inventoryApartment = findInventoryApartmentInIndex(
-            apartmentIndex,
-            apartmentId,
-            selectedTower,
-          );
+  const inventoryBackedApartmentIdsByHotspot = useMemo(() => {
+    const next = new Map<MasterPlanHotspotKey, Set<string>>();
 
-          return Boolean(inventoryApartment && inventoryApartment.floor > 0);
-        }),
-      ),
-    [allowedApartmentIds, apartmentIndex, selectedTower],
+    MASTER_PLAN_HOTSPOT_KEYS.forEach((hotspotKey) => {
+      const apartmentIds = new Set<string>();
+
+      activeApartments.forEach((_, apartmentId) => {
+        if (!isApartmentIdAllowedAtHotspot(apartmentId, hotspotKey, selectedTower)) {
+          return;
+        }
+
+        const inventoryApartment = findInventoryApartmentInIndex(
+          apartmentIndex,
+          apartmentId,
+          selectedTower,
+        );
+
+        if (inventoryApartment && inventoryApartment.floor > 0) {
+          apartmentIds.add(apartmentId);
+        }
+      });
+
+      next.set(hotspotKey, apartmentIds);
+    });
+
+    return next;
+  }, [activeApartments, apartmentIndex, selectedTower]);
+  const inventoryBackedApartmentIds = useMemo(
+    () => inventoryBackedApartmentIdsByHotspot.get(activeHotspot) ?? EMPTY_APARTMENT_IDS,
+    [activeHotspot, inventoryBackedApartmentIdsByHotspot],
   );
   const activeApartmentTokenLookup = useMemo(
     () => buildApartmentTokenLookup(inventoryBackedApartmentIds),
@@ -2186,16 +2381,17 @@ const TowerScene = memo(function TowerScene({
     preparedTowerB.pickableMeshes,
     selectedTower,
   ]);
-  const hotspotScopedPickableMeshes = useMemo(
+  const hotspotPickMap = useMemo(
     () =>
-      hoverPickableMeshes.filter((mesh) => {
-        const apartmentId =
-          (mesh.userData.apartmentId as string | undefined) ??
-          resolveApartmentIdFromObject(mesh);
-
-        return apartmentId ? inventoryBackedApartmentIds.has(apartmentId) : false;
-      }),
-    [hoverPickableMeshes, inventoryBackedApartmentIds],
+      buildHotspotPickMap(
+        hoverPickableMeshes,
+        inventoryBackedApartmentIdsByHotspot,
+      ),
+    [hoverPickableMeshes, inventoryBackedApartmentIdsByHotspot],
+  );
+  const hotspotScopedPickableMeshes = useMemo(
+    () => hotspotPickMap.get(activeHotspot) ?? EMPTY_MESHES,
+    [activeHotspot, hotspotPickMap],
   );
   const filteredApartmentIds = useMemo(() => {
     if (
@@ -2235,9 +2431,14 @@ const TowerScene = memo(function TowerScene({
     selectedTower,
     showApartmentMeshes,
   ]);
+  const selectionPointerRef = useRef(new Vector2());
+  const selectionWorldNormalRef = useRef(new Vector3());
   const pickApartmentAtClientPoint = useCallback(
     (clientX: number, clientY: number) => {
-      if (hotspotScopedPickableMeshes.length === 0) {
+      if (
+        interactionMode !== "idle" ||
+        hotspotScopedPickableMeshes.length === 0
+      ) {
         return null;
       }
 
@@ -2247,11 +2448,12 @@ const TowerScene = memo(function TowerScene({
         return null;
       }
 
-      const pointer = new Vector2(
+      const pointer = selectionPointerRef.current;
+      pointer.set(
         ((clientX - rect.left) / rect.width) * 2 - 1,
         -((clientY - rect.top) / rect.height) * 2 + 1,
       );
-      const worldNormal = new Vector3();
+      const worldNormal = selectionWorldNormalRef.current;
 
       raycaster.setFromCamera(pointer, cameraRef.current ?? camera);
 
@@ -2289,7 +2491,7 @@ const TowerScene = memo(function TowerScene({
         null
       );
     },
-    [camera, gl, hotspotScopedPickableMeshes, raycaster],
+    [camera, gl, hotspotScopedPickableMeshes, interactionMode, raycaster],
   );
 
   useEffect(() => {
@@ -2343,13 +2545,25 @@ const TowerScene = memo(function TowerScene({
   );
   const activeHoveredApartmentId =
     allowHover ? hotspotHoveredApartmentId : null;
+  const effectiveFilteredApartmentIds =
+    interactionMode === "idle" ? filteredApartmentIds : EMPTY_APARTMENT_IDS;
+  const effectiveHoveredApartmentId =
+    interactionMode === "idle" ? activeHoveredApartmentId : null;
+  const highlightRenderMode: HighlightRenderMode =
+    interactionMode === "dragging" || interactionMode === "settling"
+      ? "light"
+      : effectiveFilteredApartmentIds.size > 12 || simplifyFilteredVisuals
+        ? "medium"
+        : "full";
   const shouldShowHighlightOverlay =
-    (showApartmentMeshes || shouldShowSelectedApartment) &&
-    (
-      activeHoveredApartmentId !== null ||
-      filteredApartmentIds.size > 0 ||
-      shouldShowSelectedApartment
-    );
+    interactionMode === "idle"
+      ? (showApartmentMeshes || shouldShowSelectedApartment) &&
+        (
+          effectiveHoveredApartmentId !== null ||
+          effectiveFilteredApartmentIds.size > 0 ||
+          shouldShowSelectedApartment
+        )
+      : shouldShowSelectedApartment;
 
   useEffect(() => {
     onInvalidateReady?.(invalidate);
@@ -2435,9 +2649,10 @@ const TowerScene = memo(function TowerScene({
               {shouldShowHighlightOverlay ? (
                 <HighlightOverlay
                   apartments={preparedTowerA.apartments}
-                  filteredApartmentIds={filteredApartmentIds}
+                  filteredApartmentIds={effectiveFilteredApartmentIds}
                   getApartmentStatus={getApartmentStatus}
-                  hoveredApartmentId={activeHoveredApartmentId}
+                  hoveredApartmentId={effectiveHoveredApartmentId}
+                  renderMode={highlightRenderMode}
                   selectedApartmentId={selectedApartmentId}
                   simplifyFilteredVisuals={simplifyFilteredVisuals}
                 />
@@ -2458,9 +2673,10 @@ const TowerScene = memo(function TowerScene({
               {shouldShowHighlightOverlay ? (
                 <HighlightOverlay
                   apartments={preparedTowerB.apartments}
-                  filteredApartmentIds={filteredApartmentIds}
+                  filteredApartmentIds={effectiveFilteredApartmentIds}
                   getApartmentStatus={getApartmentStatus}
-                  hoveredApartmentId={activeHoveredApartmentId}
+                  hoveredApartmentId={effectiveHoveredApartmentId}
+                  renderMode={highlightRenderMode}
                   selectedApartmentId={selectedApartmentId}
                   simplifyFilteredVisuals={simplifyFilteredVisuals}
                 />
@@ -2480,9 +2696,10 @@ const TowerScene = memo(function TowerScene({
             {shouldShowHighlightOverlay ? (
               <HighlightOverlay
                 apartments={primaryPreparedModel.apartments}
-                filteredApartmentIds={filteredApartmentIds}
+                filteredApartmentIds={effectiveFilteredApartmentIds}
                 getApartmentStatus={getApartmentStatus}
-                hoveredApartmentId={activeHoveredApartmentId}
+                hoveredApartmentId={effectiveHoveredApartmentId}
+                renderMode={highlightRenderMode}
                 selectedApartmentId={selectedApartmentId}
                 simplifyFilteredVisuals={simplifyFilteredVisuals}
               />
@@ -2494,6 +2711,7 @@ const TowerScene = memo(function TowerScene({
       {allowHover ? (
         <HoverTracker
           allowHover
+          interactionMode={interactionMode}
           onHoverChange={handleSceneHover}
           pickableMeshes={hotspotScopedPickableMeshes}
         />
@@ -2548,14 +2766,19 @@ export default function MasterPlanFrameHoverStage({
   const displayedFrameStateRef = useRef(wrapFrame(currentFrame));
   const isSettlingRef = useRef(false);
   const lastSyncedVideoFrameRef = useRef<number | null>(null);
+  const lastDragVideoSyncFrameRef = useRef<number | null>(null);
   const lastDragVideoSyncTimeRef = useRef(0);
+  const lastDisplayedFrameCommitTimeRef = useRef(0);
+  const lastInvalidateSignatureRef = useRef("");
   const progressFrameRef = useRef<number | null>(null);
   const pendingProgressRef = useRef<number | null>(null);
+  const pendingPointerDeltaXRef = useRef(0);
   const videoRevealFrameRef = useRef<number | null>(null);
   const displayProgressRef = useRef(frameToProgress(currentFrame));
   const dragTargetProgressRef = useRef(frameToProgress(currentFrame));
   const hoveredApartmentIdRef = useRef<string | null>(null);
   const tooltipFrameRef = useRef<number | null>(null);
+  const lastTooltipPointerRef = useRef<PointerPosition | null>(null);
   const tooltipPositionRef = useRef({ x: 12, y: 12 });
   const viewportTransformRef = useRef<StageViewportTransform>(
     DEFAULT_STAGE_VIEWPORT_TRANSFORM,
@@ -2576,12 +2799,29 @@ export default function MasterPlanFrameHoverStage({
   const [isSettling, setIsSettling] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isHoverCoolingDown, setIsHoverCoolingDown] = useState(false);
+  const [showTowerMeshes, setShowTowerMeshes] = useState(() =>
+    updateVisibilityWithHysteresis(
+      false,
+      getNearestSnapFrameInfo(wrapFrame(currentFrame)).distance,
+      TOWER_MESH_ENTER_WINDOW,
+      TOWER_MESH_EXIT_WINDOW,
+    ),
+  );
+  const [showApartmentMeshes, setShowApartmentMeshes] = useState(() =>
+    updateVisibilityWithHysteresis(
+      false,
+      getNearestSnapFrameInfo(wrapFrame(currentFrame)).distance,
+      APARTMENT_MESH_ENTER_WINDOW,
+      APARTMENT_MESH_EXIT_WINDOW,
+    ),
+  );
   const [supportsPreciseHover, setSupportsPreciseHover] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [sectionSize, setSectionSize] = useState(() => ({
     height: 0,
     width: 0,
   }));
+  const [videoAspect, setVideoAspect] = useState(TRACKING_VIDEO_ASPECT);
   const [viewportTransform, setViewportTransformState] =
     useState<StageViewportTransform>(DEFAULT_STAGE_VIEWPORT_TRANSFORM);
   const safeFrame = wrapFrame(currentFrame);
@@ -2590,19 +2830,55 @@ export default function MasterPlanFrameHoverStage({
       getCoverViewport(
         sectionSize.width,
         sectionSize.height,
-        TRACKING_VIDEO_ASPECT,
+        videoAspect,
       ),
-    [sectionSize.height, sectionSize.width],
+    [sectionSize.height, sectionSize.width, videoAspect],
   );
-  const dragSeekBudgetMs = useMemo(
+  const normalizedVideoAspect = useMemo(
+    () => normalizeAspect(videoAspect),
+    [videoAspect],
+  );
+  const dragConfig = useMemo(
+    () => getDragConfig(performanceProfile.tier),
+    [performanceProfile.tier],
+  );
+  const dragVideoSyncIntervalMs = useMemo(
+    () => getDragVideoSyncIntervalMs(performanceProfile.tier),
+    [performanceProfile.tier],
+  );
+  const dragVideoFrameSkip = useMemo(
+    () => getDragVideoFrameSkip(performanceProfile.tier),
+    [performanceProfile.tier],
+  );
+  const displayedFrameCommitIntervalMs = useMemo(
+    () => getDisplayedFrameCommitIntervalMs(performanceProfile.tier),
+    [performanceProfile.tier],
+  );
+  const scrubVideoPath = useMemo(
     () =>
-      getDragSeekBudgetMs(
-        performanceProfile.tier,
-        performanceProfile.isSafariLike,
-      ),
-    [performanceProfile.isSafariLike, performanceProfile.tier],
+      getScrubVideoPath(performanceProfile.tier, {
+        high: MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
+        low: MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH,
+        medium: MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH,
+      }),
+    [performanceProfile.tier],
   );
+  const interactionMode: InteractionMode = isDragging
+    ? "dragging"
+    : isSettling
+      ? "settling"
+      : isHoverCoolingDown
+        ? "cooldown"
+        : "idle";
   const invalidateCanvas = useCallback(() => {
+    canvasInvalidateRef.current?.();
+  }, []);
+  const maybeInvalidateCanvas = useCallback((signature: string) => {
+    if (lastInvalidateSignatureRef.current === signature) {
+      return;
+    }
+
+    lastInvalidateSignatureRef.current = signature;
     canvasInvalidateRef.current?.();
   }, []);
   const clampViewportTransform = useCallback(
@@ -2674,6 +2950,34 @@ export default function MasterPlanFrameHoverStage({
     }
   }, []);
 
+  const syncSnapVisibility = useCallback(
+    (frame: number, mode: InteractionMode) => {
+      const distanceToSnap = getNearestSnapFrameInfo(frame).distance;
+
+      setShowTowerMeshes((current) =>
+        mode !== "idle"
+          ? false
+          : updateVisibilityWithHysteresis(
+              current,
+              distanceToSnap,
+              TOWER_MESH_ENTER_WINDOW,
+              TOWER_MESH_EXIT_WINDOW,
+            ),
+      );
+      setShowApartmentMeshes((current) =>
+        mode !== "idle"
+          ? false
+          : updateVisibilityWithHysteresis(
+              current,
+              distanceToSnap,
+              APARTMENT_MESH_ENTER_WINDOW,
+              APARTMENT_MESH_EXIT_WINDOW,
+            ),
+      );
+    },
+    [],
+  );
+
   const clearHoverCooldown = useCallback(() => {
     if (hoverCooldownTimeoutRef.current !== null) {
       window.clearTimeout(hoverCooldownTimeoutRef.current);
@@ -2685,6 +2989,7 @@ export default function MasterPlanFrameHoverStage({
 
   const clearHoveredApartment = useCallback(() => {
     hoveredApartmentIdRef.current = null;
+    lastTooltipPointerRef.current = null;
     setHoveredApartmentId((currentHoveredApartmentId) =>
       currentHoveredApartmentId === null ? currentHoveredApartmentId : null,
     );
@@ -2693,11 +2998,13 @@ export default function MasterPlanFrameHoverStage({
   const startHoverCooldown = useCallback(() => {
     clearHoverCooldown();
     setIsHoverCoolingDown(true);
+    syncSnapVisibility(displayedFrameRef.current, "cooldown");
     hoverCooldownTimeoutRef.current = window.setTimeout(() => {
       hoverCooldownTimeoutRef.current = null;
       setIsHoverCoolingDown(false);
+      syncSnapVisibility(displayedFrameRef.current, "idle");
     }, HOVER_COOLDOWN_MS);
-  }, [clearHoverCooldown]);
+  }, [clearHoverCooldown, syncSnapVisibility]);
 
   const syncDisplayedFrameState = useCallback(
     (nextFrame: number, urgent = false) => {
@@ -2737,20 +3044,33 @@ export default function MasterPlanFrameHoverStage({
         Math.max(video.duration - 1 / MASTER_PLAN_SCRUB_VIDEO_FPS, 0),
       );
       const previousFrame = lastSyncedVideoFrameRef.current;
-      const minimumFrameDelta =
-        !force && dragStateRef.current
-          ? DRAG_VIDEO_SYNC_FRAME_STEP
-          : 1;
       const now =
         typeof performance !== "undefined" ? performance.now() : Date.now();
 
       if (!force) {
         if (
           dragStateRef.current &&
-          dragSeekBudgetMs > 0 &&
-          now - lastDragVideoSyncTimeRef.current < dragSeekBudgetMs
+          now - lastDragVideoSyncTimeRef.current < dragVideoSyncIntervalMs
         ) {
           return;
+        }
+
+        if (dragStateRef.current) {
+          const lastDragSyncedFrame = lastDragVideoSyncFrameRef.current;
+
+          if (
+            lastDragSyncedFrame !== null &&
+            Math.abs(
+              getShortestProgressDelta(
+                frameToProgress(lastDragSyncedFrame),
+                frameToProgress(targetFrame),
+              ),
+            ) *
+              TOTAL_FRAMES <
+              dragVideoFrameSkip
+          ) {
+            return;
+          }
         }
 
         if (
@@ -2767,7 +3087,7 @@ export default function MasterPlanFrameHoverStage({
             getShortestProgressDelta(frameToProgress(previousFrame), progress),
           ) *
             TOTAL_FRAMES <
-            minimumFrameDelta
+            1
         ) {
           return;
         }
@@ -2785,15 +3105,17 @@ export default function MasterPlanFrameHoverStage({
           (performanceProfile.isSafariLike || targetTime < video.currentTime)
         ) {
           lastDragVideoSyncTimeRef.current = now;
+          lastDragVideoSyncFrameRef.current = targetFrame;
           video.fastSeek(targetTime);
           return;
         }
 
         lastDragVideoSyncTimeRef.current = now;
+        lastDragVideoSyncFrameRef.current = targetFrame;
         video.currentTime = targetTime;
       }
     },
-    [dragSeekBudgetMs, performanceProfile.isSafariLike],
+    [dragVideoFrameSkip, dragVideoSyncIntervalMs, performanceProfile.isSafariLike],
   );
 
   const syncVisibleVideoTime = useCallback(
@@ -2810,14 +3132,32 @@ export default function MasterPlanFrameHoverStage({
       const nextDisplayedFrame = progressToFrame(wrappedProgress);
       const previousDisplayedFrame = displayedFrameRef.current;
       const displayedFrameChanged = previousDisplayedFrame !== nextDisplayedFrame;
+      const now =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+      const nextInteractionMode: InteractionMode = dragStateRef.current
+        ? "dragging"
+        : isSettlingRef.current
+          ? "settling"
+          : isHoverCoolingDown
+            ? "cooldown"
+            : "idle";
 
       if (displayedFrameChanged) {
         displayedFrameRef.current = nextDisplayedFrame;
 
         if (!dragStateRef.current && !isSettlingRef.current) {
           syncDisplayedFrameState(nextDisplayedFrame);
+        } else if (
+          dragStateRef.current &&
+          now - lastDisplayedFrameCommitTimeRef.current >=
+            displayedFrameCommitIntervalMs
+        ) {
+          lastDisplayedFrameCommitTimeRef.current = now;
+          syncDisplayedFrameState(nextDisplayedFrame);
         }
       }
+
+      syncSnapVisibility(nextDisplayedFrame, nextInteractionMode);
 
       if (displayedFrameChanged || !dragStateRef.current) {
         syncVisibleVideoTime(wrappedProgress);
@@ -2845,10 +3185,21 @@ export default function MasterPlanFrameHoverStage({
           (previousInPrewarmWindow || nextInPrewarmWindow)
         )
       ) {
-        canvasInvalidateRef.current?.();
+        maybeInvalidateCanvas(
+          `${nextSnapIndex}:${Number(nextInPrewarmWindow)}:${
+            isSettlingRef.current ? "settling" : "idle"
+          }`,
+        );
       }
     },
-    [syncDisplayedFrameState, syncVisibleVideoTime],
+    [
+      displayedFrameCommitIntervalMs,
+      isHoverCoolingDown,
+      maybeInvalidateCanvas,
+      syncSnapVisibility,
+      syncDisplayedFrameState,
+      syncVisibleVideoTime,
+    ],
   );
 
   const scheduleProgress = useCallback(
@@ -2874,6 +3225,29 @@ export default function MasterPlanFrameHoverStage({
     [commitProgress],
   );
 
+  const applyPendingDragDelta = useCallback(
+    (dragState: DragState) => {
+      if (pendingPointerDeltaXRef.current !== 0) {
+        dragState.clampedDeltaX += pendingPointerDeltaXRef.current;
+        pendingPointerDeltaXRef.current = 0;
+      }
+
+      const rawTargetProgress = wrapProgress(
+        dragState.startProgress +
+          dragState.clampedDeltaX / (dragConfig.pixelsPerFrame * TOTAL_FRAMES),
+      );
+
+      dragTargetProgressRef.current = clampProgressLead(
+        displayProgressRef.current,
+        rawTargetProgress,
+        dragConfig.maxLeadFrames,
+      );
+
+      return dragTargetProgressRef.current;
+    },
+    [dragConfig.maxLeadFrames, dragConfig.pixelsPerFrame],
+  );
+
   const startDragLoop = useCallback(() => {
     if (dragFrameRef.current !== null) {
       return;
@@ -2881,9 +3255,16 @@ export default function MasterPlanFrameHoverStage({
 
     dragFrameRef.current = window.requestAnimationFrame(() => {
       dragFrameRef.current = null;
-      commitProgress(dragTargetProgressRef.current);
+
+      const dragState = dragStateRef.current;
+
+      if (!dragState) {
+        return;
+      }
+
+      commitProgress(applyPendingDragDelta(dragState));
     });
-  }, [commitProgress]);
+  }, [applyPendingDragDelta, commitProgress]);
 
   const stopMotionAnimation = useCallback(() => {
     if (animationFrameRef.current !== null) {
@@ -2922,6 +3303,7 @@ export default function MasterPlanFrameHoverStage({
 
       isSettlingRef.current = true;
       setIsSettling(true);
+      syncSnapVisibility(progressToFrame(startProgress), "settling");
       let startTime = 0;
 
       const animate = (timestamp: number) => {
@@ -2942,6 +3324,7 @@ export default function MasterPlanFrameHoverStage({
           syncVideoTime(videoRef.current, targetProgress, { force: true });
           stopMotionAnimation();
           syncDisplayedFrameState(progressToFrame(targetProgress), true);
+          syncSnapVisibility(progressToFrame(targetProgress), "idle");
           invalidateCanvas();
           onComplete?.();
           return;
@@ -2960,6 +3343,7 @@ export default function MasterPlanFrameHoverStage({
       stopDragLoop,
       stopMotionAnimation,
       syncDisplayedFrameState,
+      syncSnapVisibility,
       syncVideoTime,
     ],
   );
@@ -3071,6 +3455,7 @@ export default function MasterPlanFrameHoverStage({
     const syncVideoState = () => {
       video.pause();
       lastSyncedVideoFrameRef.current = null;
+      lastDragVideoSyncFrameRef.current = null;
       lastDragVideoSyncTimeRef.current = 0;
       syncVideoTime(video, displayProgressRef.current, { force: true });
       stopVideoRevealFrame();
@@ -3093,7 +3478,7 @@ export default function MasterPlanFrameHoverStage({
     const cleanup = bindVideoStream({
       hlsPath: "",
       isSafariLike: performanceProfile.isSafariLike,
-      mp4Path: MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
+      mp4Path: scrubVideoPath,
       onReady: syncVideoState,
       video,
     });
@@ -3102,7 +3487,12 @@ export default function MasterPlanFrameHoverStage({
       stopVideoRevealFrame();
       cleanup();
     };
-  }, [performanceProfile.isSafariLike, stopVideoRevealFrame, syncVideoTime]);
+  }, [
+    performanceProfile.isSafariLike,
+    scrubVideoPath,
+    stopVideoRevealFrame,
+    syncVideoTime,
+  ]);
 
   useEffect(() => {
     if (dragStateRef.current) {
@@ -3159,6 +3549,7 @@ export default function MasterPlanFrameHoverStage({
   useEffect(() => {
     if (!dragEnabled) {
       dragStateRef.current = null;
+      pendingPointerDeltaXRef.current = 0;
       stopDragLoop();
       return;
     }
@@ -3180,6 +3571,10 @@ export default function MasterPlanFrameHoverStage({
         dragState.didDrag = true;
         clearHoverCooldown();
         setIsDragging(true);
+        syncSnapVisibility(displayedFrameRef.current, "dragging");
+        lastDisplayedFrameCommitTimeRef.current = 0;
+        lastDragVideoSyncFrameRef.current = null;
+        lastDragVideoSyncTimeRef.current = 0;
         stopDragLoop();
         stopMotionAnimation();
         clearHoveredApartment();
@@ -3188,25 +3583,15 @@ export default function MasterPlanFrameHoverStage({
       event.preventDefault();
       const elapsedMs = Math.max(event.timeStamp - dragState.lastTimestamp, 1);
       const rawDeltaX = event.clientX - dragState.lastClientX;
-      const maxDeltaX = DRAG_MAX_POINTER_PIXELS_PER_MS * elapsedMs;
+      const maxDeltaX = dragConfig.maxPointerPixelsPerMs * elapsedMs;
       const clampedIncrement = Math.max(
         -maxDeltaX,
         Math.min(maxDeltaX, rawDeltaX),
       );
 
-      dragState.clampedDeltaX += clampedIncrement;
+      pendingPointerDeltaXRef.current += clampedIncrement;
       dragState.lastClientX = event.clientX;
       dragState.lastTimestamp = event.timeStamp;
-
-      const rawTargetProgress = wrapProgress(
-        dragState.startProgress +
-          dragState.clampedDeltaX / (DRAG_PIXELS_PER_FRAME * TOTAL_FRAMES),
-      );
-      dragTargetProgressRef.current = clampProgressLead(
-        displayProgressRef.current,
-        rawTargetProgress,
-        DRAG_MAX_LEAD_FRAMES,
-      );
       startDragLoop();
     };
 
@@ -3217,9 +3602,12 @@ export default function MasterPlanFrameHoverStage({
         return;
       }
 
+      applyPendingDragDelta(dragState);
+
       dragStateRef.current = null;
       setIsDragging(false);
       stopDragLoop();
+      pendingPointerDeltaXRef.current = 0;
 
       if (!dragState.didDrag) {
         return;
@@ -3268,20 +3656,25 @@ export default function MasterPlanFrameHoverStage({
       window.removeEventListener("pointercancel", handlePointerEnd);
     };
   }, [
+    applyPendingDragDelta,
     animateToProgress,
     clearHoverCooldown,
     clearHoveredApartment,
+    dragConfig.maxPointerPixelsPerMs,
     dragEnabled,
     onSetFrame,
     startDragLoop,
     startHoverCooldown,
     stopDragLoop,
     stopMotionAnimation,
+    syncSnapVisibility,
   ]);
 
   useEffect(() => {
     return () => {
       clearHoverCooldown();
+      pendingPointerDeltaXRef.current = 0;
+      lastTooltipPointerRef.current = null;
       stopDragLoop();
       stopMotionAnimation();
       stopScheduledProgress();
@@ -3291,24 +3684,19 @@ export default function MasterPlanFrameHoverStage({
     };
   }, [clearHoverCooldown, stopDragLoop, stopMotionAnimation, stopScheduledProgress]);
 
+  const snapInfo = useMemo(
+    () => getNearestSnapFrameInfo(displayedFrame),
+    [displayedFrame],
+  );
   const allowHover =
     dragEnabled &&
     supportsPreciseHover &&
     !prefersReducedMotion &&
-    !isDragging &&
-    !isSettling &&
-    !isHoverCoolingDown &&
+    interactionMode === "idle" &&
     isSnapFrame(displayedFrame);
-  const showTowerMeshes = isFrameWithinSnapWindow(
-    displayedFrame,
-    TOWER_MESH_PREWARM_FRAMES,
-  ) && !isDragging && !isSettling;
-  const showApartmentMeshes =
-    !isDragging && !isSettling && !isHoverCoolingDown && isSnapFrame(displayedFrame);
   const showTrackingDebug =
     ENABLE_TRACKING_DEBUG &&
-    !isDragging &&
-    !isSettling;
+    interactionMode === "idle";
   const showVideo = isVideoReady;
   const canvasDpr: [number, number] = useMemo(
     () =>
@@ -3327,7 +3715,7 @@ export default function MasterPlanFrameHoverStage({
     ],
   );
   const stageOverscanScale = performanceProfile.isSafariLike ? 1.02 : 1;
-  const trackingFrame = getNearestSnapFrame(displayedFrame);
+  const trackingFrame = snapInfo.frame;
   const activeHotspot = useMemo(
     () => getNearestMasterPlanHotspot(trackingFrame),
     [trackingFrame],
@@ -3353,12 +3741,15 @@ export default function MasterPlanFrameHoverStage({
       : null;
   const activeHoveredApartmentId =
     allowHover ? hotspotHoveredApartmentId : null;
-  const getApartmentStatus = (apartmentId: string | null) =>
-    findInventoryApartmentInIndex(
-      apartmentIndex,
-      apartmentId,
-      selectedTower,
-    )?.status ?? null;
+  const getApartmentStatus = useCallback(
+    (apartmentId: string | null) =>
+      findInventoryApartmentInIndex(
+        apartmentIndex,
+        apartmentId,
+        selectedTower,
+      )?.status ?? null,
+    [apartmentIndex, selectedTower],
+  );
   const hoveredApartment = useMemo(
     () => formatApartmentLabel(activeHoveredApartmentId, selectedTower),
     [activeHoveredApartmentId, selectedTower],
@@ -3413,6 +3804,21 @@ export default function MasterPlanFrameHoverStage({
       if (!pointerPosition || !sectionRef.current || !tooltipRef.current) {
         return;
       }
+
+      const lastTooltipPointer = lastTooltipPointerRef.current;
+
+      if (
+        lastTooltipPointer &&
+        Math.abs(lastTooltipPointer.x - pointerPosition.x) < 2 &&
+        Math.abs(lastTooltipPointer.y - pointerPosition.y) < 2
+      ) {
+        return;
+      }
+
+      lastTooltipPointerRef.current = {
+        x: pointerPosition.x,
+        y: pointerPosition.y,
+      };
 
       const rect = sectionRef.current.getBoundingClientRect();
       const tooltipWidth = 180;
@@ -3687,21 +4093,21 @@ export default function MasterPlanFrameHoverStage({
     }
 
     if (
-      !isDragging &&
-      !isSettling &&
+      interactionMode === "idle" &&
       (showTowerMeshes || allowHover || showTrackingDebug)
     ) {
-      invalidateCanvas();
+      maybeInvalidateCanvas(
+        `${trackingFrame}:${Number(showTowerMeshes)}:${Number(allowHover)}:${Number(showTrackingDebug)}:effect`,
+      );
     }
   }, [
     allowHover,
-    currentFrame,
-    invalidateCanvas,
-    isDragging,
-    isSettling,
+    interactionMode,
+    maybeInvalidateCanvas,
     showTowerMeshes,
     showTrackingDebug,
     syncVideoTime,
+    trackingFrame,
   ]);
 
   return (
@@ -3715,7 +4121,7 @@ export default function MasterPlanFrameHoverStage({
         }`}
         style={{
           backgroundImage:
-            "url('https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774907276/buildings.png')",
+            "url('https://cdn.sthyra.com/images/first_frame.webp')",
         }}
       />
 
@@ -3742,6 +4148,15 @@ export default function MasterPlanFrameHoverStage({
               className={`pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-200 ${
                 showVideo ? "opacity-100" : "opacity-0"
               }`}
+              onLoadedMetadata={(event) => {
+                const nextAspect =
+                  event.currentTarget.videoWidth > 0 &&
+                  event.currentTarget.videoHeight > 0
+                    ? event.currentTarget.videoWidth / event.currentTarget.videoHeight
+                    : TRACKING_VIDEO_ASPECT;
+
+                setVideoAspect(nextAspect);
+              }}
               muted
               playsInline
               preload={performanceProfile.scrubVideoPreload}
@@ -3765,6 +4180,9 @@ export default function MasterPlanFrameHoverStage({
                 clearHoverCooldown();
                 stopMotionAnimation();
                 stopDragLoop();
+                pendingPointerDeltaXRef.current = 0;
+                lastDragVideoSyncFrameRef.current = null;
+                lastDragVideoSyncTimeRef.current = 0;
                 syncVideoTime(videoRef.current, displayProgressRef.current, {
                   force: true,
                 });
@@ -3817,6 +4235,7 @@ export default function MasterPlanFrameHoverStage({
               }}
               onPointerCancel={() => {
                 dragStateRef.current = null;
+                pendingPointerDeltaXRef.current = 0;
                 setIsDragging(false);
                 stopDragLoop();
                 stopMotionAnimation();
@@ -3850,6 +4269,7 @@ export default function MasterPlanFrameHoverStage({
                     <AdaptiveDpr />
                     <TowerScene
                       apartments={apartments}
+                      interactionMode={interactionMode}
                       currentFrame={trackingFrame}
                       filteredApartments={filteredApartments}
                       getApartmentStatus={getApartmentStatus}
@@ -3866,6 +4286,7 @@ export default function MasterPlanFrameHoverStage({
                       showApartmentMeshes={showApartmentMeshes}
                       showTowerMeshes={showTowerMeshes}
                       showTrackingDebug={showTrackingDebug}
+                      trackingVideoAspect={normalizedVideoAspect}
                     />
                   </Suspense>
                 </Canvas>
