@@ -5,7 +5,7 @@ export default function MasterPlanLoading() {
         className="absolute inset-0 bg-cover bg-center"
         style={{
           backgroundImage:
-            "url('https://cdn.sthyra.com/images/first_frame_new.webp')",
+            "url('https://cdn.sthyra.com/images/first_frame_again.png')",
         }}
       />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.14),rgba(0,0,0,0.30))]" />

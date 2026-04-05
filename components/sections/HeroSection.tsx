@@ -233,7 +233,7 @@ export default function HeroSection() {
         className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${
           videoReady ? "opacity-0" : "opacity-100"
         }`}
-        style={{ backgroundImage: "url('https://cdn.sthyra.com/images/first_frame_new.webp')" }}
+        style={{ backgroundImage: "url('https://cdn.sthyra.com/images/first_frame_again.png')" }}
       />
 
       <video
