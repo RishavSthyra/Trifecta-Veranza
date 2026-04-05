@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image, { type StaticImageData } from "next/image";
-import { CheckCircle2, ChevronRight } from "lucide-react";
+import { CheckCircle2, ChevronRight, X } from "lucide-react";
 import towerimg from "@/assets/Tower.avif";
 import type { TowerType } from "@/types/inventory";
 
@@ -12,6 +12,7 @@ type TowerSelectProps = {
   selectedTower?: TowerType | null;
   onSelectTower?: (tower: TowerType) => void;
   onTopViewClick?: () => void;
+  onClose?: () => void;
   embedded?: boolean;
   isTopViewActive?: boolean;
   mobile?: boolean;
@@ -58,6 +59,7 @@ const towerCards: Array<{
 function TowerSelectPanel({
   isTopViewActive: _isTopViewActive = false,
   onTopViewClick: _onTopViewClick,
+  onClose,
   selectedTower,
   onSelectTower,
   mobile = false,
@@ -65,6 +67,7 @@ function TowerSelectPanel({
 }: {
   isTopViewActive?: boolean;
   onTopViewClick?: () => void;
+  onClose?: () => void;
   selectedTower: TowerType | null;
   onSelectTower: (tower: TowerType) => void;
   mobile?: boolean;
@@ -199,6 +202,17 @@ function TowerSelectPanel({
               </p>
             </div>
 
+            {onClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/45 bg-[linear-gradient(145deg,rgba(255,255,255,0.82),rgba(255,255,255,0.52))] text-zinc-700 shadow-[0_18px_38px_rgba(15,23,42,0.12)] backdrop-blur-xl transition hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.92),rgba(255,255,255,0.66))] hover:text-zinc-900"
+                aria-label="Close tower selection panel"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
+            ) : null}
+
             {/* {onTopViewClick ? (
               <button
                 type="button"
@@ -322,6 +336,7 @@ export default function TowerSelect({
   selectedTower,
   onSelectTower,
   onTopViewClick,
+  onClose,
   embedded = false,
   isTopViewActive = false,
   mobile = false,
@@ -367,6 +382,7 @@ export default function TowerSelect({
       <TowerSelectPanel
         isTopViewActive={isTopViewActive}
         onTopViewClick={onTopViewClick}
+        onClose={onClose}
         compactDesktop={shouldUseCompactDesktop}
         mobile={mobile}
         selectedTower={activeTower}
@@ -385,6 +401,7 @@ export default function TowerSelect({
           <TowerSelectPanel
             isTopViewActive={isTopViewActive}
             onTopViewClick={onTopViewClick}
+            onClose={onClose}
             compactDesktop={shouldUseCompactDesktop}
             mobile={mobile}
             selectedTower={activeTower}

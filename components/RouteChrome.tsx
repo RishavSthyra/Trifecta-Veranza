@@ -1,8 +1,8 @@
 "use client";
 
-import { User } from "lucide-react";
+import { Download, Phone, User } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BiHome } from "react-icons/bi";
 import { IoMapOutline } from "react-icons/io5";
 import { PiMapPinAreaFill } from "react-icons/pi";
@@ -22,40 +22,14 @@ function shouldUseMergedChrome() {
   );
 }
 
-const dockItems = [
-  {
-    title: "Home",
-    icon: <BiHome className="h-full w-full text-neutral-100" />,
-    href: "/",
-  },
-  {
-    title: "Project Overview",
-    icon: <User className="h-full w-full text-neutral-100" />,
-    href: "/project-overview",
-  },
-  {
-    title: "Master Plan",
-    icon: <PiMapPinAreaFill className="h-full w-full text-neutral-100" />,
-    href: "/master-plan",
-  },
-  {
-    title: "Map",
-    icon: <IoMapOutline className="h-full w-full text-neutral-100" />,
-    href: "/area-map",
-  },
-  {
-    title: "Walkthrough",
-    icon: <Footprints className="h-full w-full text-neutral-100" />,
-    href: "/exterior-walkthrough",
-  },
-];
-
 export default function RouteChrome() {
   const pathname = usePathname();
   const [isMasterPlanFlatOpen, setIsMasterPlanFlatOpen] = useState(false);
   const [shouldMergeDockIntoCta, setShouldMergeDockIntoCta] = useState(
     shouldUseMergedChrome,
   );
+  const [shouldAddCompactDesktopCtasToDock, setShouldAddCompactDesktopCtasToDock] =
+    useState(false);
   const isAdminRoute = pathname.startsWith("/admin");
   const isExteriorWalkthroughRoute =
     pathname === "/exterios-walkthrough" ||
@@ -68,7 +42,9 @@ export default function RouteChrome() {
   const shouldHideDock =
     isDocklessRoute ||
     shouldMergeLinksForRoute ||
-    (pathname === "/master-plan" && isMasterPlanFlatOpen);
+    (pathname === "/master-plan" &&
+      isMasterPlanFlatOpen &&
+      !shouldAddCompactDesktopCtasToDock);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -97,6 +73,93 @@ export default function RouteChrome() {
       anyTouchViewportMedia.removeEventListener("change", syncTouchViewport);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const compactDesktopMedia = window.matchMedia(
+      "(min-width: 1280px) and (max-width: 1699px)",
+    );
+    const finePointerMedia = window.matchMedia("(pointer: fine)");
+    const coarsePointerMedia = window.matchMedia("(pointer: coarse)");
+    const anyCoarsePointerMedia = window.matchMedia("(any-pointer: coarse)");
+
+    const syncCompactDesktopCtas = () => {
+      setShouldAddCompactDesktopCtasToDock(
+        pathname === "/master-plan" &&
+          compactDesktopMedia.matches &&
+          finePointerMedia.matches &&
+          !coarsePointerMedia.matches &&
+          !anyCoarsePointerMedia.matches,
+      );
+    };
+
+    syncCompactDesktopCtas();
+    compactDesktopMedia.addEventListener("change", syncCompactDesktopCtas);
+    finePointerMedia.addEventListener("change", syncCompactDesktopCtas);
+    coarsePointerMedia.addEventListener("change", syncCompactDesktopCtas);
+    anyCoarsePointerMedia.addEventListener("change", syncCompactDesktopCtas);
+
+    return () => {
+      compactDesktopMedia.removeEventListener("change", syncCompactDesktopCtas);
+      finePointerMedia.removeEventListener("change", syncCompactDesktopCtas);
+      coarsePointerMedia.removeEventListener("change", syncCompactDesktopCtas);
+      anyCoarsePointerMedia.removeEventListener(
+        "change",
+        syncCompactDesktopCtas,
+      );
+    };
+  }, [pathname]);
+
+  const dockItems = useMemo(() => {
+    const baseItems = [
+      {
+        title: "Home",
+        icon: <BiHome className="h-full w-full text-neutral-100" />,
+        href: "/",
+      },
+      {
+        title: "Project Overview",
+        icon: <User className="h-full w-full text-neutral-100" />,
+        href: "/project-overview",
+      },
+      {
+        title: "Master Plan",
+        icon: <PiMapPinAreaFill className="h-full w-full text-neutral-100" />,
+        href: "/master-plan",
+      },
+      {
+        title: "Map",
+        icon: <IoMapOutline className="h-full w-full text-neutral-100" />,
+        href: "/area-map",
+      },
+      {
+        title: "Walkthrough",
+        icon: <Footprints className="h-full w-full text-neutral-100" />,
+        href: "/exterior-walkthrough",
+      },
+    ];
+
+    if (!shouldAddCompactDesktopCtasToDock) {
+      return baseItems;
+    }
+
+    return [
+      {
+        title: "Call",
+        icon: <Phone className="h-full w-full text-neutral-100" />,
+        href: "tel:+91-8088004411",
+      },
+      {
+        title: "Brochure",
+        icon: <Download className="h-full w-full text-neutral-100" />,
+        href: "/Veranza Floorplan_ E-Brochure_V3_02-03-26 (2).pdf",
+      },
+      ...baseItems,
+    ];
+  }, [shouldAddCompactDesktopCtasToDock]);
 
   useEffect(() => {
     if (pathname !== "/master-plan" || typeof document === "undefined") {

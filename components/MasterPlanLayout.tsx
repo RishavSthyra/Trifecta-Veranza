@@ -1345,7 +1345,13 @@ export default function MasterPlanLayout({
       !isTopViewMode &&
       !isLeaving &&
       !isSpecialVideoOpen ? (
-        <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-4 sm:top-28 md:top-30">
+        <div
+          className={`pointer-events-none absolute inset-x-0 z-40 flex justify-center px-4 ${
+            isDesktopCompactViewport
+              ? "top-8"
+              : "top-24 sm:top-28 md:top-30"
+          }`}
+        >
           <MasterPlanHotspotControls
             onPrevious={() => goToHotspot(-1)}
             onNext={() => goToHotspot(1)}
@@ -1354,7 +1360,13 @@ export default function MasterPlanLayout({
       ) : null}
 
       {shouldShowTopViewFullscreen ? (
-        <div className="pointer-events-none absolute inset-x-0 top-24 z-40 flex justify-center px-4 sm:top-28 md:top-30">
+        <div
+          className={`pointer-events-none absolute inset-x-0 z-40 flex justify-center px-4 ${
+            isDesktopCompactViewport
+              ? "top-8"
+              : "top-24 sm:top-28 md:top-30"
+          }`}
+        >
           <MasterPlanModeToggle
             isTopViewMode
             onNormalView={handleNormalViewToggle}
@@ -1584,13 +1596,21 @@ export default function MasterPlanLayout({
                 animate={{ opacity: 1, x: 0, y: 0 }}
                 exit={{ opacity: 0, x: 24, y: 12 }}
                 transition={{ duration: 0.26, ease: smoothEase }}
-                className="pointer-events-none absolute right-6 top-1/2 z-40 w-full max-w-[26rem] -translate-y-1/2 2xl:right-10"
+                className="pointer-events-none absolute right-6 top-1/2 z-40 w-full max-w-[26rem] -translate-y-1/2 overflow-visible 2xl:right-10"
               >
+                <button
+                  type="button"
+                  onClick={clearSelectedApartment}
+                  className="pointer-events-auto absolute left-0 top-10 z-30 hidden h-16 w-14 -translate-x-[88%] items-center justify-center rounded-l-[1.45rem] rounded-r-[0.5rem] border border-white/38 bg-[linear-gradient(145deg,rgba(255,255,255,0.58),rgba(255,255,255,0.18))] text-zinc-900 shadow-[0_22px_48px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.72),rgba(255,255,255,0.28))] xl:inline-flex"
+                  aria-label="Close flat details panel"
+                >
+                  <ArrowRight className="h-5 w-5" />
+                </button>
                 <SelectedFlatDetailsPanel
                   ref={selectedFlatPanelRef}
                   apartment={selectedApartment}
                   compact
-                  showBackButton
+                  hideCloseButton
                   onClose={clearSelectedApartment}
                 />
               </motion.div>
@@ -1607,13 +1627,10 @@ export default function MasterPlanLayout({
                 exit={{ opacity: 0, x: 16 }}
                 transition={{ duration: 0.24, ease: smoothEase }}
                 onClick={() => setIsDesktopSidebarOpen(true)}
-                className="pointer-events-auto absolute right-4 top-1/2 z-40 hidden -translate-y-1/2 items-center gap-2 rounded-l-full rounded-r-[1.25rem] border border-white/70 bg-white/88 px-3 py-4 text-sm font-medium text-zinc-900 shadow-[0_18px_42px_rgba(15,23,42,0.18)] backdrop-blur-2xl xl:inline-flex"
+                className="pointer-events-auto absolute right-0 top-12 z-40 hidden h-16 w-14 translate-x-[22%] items-center justify-center rounded-l-[1.45rem] rounded-r-[0.5rem] border border-white/40 bg-[linear-gradient(145deg,rgba(255,255,255,0.58),rgba(255,255,255,0.2))] text-zinc-900 shadow-[0_22px_48px_rgba(15,23,42,0.2)] backdrop-blur-2xl transition hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.72),rgba(255,255,255,0.28))] xl:inline-flex"
                 aria-label="Open master plan panel"
               >
-                <ArrowLeft className="h-4 w-4" />
-                <span className="hidden min-[1440px]:inline">
-                  {selectedTower ? "Flats" : "Towers"}
-                </span>
+                <ArrowLeft className="h-5 w-5" />
               </motion.button>
             ) : null}
           </AnimatePresence>
@@ -1626,7 +1643,7 @@ export default function MasterPlanLayout({
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className="pointer-events-auto gpu-layer min-w-0 hidden xl:col-start-2 xl:block xl:h-full"
+                className="pointer-events-auto gpu-layer min-w-0 hidden overflow-visible xl:col-start-2 xl:block xl:h-full"
               >
                 <div
                   className={`custom-scrollbar sticky ml-auto min-h-0 w-full overflow-visible pr-1 [overflow-anchor:none] ${
@@ -1646,24 +1663,6 @@ export default function MasterPlanLayout({
                   }}
                 >
                   <div className="relative flex h-full min-h-0 flex-col gap-6 overflow-y-auto overscroll-contain">
-                    <button
-                      type="button"
-                      onClick={() => setIsDesktopSidebarOpen(false)}
-                      className="absolute left-0 top-1/2 z-30 hidden -translate-x-full -translate-y-1/2 items-center rounded-l-full border border-white/70 bg-white/84 px-2.5 py-5 text-zinc-700 shadow-[0_16px_40px_rgba(15,23,42,0.16)] backdrop-blur-xl transition hover:bg-white xl:inline-flex"
-                      aria-label="Close master plan panel"
-                    >
-                      <ArrowRight className="h-5 w-5" />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setIsDesktopSidebarOpen(false)}
-                      className="absolute right-3 top-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200/80 bg-white/88 text-zinc-500 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition hover:bg-white hover:text-zinc-900"
-                      aria-label="Close master plan panel"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-
                     {selectedTower ? (
                       <>
                         <MasterPlanFiltersCard
@@ -1678,6 +1677,7 @@ export default function MasterPlanLayout({
                           onStatusChange={setStatus}
                           minArea={minArea}
                           onMinAreaChange={setMinArea}
+                          onClosePanel={() => setIsDesktopSidebarOpen(false)}
                           onReset={resetFilters}
                           onBack={handleBackToTowerSelect}
                         />
@@ -1695,6 +1695,7 @@ export default function MasterPlanLayout({
                         compactDesktop={isDesktopCompactViewport}
                         embedded
                         isTopViewActive={isTopViewMode}
+                        onClose={() => setIsDesktopSidebarOpen(false)}
                         onTopViewClick={handleTopViewToggle}
                         selectedTower={selectedTower}
                         onSelectTower={handleTowerSelect}
@@ -1923,6 +1924,7 @@ function MasterPlanFiltersCard({
   onStatusChange,
   minArea,
   onMinAreaChange,
+  onClosePanel,
   onReset,
   onBack,
   compact = false,
@@ -1938,6 +1940,7 @@ function MasterPlanFiltersCard({
   onStatusChange: (value: (typeof statusOptions)[number]) => void;
   minArea: number;
   onMinAreaChange: (value: number) => void;
+  onClosePanel?: () => void;
   onReset: () => void;
   onBack: () => void;
   compact?: boolean;
@@ -2121,10 +2124,10 @@ function MasterPlanFiltersCard({
 
           <button
             type="button"
-            onClick={onReset}
+            onClick={onClosePanel ?? onReset}
             className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 cursor-pointer text-xs font-medium text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
           >
-            Reset
+            {onClosePanel ? "Close" : "Reset"}
           </button>
         </div>
       </div>

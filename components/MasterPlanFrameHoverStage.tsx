@@ -552,17 +552,32 @@ function getMasterPlanPerformanceProfile(): MasterPlanPerformanceProfile {
 
   return {
     canvasPerformance: {
-      debounce: tier === "low" ? 220 : isSafariLike ? 140 : 180,
-      min: tier === "low" ? 0.28 : isSafariLike ? 0.38 : 0.35,
+      debounce: isSafariLike ? (tier === "low" ? 260 : 180) : tier === "low" ? 220 : 180,
+      min: isSafariLike ? (tier === "low" ? 0.18 : 0.24) : tier === "low" ? 0.28 : 0.35,
     },
     isConstrained: true,
     isSafariLike,
-    scrubVideoPreload: isSafariLike ? "auto" : "metadata",
+    scrubVideoPreload: "metadata",
     tier,
   };
 }
 
-function getDragVideoSyncIntervalMs(tier: MasterPlanPerformanceTier) {
+function getDragVideoSyncIntervalMs(
+  tier: MasterPlanPerformanceTier,
+  isSafariLike: boolean,
+) {
+  if (isSafariLike) {
+    if (tier === "low") {
+      return 90;
+    }
+
+    if (tier === "constrained") {
+      return 72;
+    }
+
+    return 56;
+  }
+
   if (tier === "low") {
     return DRAG_VIDEO_SYNC_MS_LOW;
   }
@@ -574,7 +589,22 @@ function getDragVideoSyncIntervalMs(tier: MasterPlanPerformanceTier) {
   return DRAG_VIDEO_SYNC_MS_STANDARD;
 }
 
-function getDragVideoFrameSkip(tier: MasterPlanPerformanceTier) {
+function getDragVideoFrameSkip(
+  tier: MasterPlanPerformanceTier,
+  isSafariLike: boolean,
+) {
+  if (isSafariLike) {
+    if (tier === "low") {
+      return 6;
+    }
+
+    if (tier === "constrained") {
+      return 5;
+    }
+
+    return 4;
+  }
+
   if (tier === "low") {
     return DRAG_VIDEO_FRAME_SKIP_LOW;
   }
@@ -670,14 +700,14 @@ function getCanvasDprRange(
 ): [number, number] {
   if (isSafariLike) {
     if (isDragging) {
-      return [0.42, 0.66];
+      return [0.2, 0.32];
     }
 
     if (isSettling) {
-      return [0.52, 0.78];
+      return [0.28, 0.42];
     }
 
-    return supportsPreciseHover ? [0.72, 1.05] : [0.58, 0.9];
+    return supportsPreciseHover ? [0.42, 0.62] : [0.36, 0.52];
   }
 
   if (tier === "low") {
@@ -2854,25 +2884,38 @@ export default function MasterPlanFrameHoverStage({
     [performanceProfile.tier],
   );
   const dragVideoSyncIntervalMs = useMemo(
-    () => getDragVideoSyncIntervalMs(performanceProfile.tier),
-    [performanceProfile.tier],
+    () =>
+      getDragVideoSyncIntervalMs(
+        performanceProfile.tier,
+        performanceProfile.isSafariLike,
+      ),
+    [performanceProfile.isSafariLike, performanceProfile.tier],
   );
   const dragVideoFrameSkip = useMemo(
-    () => getDragVideoFrameSkip(performanceProfile.tier),
-    [performanceProfile.tier],
+    () =>
+      getDragVideoFrameSkip(
+        performanceProfile.tier,
+        performanceProfile.isSafariLike,
+      ),
+    [performanceProfile.isSafariLike, performanceProfile.tier],
   );
   const displayedFrameCommitIntervalMs = useMemo(
     () => getDisplayedFrameCommitIntervalMs(performanceProfile.tier),
     [performanceProfile.tier],
   );
   const scrubVideoPath = useMemo(
-    () =>
-      getScrubVideoPath(performanceProfile.tier, {
+    () => {
+      if (performanceProfile.isSafariLike) {
+        return MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH;
+      }
+
+      return getScrubVideoPath(performanceProfile.tier, {
         high: MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
         low: MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH,
         medium: MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH,
-      }),
-    [performanceProfile.tier],
+      });
+    },
+    [performanceProfile.isSafariLike, performanceProfile.tier],
   );
   const interactionMode: InteractionMode = isDragging
     ? "dragging"
@@ -2881,6 +2924,26 @@ export default function MasterPlanFrameHoverStage({
       : isHoverCoolingDown
         ? "cooldown"
         : "idle";
+  const shouldRenderCanvas =
+    !isDragging &&
+    (!performanceProfile.isSafariLike || !isSettling);
+  const mediaTransform = useMemo(() => {
+    if (
+      performanceProfile.isSafariLike &&
+      Math.abs(viewportTransform.scale - 1) < 0.001 &&
+      Math.abs(viewportTransform.x) < 0.5 &&
+      Math.abs(viewportTransform.y) < 0.5
+    ) {
+      return undefined;
+    }
+
+    return `translate3d(${viewportTransform.x}px, ${viewportTransform.y}px, 0) scale(${viewportTransform.scale})`;
+  }, [
+    performanceProfile.isSafariLike,
+    viewportTransform.scale,
+    viewportTransform.x,
+    viewportTransform.y,
+  ]);
   const invalidateCanvas = useCallback(() => {
     canvasInvalidateRef.current?.();
   }, []);
@@ -3110,6 +3173,13 @@ export default function MasterPlanFrameHoverStage({
         Math.abs(video.currentTime - targetTime) >
         VIDEO_SYNC_THRESHOLD_SECONDS
       ) {
+        if (performanceProfile.isSafariLike) {
+          lastDragVideoSyncTimeRef.current = now;
+          lastDragVideoSyncFrameRef.current = targetFrame;
+          video.currentTime = targetTime;
+          return;
+        }
+
         if (
           !dragStateRef.current &&
           !performanceProfile.isSafariLike &&
@@ -3727,7 +3797,6 @@ export default function MasterPlanFrameHoverStage({
       supportsPreciseHover,
     ],
   );
-  const stageOverscanScale = 1;
   const trackingFrame = snapInfo.frame;
   const activeHotspot = useMemo(
     () => getNearestMasterPlanHotspot(trackingFrame),
@@ -4149,9 +4218,9 @@ export default function MasterPlanFrameHoverStage({
           }}
         >
           <div
-            className="absolute inset-0 will-change-transform"
+          className="absolute inset-0 will-change-transform"
             style={{
-              transform: `translate3d(${viewportTransform.x}px, ${viewportTransform.y}px, 0) scale(${viewportTransform.scale * stageOverscanScale})`,
+              transform: mediaTransform,
               transformOrigin: "center center",
             }}
           >
@@ -4265,10 +4334,10 @@ export default function MasterPlanFrameHoverStage({
                       : "cursor-[grab] active:cursor-[grabbing]"
               }`}
             >
-              {!isDragging ? (
+              {shouldRenderCanvas ? (
                 <Canvas
                   dpr={canvasDpr}
-                  frameloop="demand"
+                  frameloop={performanceProfile.isSafariLike ? "always" : "demand"}
                   performance={performanceProfile.canvasPerformance}
                   gl={{
                     alpha: true,
@@ -4279,7 +4348,7 @@ export default function MasterPlanFrameHoverStage({
                   }}
                 >
                   <Suspense fallback={<LoadingState />}>
-                    <AdaptiveDpr />
+                    {!performanceProfile.isSafariLike ? <AdaptiveDpr /> : null}
                     <TowerScene
                       apartments={apartments}
                       interactionMode={interactionMode}
