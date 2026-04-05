@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image, { type StaticImageData } from "next/image";
-import { CheckCircle2, ChevronRight, Layers3 } from "lucide-react";
+import { CheckCircle2, ChevronRight } from "lucide-react";
 import towerimg from "@/assets/Tower.avif";
 import type { TowerType } from "@/types/inventory";
 
@@ -15,6 +15,7 @@ type TowerSelectProps = {
   embedded?: boolean;
   isTopViewActive?: boolean;
   mobile?: boolean;
+  compactDesktop?: boolean;
 };
 
 const towerCards: Array<{
@@ -55,18 +56,23 @@ const towerCards: Array<{
 ];
 
 function TowerSelectPanel({
-  isTopViewActive = false,
-  onTopViewClick,
+  isTopViewActive: _isTopViewActive = false,
+  onTopViewClick: _onTopViewClick,
   selectedTower,
   onSelectTower,
   mobile = false,
+  compactDesktop = false,
 }: {
   isTopViewActive?: boolean;
   onTopViewClick?: () => void;
   selectedTower: TowerType | null;
   onSelectTower: (tower: TowerType) => void;
   mobile?: boolean;
+  compactDesktop?: boolean;
 }) {
+  void _isTopViewActive;
+  void _onTopViewClick;
+
   if (mobile) {
     return (
       <aside className="w-full">
@@ -150,22 +156,44 @@ function TowerSelectPanel({
 
   return (
     <aside className="w-full">
-      <div className="relative overflow-hidden rounded-[30px] border border-white/35 bg-white/18 p-3 shadow-[0_24px_80px_rgba(15,23,42,0.16)] backdrop-blur-[22px] xl:p-3.5 2xl:rounded-[34px] 2xl:p-4">
+      <div
+        className={`relative overflow-hidden border border-white/35 bg-white/18 shadow-[0_24px_80px_rgba(15,23,42,0.16)] backdrop-blur-[22px] ${
+          compactDesktop
+            ? "rounded-[26px] p-2.5"
+            : "rounded-[30px] p-3 xl:p-3.5 2xl:rounded-[34px] 2xl:p-4"
+        }`}
+      >
         <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/35 via-white/10 to-transparent" />
         <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-white/80" />
         <div className="pointer-events-none absolute -right-20 top-8 h-36 w-36 rounded-full bg-cyan-200/30 blur-3xl" />
         <div className="pointer-events-none absolute -left-16 bottom-4 h-32 w-32 rounded-full bg-violet-200/25 blur-3xl" />
 
-        <div className="relative mb-4 px-2 pt-1 xl:mb-4 2xl:mb-5">
+        <div
+          className={`relative px-2 pt-1 ${
+            compactDesktop ? "mb-3" : "mb-4 xl:mb-4 2xl:mb-5"
+          }`}
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-zinc-500/90">
                 Master Plan
               </p>
-              <h2 className="mt-2 text-[1.42rem] font-semibold tracking-[-0.03em] text-zinc-950 xl:text-[1.5rem] 2xl:text-[1.8rem]">
+              <h2
+                className={`mt-2 font-semibold tracking-[-0.03em] text-zinc-950 ${
+                  compactDesktop
+                    ? "text-[1.2rem]"
+                    : "text-[1.42rem] xl:text-[1.5rem] 2xl:text-[1.8rem]"
+                }`}
+              >
                 Choose Your Tower
               </h2>
-              <p className="mt-1.5 max-w-[24rem] text-[13px] leading-5 text-zinc-600 2xl:max-w-[28rem] 2xl:text-sm 2xl:leading-6">
+              <p
+                className={`mt-1.5 text-zinc-600 ${
+                  compactDesktop
+                    ? "max-w-[18rem] text-[12px] leading-[1.35rem]"
+                    : "max-w-[24rem] text-[13px] leading-5 2xl:max-w-[28rem] 2xl:text-sm 2xl:leading-6"
+                }`}
+              >
                 Start with the tower, then we will open the matching inventory
                 filters.
               </p>
@@ -188,7 +216,7 @@ function TowerSelectPanel({
           </div>
         </div>
 
-        <div className="space-y-4 xl:space-y-4 2xl:space-y-6">
+        <div className={compactDesktop ? "space-y-3" : "space-y-4 xl:space-y-4 2xl:space-y-6"}>
           {towerCards.map((towerCard) => {
             const isActive = selectedTower === towerCard.value;
 
@@ -199,11 +227,11 @@ function TowerSelectPanel({
                 <button
                   type="button"
                   onClick={() => onSelectTower(towerCard.value)}
-                  className={`group relative w-full cursor-pointer overflow-hidden rounded-[30px] border text-left shadow-[0_18px_55px_rgba(15,23,42,0.10)] backdrop-blur-xl transition duration-300 ${
+                  className={`group relative w-full cursor-pointer overflow-hidden border text-left shadow-[0_18px_55px_rgba(15,23,42,0.10)] backdrop-blur-xl transition duration-300 ${
                     isActive
                       ? `${towerCard.accent} bg-white shadow-[0_24px_70px_rgba(15,23,42,0.14)]`
                       : `${towerCard.accentMuted} bg-white`
-                  }`}
+                  } ${compactDesktop ? "rounded-[24px]" : "rounded-[30px]"}`}
                 >
                   <div className="pointer-events-none absolute inset-0 bg-white to-transparent opacity-90" />
                   <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-white/90" />
@@ -215,8 +243,20 @@ function TowerSelectPanel({
                     }`}
                   />
 
-                  <div className="grid min-h-[142px] grid-cols-[48%_52%] xl:min-h-[150px] 2xl:min-h-[178px] 2xl:grid-cols-[48%_52%]">
-                    <div className="relative min-h-[138px] overflow-hidden rounded-l-[30px] bg-white to-transparent xl:min-h-[146px] 2xl:min-h-[172px]">
+                  <div
+                    className={`grid grid-cols-[48%_52%] ${
+                      compactDesktop
+                        ? "min-h-[124px]"
+                        : "min-h-[142px] xl:min-h-[150px] 2xl:min-h-[178px] 2xl:grid-cols-[48%_52%]"
+                    }`}
+                  >
+                    <div
+                      className={`relative overflow-hidden bg-white to-transparent ${
+                        compactDesktop
+                          ? "min-h-[120px] rounded-l-[24px]"
+                          : "min-h-[138px] rounded-l-[30px] xl:min-h-[146px] 2xl:min-h-[172px]"
+                      }`}
+                    >
                       <Image
                         src={towerCard.image}
                         alt={towerCard.imageAlt}
@@ -228,9 +268,21 @@ function TowerSelectPanel({
                       />
                     </div>
 
-                    <div className="relative flex min-w-0 flex-col justify-center px-4 py-4 xl:px-4.5 2xl:px-6 2xl:py-5">
-                      <div className="max-w-[240px] 2xl:max-w-[280px]">
-                        <h3 className="text-[1.52rem] font-medium tracking-[-0.03em] text-zinc-950 xl:text-[1.6rem] 2xl:text-[2rem] 2xl:leading-[1.02]">
+                    <div
+                      className={`relative flex min-w-0 flex-col justify-center ${
+                        compactDesktop
+                          ? "px-3 py-3"
+                          : "px-4 py-4 xl:px-4.5 2xl:px-6 2xl:py-5"
+                      }`}
+                    >
+                      <div className={compactDesktop ? "max-w-[186px]" : "max-w-[240px] 2xl:max-w-[280px]"}>
+                        <h3
+                          className={`font-medium tracking-[-0.03em] text-zinc-950 ${
+                            compactDesktop
+                              ? "text-[1.22rem]"
+                              : "text-[1.52rem] xl:text-[1.6rem] 2xl:text-[2rem] 2xl:leading-[1.02]"
+                          }`}
+                        >
                           {towerCard.value}
                         </h3>
 
@@ -238,7 +290,13 @@ function TowerSelectPanel({
                           {towerCard.description}
                         </p> */}
 
-                        <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-400 transition group-hover:text-zinc-500 2xl:mt-7 2xl:text-[11px]">
+                        <p
+                          className={`font-semibold uppercase tracking-[0.24em] text-zinc-400 transition group-hover:text-zinc-500 ${
+                            compactDesktop
+                              ? "mt-3 text-[9px]"
+                              : "mt-5 text-[10px] 2xl:mt-7 2xl:text-[11px]"
+                          }`}
+                        >
                           Tap to explore tower
                         </p>
                       </div>
@@ -247,7 +305,7 @@ function TowerSelectPanel({
 
                   {isActive ? (
                     <CheckCircle2
-                      className={`absolute right-4 top-4 h-5 w-5 ${towerCard.accentCheck}`}
+                      className={`absolute ${compactDesktop ? "right-3 top-3 h-4.5 w-4.5" : "right-4 top-4 h-5 w-5"} ${towerCard.accentCheck}`}
                     />
                   ) : null}
                 </button>
@@ -267,12 +325,35 @@ export default function TowerSelect({
   embedded = false,
   isTopViewActive = false,
   mobile = false,
+  compactDesktop = false,
 }: TowerSelectProps) {
   const [internalSelectedTower, setInternalSelectedTower] =
     useState<TowerType | null>(null);
+  const [autoCompactDesktop, setAutoCompactDesktop] = useState(false);
 
   const isControlled = selectedTower !== undefined;
   const activeTower = isControlled ? selectedTower : internalSelectedTower;
+  const shouldUseCompactDesktop = compactDesktop || autoCompactDesktop;
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const compactDesktopMedia = window.matchMedia(
+      "(min-width: 1280px) and (max-width: 1699px)",
+    );
+    const syncCompactDesktop = () => {
+      setAutoCompactDesktop(compactDesktopMedia.matches);
+    };
+
+    syncCompactDesktop();
+    compactDesktopMedia.addEventListener("change", syncCompactDesktop);
+
+    return () => {
+      compactDesktopMedia.removeEventListener("change", syncCompactDesktop);
+    };
+  }, []);
 
   const handleSelectTower = (tower: TowerType) => {
     if (!isControlled) {
@@ -286,6 +367,7 @@ export default function TowerSelect({
       <TowerSelectPanel
         isTopViewActive={isTopViewActive}
         onTopViewClick={onTopViewClick}
+        compactDesktop={shouldUseCompactDesktop}
         mobile={mobile}
         selectedTower={activeTower}
         onSelectTower={handleSelectTower}
@@ -295,11 +377,15 @@ export default function TowerSelect({
 
   return (
     <div className="relative min-h-dvh w-full overflow-hidden bg-[#f5f7fb] text-zinc-900">
-      <div className="relative z-10 w-full px-4 py-6 md:px-6 lg:px-8">
+      <div
+        className="relative z-10 w-full px-4 py-6 md:px-6 lg:px-8"
+        style={{ paddingTop: "max(env(safe-area-inset-top), 1.5rem)" }}
+      >
         <div className="ml-auto w-full max-w-[420px]">
           <TowerSelectPanel
             isTopViewActive={isTopViewActive}
             onTopViewClick={onTopViewClick}
+            compactDesktop={shouldUseCompactDesktop}
             mobile={mobile}
             selectedTower={activeTower}
             onSelectTower={handleSelectTower}

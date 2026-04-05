@@ -35,6 +35,19 @@ function shouldBottomDockCta() {
   );
 }
 
+function shouldHideMasterPlanCompactDesktopRail(pathname: string | null) {
+  if (typeof window === "undefined" || pathname !== "/master-plan") {
+    return false;
+  }
+
+  return (
+    window.matchMedia("(min-width: 1280px) and (max-width: 1699px)").matches &&
+    window.matchMedia("(pointer: fine)").matches &&
+    !window.matchMedia("(pointer: coarse)").matches &&
+    !window.matchMedia("(any-pointer: coarse)").matches
+  );
+}
+
 const spring: Transition = {
   type: "spring",
   stiffness: 280,
@@ -50,6 +63,8 @@ export default function UpperLayoutCTA({
   const [shouldDockAtBottom, setShouldDockAtBottom] = useState(
     shouldBottomDockCta,
   );
+  const [shouldHideCompactDesktopRail, setShouldHideCompactDesktopRail] =
+    useState(() => shouldHideMasterPlanCompactDesktopRail(pathname));
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const scrollerDragRef = useRef<{
     dragging: boolean;
@@ -90,6 +105,45 @@ export default function UpperLayoutCTA({
       anyTouchViewportMedia.removeEventListener("change", syncBottomDock);
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const compactDesktopMedia = window.matchMedia(
+      "(min-width: 1280px) and (max-width: 1699px)",
+    );
+    const finePointerMedia = window.matchMedia("(pointer: fine)");
+    const coarsePointerMedia = window.matchMedia("(pointer: coarse)");
+    const anyCoarsePointerMedia = window.matchMedia("(any-pointer: coarse)");
+
+    const syncCompactDesktopRail = () => {
+      setShouldHideCompactDesktopRail(
+        pathname === "/master-plan" &&
+          compactDesktopMedia.matches &&
+          finePointerMedia.matches &&
+          !coarsePointerMedia.matches &&
+          !anyCoarsePointerMedia.matches,
+      );
+    };
+
+    syncCompactDesktopRail();
+    compactDesktopMedia.addEventListener("change", syncCompactDesktopRail);
+    finePointerMedia.addEventListener("change", syncCompactDesktopRail);
+    coarsePointerMedia.addEventListener("change", syncCompactDesktopRail);
+    anyCoarsePointerMedia.addEventListener("change", syncCompactDesktopRail);
+
+    return () => {
+      compactDesktopMedia.removeEventListener("change", syncCompactDesktopRail);
+      finePointerMedia.removeEventListener("change", syncCompactDesktopRail);
+      coarsePointerMedia.removeEventListener("change", syncCompactDesktopRail);
+      anyCoarsePointerMedia.removeEventListener(
+        "change",
+        syncCompactDesktopRail,
+      );
+    };
+  }, [pathname]);
 
   const primaryButtons: CtaButtonType[] = [
     {
@@ -172,6 +226,10 @@ export default function UpperLayoutCTA({
   const buttons = [...primaryButtons, ...routeButtons];
   const shouldShowLabels = !mergeRouteLinks && !shouldDockAtBottom;
   const shouldEnableRailDrag = shouldDockAtBottom;
+
+  if (shouldHideCompactDesktopRail) {
+    return null;
+  }
 
   const handleScrollerPointerDown = (
     event: React.PointerEvent<HTMLDivElement>,

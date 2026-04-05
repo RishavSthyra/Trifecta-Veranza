@@ -349,6 +349,9 @@ export default function MasterPlanLayout({
   const [isLeaving, setIsLeaving] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [isDesktopCompactViewport, setIsDesktopCompactViewport] =
+    useState(false);
+  const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isSafariLike, setIsSafariLike] = useState(false);
   const [isTouchTabletViewport, setIsTouchTabletViewport] = useState(false);
   const [isTopViewMode, setIsTopViewMode] = useState(false);
@@ -387,6 +390,8 @@ export default function MasterPlanLayout({
     isCompactViewport || isTouchTabletViewport;
   const shouldUseTouchBackNavigation =
     shouldUseCompactLayout;
+  const shouldShowDesktopSidebar =
+    !shouldUseCompactLayout && !isLeaving && !selectedApartment;
   const shouldShowTopViewFullscreen =
     isTopViewMode &&
     !selectedTower &&
@@ -557,9 +562,13 @@ export default function MasterPlanLayout({
     }
 
     const compactViewportMedia = window.matchMedia("(max-width: 1279px)");
+    const desktopCompactViewportMedia = window.matchMedia(
+      "(min-width: 1280px) and (max-width: 1699px)",
+    );
     const touchViewportMedia = window.matchMedia("(max-width: 1366px)");
     const syncCompactViewport = () => {
       setIsCompactViewport(compactViewportMedia.matches);
+      setIsDesktopCompactViewport(desktopCompactViewportMedia.matches);
       setIsTouchTabletViewport(
         touchViewportMedia.matches && window.navigator.maxTouchPoints > 0,
       );
@@ -567,10 +576,15 @@ export default function MasterPlanLayout({
 
     syncCompactViewport();
     compactViewportMedia.addEventListener("change", syncCompactViewport);
+    desktopCompactViewportMedia.addEventListener("change", syncCompactViewport);
     touchViewportMedia.addEventListener("change", syncCompactViewport);
 
     return () => {
       compactViewportMedia.removeEventListener("change", syncCompactViewport);
+      desktopCompactViewportMedia.removeEventListener(
+        "change",
+        syncCompactViewport,
+      );
       touchViewportMedia.removeEventListener("change", syncCompactViewport);
     };
   }, []);
@@ -734,6 +748,7 @@ export default function MasterPlanLayout({
   const handleTowerSelect = (tower: TowerType) => {
     setIsTopViewMode(false);
     setSelectedTower(tower);
+    setIsDesktopSidebarOpen(true);
     setIsMobileSheetOpen(true);
   };
 
@@ -750,6 +765,7 @@ export default function MasterPlanLayout({
     setSelectedApartment(null);
     setSelectedApartmentMeshId(null);
     setSelectedTower(null);
+    setIsDesktopSidebarOpen(true);
     setIsTopViewMode(false);
     setIsMobileSheetOpen(true);
   };
@@ -1481,11 +1497,17 @@ export default function MasterPlanLayout({
       >
         <div
           className={`grid h-full gap-6 ${
-            selectedTower && !selectedApartment
-              ? "xl:grid-cols-[minmax(0,1fr)_clamp(320px,27vw,380px)] 2xl:grid-cols-[minmax(0,1fr)_420px]"
+            shouldShowDesktopSidebar && isDesktopSidebarOpen
+              ? selectedTower
+                ? isDesktopCompactViewport
+                  ? "xl:grid-cols-[minmax(0,1fr)_330px]"
+                  : "xl:grid-cols-[minmax(0,1fr)_clamp(320px,27vw,380px)] 2xl:grid-cols-[minmax(0,1fr)_420px]"
+                : isDesktopCompactViewport
+                  ? "xl:grid-cols-[minmax(0,1fr)_380px]"
+                  : "xl:grid-cols-[minmax(0,1fr)_clamp(360px,31vw,460px)] 2xl:grid-cols-[minmax(0,1fr)_540px]"
               : selectedTower
                 ? "xl:grid-cols-[minmax(0,1fr)]"
-              : "xl:grid-cols-[minmax(0,1fr)_clamp(360px,31vw,460px)] 2xl:grid-cols-[minmax(0,1fr)_540px]"
+                : "xl:grid-cols-[minmax(0,1fr)]"
           }`}
         >
           {!selectedApartment ? (
@@ -1576,62 +1598,109 @@ export default function MasterPlanLayout({
           </AnimatePresence>
 
           <AnimatePresence mode="wait">
-            {!isLeaving && !selectedApartment ? (
+            {shouldShowDesktopSidebar && !isDesktopSidebarOpen ? (
+              <motion.button
+                key="desktop-sidebar-open"
+                type="button"
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 16 }}
+                transition={{ duration: 0.24, ease: smoothEase }}
+                onClick={() => setIsDesktopSidebarOpen(true)}
+                className="pointer-events-auto absolute right-4 top-1/2 z-40 hidden -translate-y-1/2 items-center gap-2 rounded-l-full rounded-r-[1.25rem] border border-white/70 bg-white/88 px-3 py-4 text-sm font-medium text-zinc-900 shadow-[0_18px_42px_rgba(15,23,42,0.18)] backdrop-blur-2xl xl:inline-flex"
+                aria-label="Open master plan panel"
+              >
+                <ArrowLeft className="h-4 w-4" />
+                <span className="hidden min-[1440px]:inline">
+                  {selectedTower ? "Flats" : "Towers"}
+                </span>
+              </motion.button>
+            ) : null}
+          </AnimatePresence>
+
+          <AnimatePresence mode="wait">
+            {shouldShowDesktopSidebar && isDesktopSidebarOpen ? (
               <motion.aside
                 key="sidebar"
                 variants={panelVariants}
                 initial="hidden"
                 animate="visible"
                 exit="exit"
-                className={`pointer-events-auto gpu-layer min-w-0 ${
-                  shouldUseCompactLayout
-                    ? "hidden"
-                    : "hidden xl:col-start-2 xl:block xl:h-full"
-                }`}
+                className="pointer-events-auto gpu-layer min-w-0 hidden xl:col-start-2 xl:block xl:h-full"
               >
                 <div
-                  className={`custom-scrollbar sticky top-6 ml-auto flex h-[calc(100dvh-3rem)] min-h-0 w-full flex-col gap-6 overflow-y-auto overscroll-contain pr-1 [overflow-anchor:none] ${
+                  className={`custom-scrollbar sticky ml-auto min-h-0 w-full overflow-visible pr-1 [overflow-anchor:none] ${
                     selectedTower
-                      ? "max-w-[clamp(320px,27vw,380px)] 2xl:max-w-[420px]"
-                      : "max-w-[clamp(360px,31vw,460px)] 2xl:max-w-[540px]"
+                      ? isDesktopCompactViewport
+                        ? "max-w-[330px]"
+                        : "max-w-[clamp(320px,27vw,380px)] 2xl:max-w-[420px]"
+                      : isDesktopCompactViewport
+                        ? "max-w-[380px]"
+                        : "max-w-[clamp(360px,31vw,460px)] 2xl:max-w-[540px]"
                   }`}
                   data-scroll-area="sidebar"
+                  style={{
+                    height:
+                      "calc(100dvh - max(env(safe-area-inset-top), 1.5rem) - 1.5rem)",
+                    top: "max(env(safe-area-inset-top), 1.5rem)",
+                  }}
                 >
-                  {selectedTower ? (
-                    <>
-                      <MasterPlanFiltersCard
-                        search={search}
-                        onSearchChange={setSearch}
-                        selectedTower={selectedTower}
-                        bhk={bhk}
-                        onBhkChange={setBhk}
-                        facing={facing}
-                        onFacingChange={setFacing}
-                        status={status}
-                        onStatusChange={setStatus}
-                        minArea={minArea}
-                        onMinAreaChange={setMinArea}
-                        onReset={resetFilters}
-                        onBack={handleBackToTowerSelect}
-                      />
+                  <div className="relative flex h-full min-h-0 flex-col gap-6 overflow-y-auto overscroll-contain">
+                    <button
+                      type="button"
+                      onClick={() => setIsDesktopSidebarOpen(false)}
+                      className="absolute left-0 top-1/2 z-30 hidden -translate-x-full -translate-y-1/2 items-center rounded-l-full border border-white/70 bg-white/84 px-2.5 py-5 text-zinc-700 shadow-[0_16px_40px_rgba(15,23,42,0.16)] backdrop-blur-xl transition hover:bg-white xl:inline-flex"
+                      aria-label="Close master plan panel"
+                    >
+                      <ArrowRight className="h-5 w-5" />
+                    </button>
 
-                      <MasterPlanResultsCard
-                        filteredApartments={filteredApartments}
-                        isInventoryLoading={isInventoryLoading}
-                        inventoryError={inventoryError}
-                        onApartmentSelect={handleApartmentListSelect}
-                        selectedApartmentId={selectedApartmentInventoryId}
+                    <button
+                      type="button"
+                      onClick={() => setIsDesktopSidebarOpen(false)}
+                      className="absolute right-3 top-3 z-20 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200/80 bg-white/88 text-zinc-500 shadow-[0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl transition hover:bg-white hover:text-zinc-900"
+                      aria-label="Close master plan panel"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+
+                    {selectedTower ? (
+                      <>
+                        <MasterPlanFiltersCard
+                          search={search}
+                          onSearchChange={setSearch}
+                          selectedTower={selectedTower}
+                          bhk={bhk}
+                          onBhkChange={setBhk}
+                          facing={facing}
+                          onFacingChange={setFacing}
+                          status={status}
+                          onStatusChange={setStatus}
+                          minArea={minArea}
+                          onMinAreaChange={setMinArea}
+                          onReset={resetFilters}
+                          onBack={handleBackToTowerSelect}
+                        />
+
+                        <MasterPlanResultsCard
+                          filteredApartments={filteredApartments}
+                          isInventoryLoading={isInventoryLoading}
+                          inventoryError={inventoryError}
+                          onApartmentSelect={handleApartmentListSelect}
+                          selectedApartmentId={selectedApartmentInventoryId}
+                        />
+                      </>
+                    ) : (
+                      <TowerSelect
+                        compactDesktop={isDesktopCompactViewport}
+                        embedded
+                        isTopViewActive={isTopViewMode}
+                        onTopViewClick={handleTopViewToggle}
+                        selectedTower={selectedTower}
+                        onSelectTower={handleTowerSelect}
                       />
-                    </>
-                  ) : (
-                    <TowerSelect
-                      embedded
-                      isTopViewActive={isTopViewMode}
-                      onTopViewClick={handleTopViewToggle}
-                      selectedTower={selectedTower}
-                      onSelectTower={handleTowerSelect}
-                    />
-                  )}
+                    )}
+                  </div>
                 </div>
               </motion.aside>
             ) : null}

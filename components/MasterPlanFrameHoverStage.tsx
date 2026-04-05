@@ -2842,9 +2842,12 @@ export default function MasterPlanFrameHoverStage({
       ),
     [sectionSize.height, sectionSize.width, videoAspect],
   );
-  const normalizedVideoAspect = useMemo(
-    () => normalizeAspect(videoAspect),
-    [videoAspect],
+  const trackingSceneAspect = useMemo(
+    () =>
+      normalizeAspect(
+        performanceProfile.isSafariLike ? TRACKING_VIDEO_ASPECT : videoAspect,
+      ),
+    [performanceProfile.isSafariLike, videoAspect],
   );
   const dragConfig = useMemo(
     () => getDragConfig(performanceProfile.tier),
@@ -3724,7 +3727,7 @@ export default function MasterPlanFrameHoverStage({
       supportsPreciseHover,
     ],
   );
-  const stageOverscanScale = performanceProfile.isSafariLike ? 1.02 : 1;
+  const stageOverscanScale = 1;
   const trackingFrame = snapInfo.frame;
   const activeHotspot = useMemo(
     () => getNearestMasterPlanHotspot(trackingFrame),
@@ -4296,7 +4299,7 @@ export default function MasterPlanFrameHoverStage({
                       showApartmentMeshes={showApartmentMeshes}
                       showTowerMeshes={showTowerMeshes}
                       showTrackingDebug={showTrackingDebug}
-                      trackingVideoAspect={normalizedVideoAspect}
+                      trackingVideoAspect={trackingSceneAspect}
                     />
                   </Suspense>
                 </Canvas>
