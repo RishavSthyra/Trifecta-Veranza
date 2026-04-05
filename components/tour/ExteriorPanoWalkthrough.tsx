@@ -1341,9 +1341,9 @@ export default function ExteriorPanoWalkthrough({
         </div>
       </div>
 
-      <div className="pointer-events-auto absolute bottom-4 right-4 z-30 hidden lg:block xl:right-6 xl:bottom-6">
+      <div className="pointer-events-auto absolute bottom-2 right-2 z-30 hidden lg:block xl:bottom-3 xl:right-3">
         <div
-          className={`relative h-[470px] w-[840px] max-w-[56vw] overflow-hidden ${
+          className={`relative h-[235px] w-[420px] max-w-[28vw] overflow-hidden ${
             minimapZoom > 1
               ? isMinimapDragging
                 ? "cursor-grabbing"
@@ -1385,7 +1385,7 @@ export default function ExteriorPanoWalkthrough({
                   aria-label={`Go to ${amenity.name}`}
                   title={amenity.name}
                   onClick={() => void jumpToNode(amenity.primaryNodeId)}
-                  className={`absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/35 transition hover:scale-110 ${
+                  className={`absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/35 transition hover:scale-110 ${
                     activeAmenityId === amenity.id
                       ? "bg-[#fff18c] shadow-[0_0_0_4px_rgba(255,241,140,0.22)]"
                       : "bg-[#ffd34d] shadow-[0_0_8px_rgba(255,211,77,0.65)]"

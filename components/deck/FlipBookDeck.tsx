@@ -144,6 +144,7 @@ export default function FlipBookDeck() {
   const isMobile = viewport.width < 640;
   const isTablet = viewport.width >= 640 && viewport.width < 1024;
   const isSmallLaptop = viewport.width >= 1024 && viewport.width < 1280;
+  const isCompactDesktop = viewport.width >= 1280 && viewport.width < 1700;
   const useStackedDeck = viewport.width < 1280;
   const lastPageIndex = pages.length - 1;
 
@@ -156,6 +157,17 @@ export default function FlipBookDeck() {
   };
 
   const bookConfig = (() => {
+    if (isCompactDesktop) {
+      return {
+        width: 900,
+        height: 860,
+        minWidth: 760,
+        maxWidth: 920,
+        minHeight: 720,
+        maxHeight: 880,
+      };
+    }
+
     // Desktop: keep your current layout
     if (!isMobile && !isTablet && !isSmallLaptop) {
       return {
@@ -229,12 +241,16 @@ export default function FlipBookDeck() {
       ) : null}
       {!useStackedDeck ? <LeafOverlay /> : null}
 
-      <motion.div
-        variants={leftPlantAnimation}
-        initial="hidden"
-        animate="show"
-        className={`pointer-events-none absolute bottom-0 -left-20 hidden ${
-          useStackedDeck ? "xl:block xl:w-[28%]" : "sm:block sm:w-[16%] lg:w-[32%]"
+        <motion.div
+          variants={leftPlantAnimation}
+          initial="hidden"
+          animate="show"
+          className={`pointer-events-none absolute bottom-0 -left-20 hidden ${
+          useStackedDeck
+            ? "xl:block xl:w-[28%]"
+            : isCompactDesktop
+              ? "sm:block sm:w-[12%] lg:w-[20%]"
+              : "sm:block sm:w-[16%] lg:w-[32%]"
         } w-[18%]`}
       >
         <img
@@ -244,12 +260,16 @@ export default function FlipBookDeck() {
         />
       </motion.div>
 
-      <motion.div
-        variants={hangingPlantAnimation}
-        initial="hidden"
-        animate="show"
-        className={`pointer-events-none absolute right-0 top-0 z-50 hidden origin-top ${
-          useStackedDeck ? "xl:block xl:w-[18%]" : "sm:block sm:w-[16%] lg:w-[20%]"
+        <motion.div
+          variants={hangingPlantAnimation}
+          initial="hidden"
+          animate="show"
+          className={`pointer-events-none absolute right-0 top-0 z-50 hidden origin-top ${
+          useStackedDeck
+            ? "xl:block xl:w-[18%]"
+            : isCompactDesktop
+              ? "sm:block sm:w-[12%] lg:w-[14%]"
+              : "sm:block sm:w-[16%] lg:w-[20%]"
         } w-[18%]`}
       >
         <img
@@ -323,4 +343,3 @@ export default function FlipBookDeck() {
     </div>
   );
 }
-

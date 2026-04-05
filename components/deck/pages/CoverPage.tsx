@@ -118,9 +118,9 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="relative z-20 flex h-full flex-col justify-between px-5 pb-5 pt-8 sm:px-10 sm:pb-10 sm:pt-12"
+        className="relative z-20 flex h-full flex-col justify-between px-5 pb-5 pt-8 sm:px-10 sm:pb-10 sm:pt-12 xl:px-7 xl:pb-7 xl:pt-9 min-[1700px]:xl:px-10 min-[1700px]:xl:pb-10 min-[1700px]:xl:pt-12"
       >
-        <div className="relative z-30 max-w-[52%] sm:max-w-[50%] lg:max-w-[68%] xl:max-w-[88%] ">
+        <div className="relative z-30 max-w-[52%] sm:max-w-[50%] lg:max-w-[68%] xl:max-w-[60%] min-[1700px]:xl:max-w-[72%] 2xl:max-w-[88%]">
           <motion.p
             variants={textReveal}
             className={`mb-3 text-[10px] uppercase tracking-[0.42em] text-[#6f6457] sm:mb-4 sm:text-xs sm:tracking-[0.5em] ${bodyFont.className}`}
@@ -130,7 +130,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
 
           <motion.h1
             variants={textReveal}
-            className={`${titleFont.className} max-w-[330px] text-[2.35rem] font-semibold leading-[0.88] tracking-[-0.035em] text-[#1f1b16] sm:max-w-[520px] sm:text-[4.25rem] lg:max-w-full lg:text-[2.9rem] 2xl:text-[4.9rem]`}
+            className={`${titleFont.className} max-w-[330px] text-[2.35rem] font-semibold leading-[0.88] tracking-[-0.035em] text-[#1f1b16] sm:max-w-[520px] sm:text-[4.25rem] lg:max-w-full lg:text-[2.9rem] xl:text-[3.35rem] min-[1700px]:xl:text-[4.05rem] 2xl:text-[4.9rem]`}
           >
             The New Standard of Refined Urban Living
           </motion.h1>
@@ -142,7 +142,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
 
           <motion.p
             variants={textReveal}
-            className={`mt-4 max-w-[290px] text-[11px] font-medium leading-[1.7] text-[#6d6256] sm:mt-5 sm:max-w-[360px] sm:text-[13px] lg:max-w-[390px] ${bodyFont.className}`}
+            className={`mt-4 max-w-[290px] text-[11px] font-medium leading-[1.7] text-[#6d6256] sm:mt-5 sm:max-w-[360px] sm:text-[13px] lg:max-w-[390px] xl:max-w-[330px] min-[1700px]:xl:max-w-[390px] ${bodyFont.className}`}
           >
             Curated spaces, elevated comfort, timeless metropolitan sophistication.
           </motion.p>
@@ -168,7 +168,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
           <img
             src="https://cdn.sthyra.com/images/bros.webp"
             alt="Project cover"
-            className="relative z-10 h-[75%] w-auto max-w-none object-contain object-bottom "
+            className="relative z-10 h-[75%] w-auto max-w-none object-contain object-bottom xl:h-[66%] min-[1700px]:xl:h-[72%] 2xl:h-[75%]"
           />
         </div>
       </motion.div>

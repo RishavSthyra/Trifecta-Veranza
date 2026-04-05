@@ -148,7 +148,7 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
 function useChartVisibilityRefresh<T extends HTMLElement>() {
   const ref = useRef<T | null>(null);
   const [chartKey, setChartKey] = useState(0);
-  const [ready, setReady] = useState(false);
+  const [ready, setReady] = useState(true);
 
   useEffect(() => {
     const element = ref.current;
@@ -162,8 +162,6 @@ function useChartVisibilityRefresh<T extends HTMLElement>() {
       cancelAnimationFrame(raf1);
       cancelAnimationFrame(raf2);
       window.clearTimeout(timeout);
-
-      setReady(false);
 
       raf1 = requestAnimationFrame(() => {
         raf2 = requestAnimationFrame(() => {
@@ -244,7 +242,7 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
           variants={container}
           initial="hidden"
           animate="show"
-          className="relative flex min-h-full flex-col px-4 py-4 sm:px-5 sm:py-5 md:h-full md:min-h-0 md:px-6 md:py-6 xl:px-8 xl:py-8"
+          className="relative flex min-h-full flex-col px-4 py-4 sm:px-5 sm:py-5 md:h-full md:min-h-0 md:px-6 md:py-6 xl:px-6 xl:py-6 min-[1700px]:xl:px-8 min-[1700px]:xl:py-8"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.75),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(216,201,178,0.18),transparent_28%)]" />
 
@@ -258,7 +256,7 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                   Project Overview
                 </p>
 
-                <h2 className="max-w-[520px] text-[1.55rem] font-semibold leading-[0.98] tracking-[-0.04em] text-neutral-900 sm:text-[2rem] md:text-[2.15rem] xl:text-[2.45rem]">
+                <h2 className="max-w-[520px] text-[1.55rem] font-semibold leading-[0.98] tracking-[-0.04em] text-neutral-900 sm:text-[2rem] md:text-[2.15rem] xl:text-[2.1rem] min-[1700px]:xl:text-[2.45rem]">
                   Open to sky,
                   <br />
                   rooted in green.
@@ -363,10 +361,10 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                 </p>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.2rem] border border-[#ddd4c8] bg-white/75 p-2.5 shadow-[0_15px_45px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:rounded-[1.5rem] sm:p-3.5 xl:rounded-[1.8rem] xl:p-4">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.2rem] border border-[#ddd4c8] bg-white/75 p-2.5 shadow-[0_15px_45px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:rounded-[1.5rem] sm:p-3.5 xl:h-[220px] xl:flex-none xl:rounded-[1.8rem] xl:p-4 min-[1700px]:xl:h-auto min-[1700px]:xl:flex-1">
                 <div
                   ref={chartWrapRef}
-                  className="h-full w-full min-h-[220px] min-w-0 sm:min-h-[240px] md:min-h-[260px] xl:min-h-0"
+                  className="h-full w-full min-h-[220px] min-w-0 sm:min-h-[240px] md:min-h-[260px] xl:min-h-[180px] min-[1700px]:xl:min-h-0"
                 >
                   {ready && (
                     <ResponsiveContainer

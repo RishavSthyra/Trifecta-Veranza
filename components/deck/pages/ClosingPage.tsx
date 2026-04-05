@@ -73,7 +73,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
           </motion.div>
         ) : null}
 
-        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-8 py-16 text-center sm:px-12">
+        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-8 py-16 text-center sm:px-12 xl:justify-start xl:px-9 xl:pb-36 xl:pt-16 min-[1700px]:xl:justify-center min-[1700px]:xl:px-12 min-[1700px]:xl:pb-16">
           <motion.p
             variants={fadeUp}
             className="text-[11px] uppercase tracking-[0.48em] text-[#a17376] sm:text-xs"
@@ -81,7 +81,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
             Trifecta Projects
           </motion.p>
 
-          <motion.div variants={logoReveal} className="mt-8 w-full max-w-[820px]">
+          <motion.div variants={logoReveal} className="mt-8 w-full max-w-[820px] xl:max-w-[620px] min-[1700px]:xl:max-w-[820px]">
             <div className="relative mx-auto aspect-[5.4/2.1] w-full max-w-[780px]">
               <Image
                 src="/Logo_Trifect_Veranza.png"
@@ -94,7 +94,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
             </div>
           </motion.div>
 
-          <motion.div variants={fadeUp} className="mt-8">
+          <motion.div variants={fadeUp} className="mt-6 xl:mt-5 min-[1700px]:xl:mt-8">
             <div className="flex items-center justify-center gap-4 text-[#7b6a61]">
               <span className="h-px w-14 bg-gradient-to-r from-transparent to-[#b18c76] sm:w-20" />
               <span className="text-[11px] font-medium uppercase tracking-[0.32em] sm:text-xs">
@@ -104,11 +104,11 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
             </div>
           </motion.div>
 
-          <motion.div variants={fadeUp} className="mt-8 max-w-3xl">
-            <h2 className="text-[2rem] font-light tracking-[-0.04em] text-[#5b4e49] sm:text-[2.6rem] lg:text-[3.2rem]">
+          <motion.div variants={fadeUp} className="mt-6 max-w-3xl xl:mt-5 min-[1700px]:xl:mt-8">
+            <h2 className="text-[2rem] font-light tracking-[-0.04em] text-[#5b4e49] sm:text-[2.6rem] lg:text-[3.2rem] xl:text-[2.45rem] min-[1700px]:xl:text-[3.2rem]">
               Open to sky, rooted in green.
             </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-[#7a6b63] sm:text-[15px] sm:leading-7">
+            <p className="mx-auto mt-3 max-w-[560px] text-sm leading-6 text-[#7a6b63] sm:text-[15px] sm:leading-7 xl:max-w-[500px] xl:text-[13px] xl:leading-6 min-[1700px]:xl:max-w-2xl min-[1700px]:xl:text-[15px] min-[1700px]:xl:leading-7">
               A final note in a quieter tone, shaped around calm luxury,
               elevated living, and the signature presence of Trifecta Veranza.
             </p>
@@ -116,7 +116,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
 
           <motion.div
             variants={fadeUp}
-            className="mt-10 flex w-full max-w-4xl flex-wrap items-center justify-center gap-8 sm:gap-12"
+            className="mt-8 flex w-full max-w-4xl flex-wrap items-center justify-center gap-6 sm:gap-12 xl:mt-7 xl:gap-5 min-[1700px]:xl:mt-10 min-[1700px]:xl:gap-8"
           >
             <div className="flex items-center justify-center">
               <Image
@@ -125,7 +125,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
                 width={180}
                 height={64}
                 unoptimized
-                className="h-14 w-auto object-contain sm:h-16"
+                className="h-12 w-auto object-contain sm:h-16 xl:h-11 min-[1700px]:xl:h-16"
               />
             </div>
 
@@ -135,7 +135,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
                 alt="IGBC Member logo"
                 width={190}
                 height={86}
-                className="h-16 w-auto object-contain sm:h-20"
+                className="h-14 w-auto object-contain sm:h-20 xl:h-12 min-[1700px]:xl:h-20"
               />
             </div>
 
@@ -145,7 +145,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
                 alt="Registered Trifecta logo"
                 width={180}
                 height={86}
-                className="h-16 w-auto object-contain sm:h-20"
+                className="h-14 w-auto object-contain sm:h-20 xl:h-12 min-[1700px]:xl:h-20"
               />
             </div>
           </motion.div>
@@ -153,13 +153,13 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
 
         <motion.div
           variants={fadeUp}
-          className="absolute inset-x-0 bottom-0 z-10 px-6 pb-5 sm:px-10 sm:pb-7"
+          className="absolute inset-x-0 bottom-0 z-10 px-6 pb-5 sm:px-10 sm:pb-7 xl:px-8 xl:pb-4 min-[1700px]:xl:px-10 min-[1700px]:xl:pb-7"
         >
           <div className="mx-auto max-w-6xl border-t border-[#c8b18f]/28 pt-3 text-center">
-            <p className="text-[9px] font-medium uppercase tracking-[0.24em] text-[#7c6458] sm:text-[10px]">
+            <p className="text-[9px] font-medium uppercase tracking-[0.24em] text-[#7c6458] sm:text-[10px] xl:text-[8px] min-[1700px]:xl:text-[10px]">
               RERA No: PRM/KA/RERA/1251/308/PR/210126/008418
             </p>
-            <p className="mx-auto mt-2 max-w-5xl text-[8px] leading-[1.55] text-[#8b7a70] sm:text-[9px] sm:leading-[1.65]">
+            <p className="mx-auto mt-2 max-w-5xl text-[8px] leading-[1.55] text-[#8b7a70] sm:text-[9px] sm:leading-[1.65] xl:text-[7px] xl:leading-[1.4] min-[1700px]:xl:text-[9px] min-[1700px]:xl:leading-[1.65]">
               Disclaimer : Trifecta Projects Private Limited is developing this
               project in a phased manner. The details provided herein are
               indicative of the proposed development and are intended for

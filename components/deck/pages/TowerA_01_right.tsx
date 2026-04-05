@@ -70,14 +70,14 @@ const UnitPlanRightPage = forwardRef<HTMLDivElement, Props>(
 
           <motion.div
             variants={fadeUp}
-            className="relative z-10 border-b border-[#ddd2c6] px-4 py-3.5 sm:px-6 md:px-8 md:py-5"
+            className="relative z-10 border-b border-[#ddd2c6] px-4 py-3.5 sm:px-6 md:px-8 md:py-5 xl:px-6 xl:py-4 min-[1700px]:xl:px-8 min-[1700px]:xl:py-5"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[10px] uppercase tracking-[0.34em] text-[#8f7f6d] sm:text-[11px]">
                   Furnished 3D View
                 </p>
-                <h3 className="mt-1.5 text-lg font-semibold tracking-[-0.04em] text-[#1e1a17] sm:mt-2 sm:text-2xl md:text-[30px]">
+                <h3 className="mt-1.5 text-lg font-semibold tracking-[-0.04em] text-[#1e1a17] sm:mt-2 sm:text-2xl md:text-[30px] xl:text-[1.7rem] min-[1700px]:xl:text-[30px]">
                   Layout Dimensions
                 </h3>
                 <p className="mt-1.5 max-w-2xl text-[11px] leading-relaxed text-[#6f6458] sm:mt-2 sm:text-sm">
@@ -95,12 +95,12 @@ const UnitPlanRightPage = forwardRef<HTMLDivElement, Props>(
             </div>
           </motion.div>
 
-          <div className="relative z-10 grid min-h-0 grid-cols-1 xl:h-full xl:grid-cols-[1.06fr_0.94fr]">
+          <div className="relative z-10 grid min-h-0 grid-cols-1 xl:h-full xl:grid-cols-[0.96fr_1.04fr] min-[1700px]:xl:grid-cols-[1.06fr_0.94fr]">
             <motion.div
               variants={imageReveal}
-              className="flex items-center justify-center px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8"
+              className="flex items-center justify-center px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8 xl:px-6 xl:py-6 min-[1700px]:xl:px-8 min-[1700px]:xl:py-8"
             >
-              <div className="relative h-full w-full max-w-[540px] min-h-[280px] overflow-hidden rounded-[1.5rem] border border-[#ddd2c6] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,238,229,0.94))] shadow-[0_20px_60px_rgba(70,50,30,0.10)] sm:max-w-[640px] sm:min-h-[380px] sm:rounded-[1.75rem] md:min-h-[450px] xl:max-w-[720px]">
+              <div className="relative h-full w-full max-w-[540px] min-h-[280px] overflow-hidden rounded-[1.5rem] border border-[#ddd2c6] bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(245,238,229,0.94))] shadow-[0_20px_60px_rgba(70,50,30,0.10)] sm:max-w-[640px] sm:min-h-[380px] sm:rounded-[1.75rem] md:min-h-[450px] xl:max-w-[520px] xl:min-h-[320px] min-[1700px]:xl:max-w-[720px] min-[1700px]:xl:min-h-[450px]">
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.85),transparent_65%)]" />
 
                 <div className="relative h-full w-full p-2.5 sm:p-4 md:p-6">
@@ -118,7 +118,7 @@ const UnitPlanRightPage = forwardRef<HTMLDivElement, Props>(
 
             <motion.div
               variants={fadeUp}
-              className="flex min-h-0 flex-col border-t border-[#ddd2c6] px-4 pb-4 pt-4 sm:px-6 sm:pb-6 md:px-8 md:pb-8 xl:border-l xl:border-t-0 xl:pt-8"
+              className="flex min-h-0 flex-col border-t border-[#ddd2c6] px-4 pb-4 pt-4 sm:px-6 sm:pb-6 md:px-8 md:pb-8 xl:border-l xl:border-t-0 xl:px-6 xl:pb-6 xl:pt-6 min-[1700px]:xl:px-8 min-[1700px]:xl:pb-8 min-[1700px]:xl:pt-8"
             >
               <div className="mb-4 flex items-start justify-between gap-4 sm:mb-5">
                 <div>
@@ -142,18 +142,18 @@ const UnitPlanRightPage = forwardRef<HTMLDivElement, Props>(
                     variants={fadeUp}
                     whileHover={{ y: -2 }}
                     transition={{ duration: 0.22 }}
-                    className="group rounded-[1.2rem] border border-[#ddd2c6] bg-white/78 px-3.5 py-3 shadow-[0_10px_24px_rgba(90,70,40,0.04)] transition-colors duration-300 hover:border-[#ccb79f] sm:rounded-[1.35rem] sm:px-4 sm:py-3.5"
+                    className="group rounded-[1.2rem] border border-[#ddd2c6] bg-white/78 px-3.5 py-3 shadow-[0_10px_24px_rgba(90,70,40,0.04)] transition-colors duration-300 hover:border-[#ccb79f] sm:rounded-[1.35rem] sm:px-4 sm:py-3.5 xl:px-3 xl:py-2.5 min-[1700px]:xl:px-4 min-[1700px]:xl:py-3.5"
                   >
                     <p className="text-[10px] uppercase tracking-[0.24em] text-[#ad9c8b]">
                       Space
                     </p>
 
                     <div className="mt-2 flex items-end justify-between gap-3 sm:mt-2 sm:flex-col sm:items-start sm:gap-2">
-                      <h4 className="min-w-0 flex-1 break-words text-[14px] font-semibold leading-[1.25] tracking-[-0.02em] text-[#221d19] sm:w-full sm:flex-none sm:text-[15px]">
+                      <h4 className="min-w-0 flex-1 break-words text-[14px] font-semibold leading-[1.25] tracking-[-0.02em] text-[#221d19] sm:w-full sm:flex-none sm:text-[15px] xl:text-[13px] min-[1700px]:xl:text-[15px]">
                         {item.name}
                       </h4>
 
-                      <div className="shrink-0 inline-flex max-w-full items-center rounded-full border border-[#e0d5c8] bg-[#f8f3ec] px-2.5 py-1.5 text-[10px] font-medium leading-none text-[#5f5448] sm:px-3 sm:text-[12px]">
+                      <div className="shrink-0 inline-flex max-w-full items-center rounded-full border border-[#e0d5c8] bg-[#f8f3ec] px-2.5 py-1.5 text-[10px] font-medium leading-none text-[#5f5448] sm:px-3 sm:text-[12px] xl:px-2 xl:text-[10px] min-[1700px]:xl:px-3 min-[1700px]:xl:text-[12px]">
                         {item.size}
                       </div>
                     </div>
