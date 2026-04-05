@@ -84,7 +84,7 @@ function TowerSelectPanel({
               </p>
             </div>
 
-            {onTopViewClick ? (
+            {/* {onTopViewClick ? (
               <button
                 type="button"
                 onClick={onTopViewClick}
@@ -97,7 +97,7 @@ function TowerSelectPanel({
                 <Layers3 className="h-3.5 w-3.5" />
                 Top View
               </button>
-            ) : null}
+            ) : null} */}
           </div>
         </div>
 
@@ -171,7 +171,7 @@ function TowerSelectPanel({
               </p>
             </div>
 
-            {onTopViewClick ? (
+            {/* {onTopViewClick ? (
               <button
                 type="button"
                 onClick={onTopViewClick}
@@ -184,7 +184,7 @@ function TowerSelectPanel({
                 <Layers3 className="h-3.5 w-3.5" />
                 Top View
               </button>
-            ) : null}
+            ) : null} */}
           </div>
         </div>
 

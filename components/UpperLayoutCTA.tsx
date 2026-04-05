@@ -36,6 +36,8 @@ export default function UpperLayoutCTA({
   const pathname = usePathname();
   const [hovered, setHovered] = useState<string | null>(null);
   const isMasterPlanRoute = pathname === "/master-plan";
+  const isExteriorWalkthroughRoute =
+    pathname === "/exterios-walkthrough" || pathname === "/exterior-tour";
 
   const primaryButtons: CtaButtonType[] = [
     {
@@ -112,7 +114,24 @@ export default function UpperLayoutCTA({
   const shouldShowLabels = !mergeRouteLinks;
 
   return (
-    <div className="pointer-events-none absolute left-1/2 top-3 z-50 w-full max-w-[calc(100vw-1rem)] -translate-x-1/2 px-2 md:top-0 md:max-w-none md:px-0">
+    <>
+      {isExteriorWalkthroughRoute ? (
+        <div className="pointer-events-none absolute right-3 top-3 z-50 md:hidden">
+          <Link
+            href="/"
+            className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-[1.2rem] border border-white/10 bg-black/72 text-white shadow-[0_18px_42px_rgba(0,0,0,0.34)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-black/82"
+            aria-label="Go home"
+          >
+            <FiHome className="h-5 w-5" />
+          </Link>
+        </div>
+      ) : null}
+
+      <div
+        className={`pointer-events-none absolute left-1/2 top-3 z-50 w-full max-w-[calc(100vw-1rem)] -translate-x-1/2 px-2 md:top-0 md:max-w-none md:px-0 ${
+          isExteriorWalkthroughRoute ? "hidden md:block" : ""
+        }`}
+      >
       <motion.div
         layout
         transition={spring}
@@ -248,6 +267,7 @@ export default function UpperLayoutCTA({
           </motion.div>
         </motion.div>
       </motion.div>
-    </div>
+      </div>
+    </>
   );
 }

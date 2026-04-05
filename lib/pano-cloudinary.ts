@@ -1,7 +1,7 @@
 export const CLOUDINARY_PANO_IMAGE_BASE_URL =
-  "https://res.cloudinary.com/dp7bxmquq/image/upload/panos/";
+  "https://cdn.sthyra.com/interior-panos-trifecta/";
 export const CLOUDINARY_PANO_RAW_BASE_URL =
-  "https://res.cloudinary.com/dp7bxmquq/raw/upload/panos/";
+  "https://cdn.sthyra.com/interior-panos-trifecta/";
 
 function ensureTrailingSlash(value: string) {
   return value.endsWith("/") ? value : `${value}/`;
@@ -32,4 +32,12 @@ export function getPanoTileUrl(
   imageBaseUrl = CLOUDINARY_PANO_IMAGE_BASE_URL,
 ) {
   return joinPanoPath(imageBaseUrl, `${panoId}/${tilePath}`);
+}
+
+export function getPanoFolderCandidates(panoId: string) {
+  if (panoId.endsWith("F0004")) {
+    return [`${panoId}.0000`, panoId];
+  }
+
+  return [panoId];
 }

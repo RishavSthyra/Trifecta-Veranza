@@ -57,12 +57,12 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
       >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.88),transparent_28%),radial-gradient(circle_at_78%_24%,rgba(171,95,104,0.10),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(191,155,96,0.14),transparent_30%),linear-gradient(180deg,#fbf8f2_0%,#f4ede1_48%,#f8f3eb_100%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.36),transparent_34%,rgba(168,132,84,0.06)_70%,transparent_100%)]" />
-
+{/* 
         <div className="pointer-events-none absolute inset-x-[10%] top-[14%] h-px bg-gradient-to-r from-transparent via-[#c8b18f]/65 to-transparent" />
         <div className="pointer-events-none absolute inset-x-[16%] bottom-[14%] h-px bg-gradient-to-r from-transparent via-[#c8b18f]/55 to-transparent" />
         <div className="pointer-events-none absolute left-[11%] top-[18%] h-28 w-28 rounded-full border border-[#c9b28f]/28" />
         <div className="pointer-events-none absolute bottom-[16%] right-[12%] h-36 w-36 rounded-full border border-[#b9848d]/18" />
-        <div className="pointer-events-none absolute inset-[7%] rounded-[34px] border border-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.68)]" />
+        <div className="pointer-events-none absolute inset-[7%] rounded-[34px] border border-white/55 shadow-[inset_0_1px_0_rgba(255,255,255,0.68)]" /> */}
 
         {typeof number === "number" ? (
           <motion.div
@@ -113,7 +113,66 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
               elevated living, and the signature presence of Trifecta Veranza.
             </p>
           </motion.div>
+
+          <motion.div
+            variants={fadeUp}
+            className="mt-10 flex w-full max-w-4xl flex-wrap items-center justify-center gap-8 sm:gap-12"
+          >
+            <div className="flex items-center justify-center">
+              <Image
+                src="/logos/credai.gif"
+                alt="CREDAI logo"
+                width={180}
+                height={64}
+                unoptimized
+                className="h-14 w-auto object-contain sm:h-16"
+              />
+            </div>
+
+            <div className="flex items-center justify-center">
+              <Image
+                src="/logos/IGBC LOGO 2.png"
+                alt="IGBC Member logo"
+                width={190}
+                height={86}
+                className="h-16 w-auto object-contain sm:h-20"
+              />
+            </div>
+
+            <div className="flex items-center justify-center">
+              <Image
+                src="/logos/cropped-Registered-Trifecta-Logo.png"
+                alt="Registered Trifecta logo"
+                width={180}
+                height={86}
+                className="h-16 w-auto object-contain sm:h-20"
+              />
+            </div>
+          </motion.div>
         </div>
+
+        <motion.div
+          variants={fadeUp}
+          className="absolute inset-x-0 bottom-0 z-10 px-6 pb-5 sm:px-10 sm:pb-7"
+        >
+          <div className="mx-auto max-w-6xl border-t border-[#c8b18f]/28 pt-3 text-center">
+            <p className="text-[9px] font-medium uppercase tracking-[0.24em] text-[#7c6458] sm:text-[10px]">
+              RERA No: PRM/KA/RERA/1251/308/PR/210126/008418
+            </p>
+            <p className="mx-auto mt-2 max-w-5xl text-[8px] leading-[1.55] text-[#8b7a70] sm:text-[9px] sm:leading-[1.65]">
+              Disclaimer : Trifecta Projects Private Limited is developing this
+              project in a phased manner. The details provided herein are
+              indicative of the proposed development and are intended for
+              informational purposes only. Open & green areas comprise
+              amenities, landscapes and clubhouse zones. All visuals are
+              artistic conceptualisations intended for illustrative purposes and
+              should not be considered exact representations of the final
+              product. For detailed information, please get in touch with our
+              sales representative. Terms & conditions apply, E&amp;OE. V1
+              Feb&apos;26
+            </p>
+          </div>
+        </motion.div>
       </motion.div>
     </div>
   );

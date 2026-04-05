@@ -16,7 +16,6 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   AdaptiveDpr,
   Html,
-  Line,
   PerspectiveCamera,
   useGLTF,
 } from "@react-three/drei";
@@ -34,7 +33,6 @@ import {
   Object3D,
   PerspectiveCamera as ThreePerspectiveCamera,
   Quaternion,
-  Raycaster,
   Vector2,
   Vector3,
 } from "three";
@@ -45,10 +43,6 @@ import {
   TOTAL_MASTER_PLAN_FRAMES,
 } from "@/data/masterPlanFrameCdnUrls";
 import {
-  masterPlanAmenities,
-  type MasterPlanAmenityIconKey,
-} from "@/data/masterPlanAmenities";
-import {
   getNearestMasterPlanHotspot,
   isApartmentIdAllowedAtHotspot,
 } from "@/lib/master-plan-hotspots";
@@ -58,26 +52,6 @@ import type {
   InventoryStatus,
   TowerType,
 } from "@/types/inventory";
-import {
-  Bike,
-  Bird,
-  BriefcaseBusiness,
-  Building2,
-  Dumbbell,
-  Flame,
-  Flower2,
-  Gem,
-  Goal,
-  Leaf,
-  PartyPopper,
-  PawPrint,
-  Theater,
-  ToyBrick,
-  Trees,
-  Waves,
-  type LucideIcon,
-} from "lucide-react";
-
 const MODEL_PATH_A = "/models/forglb.glb";
 const MODEL_PATH_B = "/models/forglb - Copy.glb";
 const INTERACTION_MODEL_PATH_A = "/models/forglb.glb";
@@ -106,10 +80,6 @@ const VIDEO_SYNC_THRESHOLD_SECONDS = 1 / (MASTER_PLAN_SCRUB_VIDEO_FPS * 1.5);
 const VIDEO_FAST_SEEK_THRESHOLD_SECONDS = 0.18;
 const ENABLE_TRACKING_DEBUG = false;
 const FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD = 12;
-const AMENITY_MARKER_EDGE_PADDING_PX = 10;
-const AMENITY_MARKER_MAX_VISIBLE = 18;
-const AMENITY_MARKER_MIN_GAP_PX = 28;
-const AMENITY_MARKER_BUILDING_CLEARANCE_PX = 34;
 const MOBILE_STAGE_MAX_SCALE = 2.8;
 const MOBILE_STAGE_MIN_SCALE = 1;
 const MOBILE_STAGE_TAP_MOVE_THRESHOLD_PX = 10;
@@ -221,33 +191,6 @@ type TowerFootprint = {
   ta2: Vector3;
   ta3: Vector3;
   ta4: Vector3;
-};
-
-type TrackingDebugPoint = {
-  color: string;
-  key: string;
-  label: string;
-  position: Vector3;
-};
-
-type AmenityMarker = {
-  id: string;
-  iconKey: MasterPlanAmenityIconKey;
-  label: string;
-  position: Vector3;
-};
-
-type ScreenPoint = {
-  x: number;
-  y: number;
-};
-
-type TrackingCameraRay = {
-  color: string;
-  end: Vector3;
-  key: string;
-  label: string;
-  start: Vector3;
 };
 
 type TrackingCameraView = {
@@ -1018,43 +961,6 @@ function getTowerTrackingCameraPath(
   });
 }
 
-function getTrackingDebugPoints(
-  footprint: TowerFootprint | undefined,
-  color = "#ff2d2d",
-  labelPrefix = "",
-) {
-  if (!footprint) {
-    return [];
-  }
-
-  return [
-    {
-      color,
-      key: `${labelPrefix}ta1`,
-      label: `${labelPrefix}Ta1`,
-      position: footprint.ta1.clone(),
-    },
-    {
-      color,
-      key: `${labelPrefix}ta2`,
-      label: `${labelPrefix}Ta2`,
-      position: footprint.ta2.clone(),
-    },
-    {
-      color,
-      key: `${labelPrefix}ta3`,
-      label: `${labelPrefix}Ta3`,
-      position: footprint.ta3.clone(),
-    },
-    {
-      color,
-      key: `${labelPrefix}ta4`,
-      label: `${labelPrefix}Ta4`,
-      position: footprint.ta4.clone(),
-    },
-  ] satisfies TrackingDebugPoint[];
-}
-
 function transformTowerFootprint(
   footprint: TowerFootprint | null | undefined,
   transform: SimilarityTransform | null,
@@ -1069,110 +975,6 @@ function transformTowerFootprint(
     ta3: applyTransformToPoint(footprint.ta3, transform),
     ta4: applyTransformToPoint(footprint.ta4, transform),
   } satisfies TowerFootprint;
-}
-
-function getTrackingCameraRays(path: TrackingCameraView[] | null | undefined) {
-  if (!path?.length) {
-    return [];
-  }
-
-  return path.map((view, index) => ({
-    color: index === 0 ? "#7dd3fc" : "#38bdf8",
-    end: view.target.clone(),
-    key: view.key ?? `camera-${index}`,
-    label: view.key ?? `C${index + 1}`,
-    start: view.position.clone(),
-  })) satisfies TrackingCameraRay[];
-}
-
-const MASTER_PLAN_AMENITY_MARKERS = masterPlanAmenities.map((amenity) => ({
-  id: amenity.id,
-  iconKey: amenity.iconKey,
-  label: amenity.label,
-  position: unrealToThreePosition(amenity.coordinate),
-})) satisfies AmenityMarker[];
-
-const AMENITY_ICON_COMPONENTS: Record<MasterPlanAmenityIconKey, LucideIcon> = {
-  bird: Bird,
-  business: BriefcaseBusiness,
-  clubhouse: Building2,
-  fire: Flame,
-  fitness: Dumbbell,
-  flower: Flower2,
-  garden: Trees,
-  nature: Leaf,
-  party: PartyPopper,
-  pet: PawPrint,
-  play: ToyBrick,
-  pool: Waves,
-  rock: Gem,
-  sport: Goal,
-  theater: Theater,
-  track: Bike,
-};
-
-function getTowerFootprintPoints(footprint: TowerFootprint) {
-  return [footprint.ta1, footprint.ta2, footprint.ta3, footprint.ta4];
-}
-
-function pointInPolygon(point: ScreenPoint, polygon: ScreenPoint[]) {
-  let isInside = false;
-
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const current = polygon[i];
-    const previous = polygon[j];
-    const intersects =
-      current.y > point.y !== previous.y > point.y &&
-      point.x <
-        ((previous.x - current.x) * (point.y - current.y)) /
-          (previous.y - current.y || Number.EPSILON) +
-          current.x;
-
-    if (intersects) {
-      isInside = !isInside;
-    }
-  }
-
-  return isInside;
-}
-
-function distanceFromPointToSegment(
-  point: ScreenPoint,
-  segmentStart: ScreenPoint,
-  segmentEnd: ScreenPoint,
-) {
-  const dx = segmentEnd.x - segmentStart.x;
-  const dy = segmentEnd.y - segmentStart.y;
-
-  if (dx === 0 && dy === 0) {
-    return Math.hypot(point.x - segmentStart.x, point.y - segmentStart.y);
-  }
-
-  const t = clampNumber(
-    ((point.x - segmentStart.x) * dx + (point.y - segmentStart.y) * dy) /
-      (dx * dx + dy * dy),
-    0,
-    1,
-  );
-  const projectedX = segmentStart.x + t * dx;
-  const projectedY = segmentStart.y + t * dy;
-
-  return Math.hypot(point.x - projectedX, point.y - projectedY);
-}
-
-function distanceFromPointToPolygon(point: ScreenPoint, polygon: ScreenPoint[]) {
-  let minimumDistance = Number.POSITIVE_INFINITY;
-
-  for (let index = 0; index < polygon.length; index += 1) {
-    const current = polygon[index];
-    const next = polygon[(index + 1) % polygon.length];
-    minimumDistance = Math.min(
-      minimumDistance,
-      distanceFromPointToSegment(point, current, next),
-    );
-  }
-
-  return minimumDistance;
 }
 
 const DEFAULT_STAGE_VIEWPORT_TRANSFORM: StageViewportTransform = {
@@ -2154,411 +1956,6 @@ const HoverTracker = memo(function HoverTracker({
   return null;
 });
 
-const AmenityMarkers = memo(function AmenityMarkers({
-  amenities,
-  buildingFootprints,
-  occlusionMeshes,
-}: {
-  amenities: AmenityMarker[];
-  buildingFootprints: TowerFootprint[];
-  occlusionMeshes: Mesh[];
-}) {
-  const { camera, size } = useThree();
-  const [hoveredAmenityId, setHoveredAmenityId] = useState<string | null>(null);
-  const [pinnedAmenityId, setPinnedAmenityId] = useState<string | null>(null);
-  const [visibleAmenitiesState, setVisibleAmenitiesState] = useState<
-    Array<{ id: string; scale: number }>
-  >([]);
-  const visibleSignatureRef = useRef("");
-  const occlusionRaycaster = useMemo(() => new Raycaster(), []);
-  const cameraPositionRef = useRef(new Vector3());
-  const cameraDirectionRef = useRef(new Vector3());
-  const projectedPointRef = useRef(new Vector3());
-
-  const amenityLookup = useMemo(
-    () => new Map(amenities.map((amenity) => [amenity.id, amenity])),
-    [amenities],
-  );
-
-  const syncVisibleAmenities = useCallback(() => {
-    if (size.width <= 0 || size.height <= 0 || amenities.length === 0) {
-      if (visibleSignatureRef.current !== "") {
-        visibleSignatureRef.current = "";
-        setVisibleAmenitiesState([]);
-      }
-
-      return;
-    }
-
-    camera.updateMatrixWorld();
-    camera.getWorldPosition(cameraPositionRef.current);
-    camera.getWorldDirection(cameraDirectionRef.current);
-    const maxVisibleAmenities = size.width < 768 ? 14 : AMENITY_MARKER_MAX_VISIBLE;
-    const minimumGapPx = size.width < 768 ? 24 : AMENITY_MARKER_MIN_GAP_PX;
-    const buildingClearancePx =
-      size.width < 768
-        ? AMENITY_MARKER_BUILDING_CLEARANCE_PX - 6
-        : AMENITY_MARKER_BUILDING_CLEARANCE_PX;
-    const projectedBuildingPolygons = buildingFootprints
-      .map((footprint) =>
-        getTowerFootprintPoints(footprint)
-          .map((point) => {
-            const projectedPoint = projectedPointRef.current.copy(point).project(camera);
-
-            if (
-              !Number.isFinite(projectedPoint.x) ||
-              !Number.isFinite(projectedPoint.y) ||
-              projectedPoint.z < -1 ||
-              projectedPoint.z > 1
-            ) {
-              return null;
-            }
-
-            return {
-              x: ((projectedPoint.x + 1) * size.width) / 2,
-              y: ((1 - projectedPoint.y) * size.height) / 2,
-            } satisfies ScreenPoint;
-          })
-          .filter((point): point is ScreenPoint => point !== null),
-      )
-      .filter((polygon) => polygon.length >= 3);
-
-    const projectedAmenities = amenities
-      .flatMap((amenity) => {
-        const directionToAmenity = amenity.position
-          .clone()
-          .sub(cameraPositionRef.current);
-        const distanceToAmenity = directionToAmenity.length();
-
-        if (directionToAmenity.dot(cameraDirectionRef.current) <= 0) {
-          return [];
-        }
-
-        if (distanceToAmenity <= 0.01) {
-          return [];
-        }
-
-        occlusionRaycaster.set(
-          cameraPositionRef.current,
-          directionToAmenity.clone().normalize(),
-        );
-        occlusionRaycaster.near = 0.05;
-        occlusionRaycaster.far = Math.max(distanceToAmenity - 0.35, 0.05);
-
-        if (occlusionMeshes.length > 0) {
-          const isOccludedByTowerMesh =
-            occlusionRaycaster.intersectObjects(occlusionMeshes, false).length >
-            0;
-
-          if (isOccludedByTowerMesh) {
-            return [];
-          }
-        }
-
-        const projectedPoint = projectedPointRef.current
-          .copy(amenity.position)
-          .project(camera);
-
-        if (
-          !Number.isFinite(projectedPoint.x) ||
-          !Number.isFinite(projectedPoint.y) ||
-          projectedPoint.z < -1 ||
-          projectedPoint.z > 1
-        ) {
-          return [];
-        }
-
-        const screenX = ((projectedPoint.x + 1) * size.width) / 2;
-        const screenY = ((1 - projectedPoint.y) * size.height) / 2;
-        const screenPoint = { x: screenX, y: screenY };
-
-        if (
-          screenX < AMENITY_MARKER_EDGE_PADDING_PX ||
-          screenX > size.width - AMENITY_MARKER_EDGE_PADDING_PX ||
-          screenY < AMENITY_MARKER_EDGE_PADDING_PX ||
-          screenY > size.height - AMENITY_MARKER_EDGE_PADDING_PX
-        ) {
-          return [];
-        }
-
-        const overlapsProjectedBuilding = projectedBuildingPolygons.some(
-          (polygon) =>
-            pointInPolygon(screenPoint, polygon) ||
-            distanceFromPointToPolygon(screenPoint, polygon) <
-              buildingClearancePx,
-        );
-
-        if (overlapsProjectedBuilding) {
-          return [];
-        }
-
-        return [
-          {
-            amenity,
-            distanceSq: distanceToAmenity * distanceToAmenity,
-            screenX,
-            screenY,
-          },
-        ];
-      })
-      .sort((left, right) => left.distanceSq - right.distanceSq);
-
-    const nearestDistance = Math.sqrt(projectedAmenities[0]?.distanceSq ?? 0);
-    const farthestDistance = Math.sqrt(
-      projectedAmenities.at(-1)?.distanceSq ?? nearestDistance + 1,
-    );
-
-    const visibleAmenities: Array<{ id: string; scale: number }> = [];
-    const occupiedPoints: Array<{ x: number; y: number }> = [];
-
-    projectedAmenities.some((candidate) => {
-      const isTooCloseToExistingMarker = occupiedPoints.some((point) => {
-        return Math.hypot(point.x - candidate.screenX, point.y - candidate.screenY) <
-          minimumGapPx;
-      });
-
-      if (isTooCloseToExistingMarker) {
-        return false;
-      }
-
-      occupiedPoints.push({
-        x: candidate.screenX,
-        y: candidate.screenY,
-      });
-      const candidateDistance = Math.sqrt(candidate.distanceSq);
-      const normalizedDistance =
-        farthestDistance - nearestDistance <= 0.001
-          ? 0
-          : (candidateDistance - nearestDistance) /
-            (farthestDistance - nearestDistance);
-
-      visibleAmenities.push({
-        id: candidate.amenity.id,
-        scale: clampNumber(1.18 - normalizedDistance * 0.28, 0.84, 1.18),
-      });
-
-      return visibleAmenities.length >= maxVisibleAmenities;
-    });
-
-    const nextSignature = visibleAmenities
-      .map((amenity) => `${amenity.id}:${amenity.scale.toFixed(2)}`)
-      .join("|");
-
-    if (nextSignature === visibleSignatureRef.current) {
-      return;
-    }
-
-    visibleSignatureRef.current = nextSignature;
-    setVisibleAmenitiesState(visibleAmenities);
-  }, [
-    amenities,
-    buildingFootprints,
-    camera,
-    occlusionRaycaster,
-    occlusionMeshes,
-    size.height,
-    size.width,
-  ]);
-
-  useFrame(() => {
-    syncVisibleAmenities();
-  });
-
-  const visibleAmenities = useMemo(
-    () =>
-      visibleAmenitiesState
-        .map((amenityState) => {
-          const amenity = amenityLookup.get(amenityState.id) ?? null;
-
-          if (!amenity) {
-            return null;
-          }
-
-          return {
-            ...amenity,
-            scale: amenityState.scale,
-          };
-        })
-        .filter(
-          (
-            amenity,
-          ): amenity is AmenityMarker & { scale: number } => amenity !== null,
-        ),
-    [amenityLookup, visibleAmenitiesState],
-  );
-
-  if (visibleAmenities.length === 0) {
-    return null;
-  }
-
-  return (
-    <group>
-      {visibleAmenities.map((amenity) => {
-        const Icon = AMENITY_ICON_COMPONENTS[amenity.iconKey];
-        const isAmenityActive =
-          hoveredAmenityId === amenity.id || pinnedAmenityId === amenity.id;
-
-        return (
-          <Html
-            key={amenity.id}
-            center
-            position={amenity.position.toArray()}
-            style={{ pointerEvents: "auto" }}
-            zIndexRange={[16, 0]}
-          >
-            <div className="relative -translate-y-[38%]">
-              {isAmenityActive ? (
-                <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 -translate-y-[calc(100%+0.45rem)] whitespace-nowrap rounded-full border border-white/20 bg-black/82 px-2.5 py-1 text-[10px] font-medium tracking-[0.01em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.32)] backdrop-blur-md">
-                  {amenity.label}
-                </div>
-              ) : null}
-
-              <button
-                type="button"
-                aria-label={amenity.label}
-                className={`flex h-8 w-8 items-center justify-center rounded-full border transition duration-200 ${
-                  isAmenityActive
-                    ? "border-black bg-black text-white shadow-[0_16px_34px_rgba(0,0,0,0.34)]"
-                    : "border-black/25 bg-white text-black shadow-[0_10px_24px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.92)] hover:shadow-[0_14px_30px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.96)]"
-                }`}
-                style={{
-                  transform: `translateY(${isAmenityActive ? "-2px" : "0px"}) scale(${amenity.scale * (isAmenityActive ? 1.1 : 1)})`,
-                }}
-                onBlur={() => {
-                  setHoveredAmenityId((currentAmenityId) =>
-                    currentAmenityId === amenity.id ? null : currentAmenityId,
-                  );
-                }}
-                onMouseEnter={() => {
-                  setHoveredAmenityId(amenity.id);
-                }}
-                onMouseLeave={() => {
-                  setHoveredAmenityId((currentAmenityId) =>
-                    currentAmenityId === amenity.id ? null : currentAmenityId,
-                  );
-                }}
-                onPointerDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onPointerUp={(event) => {
-                  if (event.pointerType !== "touch" && event.pointerType !== "pen") {
-                    return;
-                  }
-
-                  event.preventDefault();
-                  event.stopPropagation();
-                  setHoveredAmenityId(amenity.id);
-                  setPinnedAmenityId((currentAmenityId) =>
-                    currentAmenityId === amenity.id ? null : amenity.id,
-                  );
-                }}
-                onFocus={() => {
-                  setHoveredAmenityId(amenity.id);
-                }}
-              >
-                <Icon
-                  aria-hidden="true"
-                  className={`h-4 w-4 stroke-[2.2] transition duration-200 ${
-                    isAmenityActive ? "scale-110" : ""
-                  }`}
-                />
-              </button>
-            </div>
-          </Html>
-        );
-      })}
-    </group>
-  );
-});
-
-function TrackingDebugOverlay({
-  currentViewLabel,
-  rays,
-  points,
-}: {
-  currentViewLabel: string;
-  rays: TrackingCameraRay[];
-  points: TrackingDebugPoint[];
-}) {
-  if (points.length === 0 && rays.length === 0) {
-    return null;
-  }
-
-  return (
-    <group>
-      {rays.map((ray) => (
-        <group key={ray.key}>
-          <Line
-            color={ray.color}
-            depthTest={false}
-            lineWidth={1.6}
-            opacity={0.9}
-            points={[ray.start, ray.end]}
-            transparent
-          />
-          <mesh position={ray.start.toArray()} renderOrder={38}>
-            <sphereGeometry args={[0.11, 16, 16]} />
-            <meshBasicMaterial color={ray.color} depthTest={false} toneMapped={false} />
-          </mesh>
-          <Html
-            center
-            distanceFactor={10}
-            position={ray.end.toArray()}
-            style={{ pointerEvents: "none" }}
-            transform
-          >
-            <div
-              className="rounded-full px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-white shadow-[0_8px_24px_rgba(2,6,23,0.35)]"
-              style={{ background: "rgba(14, 165, 233, 0.88)" }}
-            >
-              {ray.label}
-            </div>
-          </Html>
-        </group>
-      ))}
-
-      {points.map((point) => (
-        <group key={point.key} position={point.position.toArray()}>
-          <mesh renderOrder={40}>
-            <sphereGeometry args={[0.16, 24, 24]} />
-            <meshBasicMaterial
-              color={point.color}
-              depthTest={false}
-              toneMapped={false}
-            />
-          </mesh>
-          <Html
-            center
-            distanceFactor={8}
-            position={[0, 0.48, 0]}
-            style={{ pointerEvents: "none" }}
-            transform
-          >
-            <div
-              className="rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-white shadow-[0_10px_28px_rgba(2,6,23,0.3)]"
-              style={{ background: point.color }}
-            >
-              {point.label}
-            </div>
-          </Html>
-        </group>
-      ))}
-
-      <Html
-        center
-        position={[0, 8, 0]}
-        style={{ pointerEvents: "none" }}
-        transform
-      >
-        <div className="rounded-full border border-red-300/60 bg-black/72 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.28em] text-red-100 shadow-[0_12px_32px_rgba(0,0,0,0.3)]">
-          {currentViewLabel}
-        </div>
-      </Html>
-    </group>
-  );
-}
-
 const TowerScene = memo(function TowerScene({
   apartments,
   currentFrame,
@@ -2838,41 +2235,6 @@ const TowerScene = memo(function TowerScene({
     selectedTower,
     showApartmentMeshes,
   ]);
-  const towerDebugPoints = useMemo(() => {
-    if (!showTrackingDebug) {
-      return [];
-    }
-
-    const activeFootprint = primaryPreparedModel.towerFootprints[activeTowerCode];
-
-    if (towerTrackingTransform && transformedTrackedTowerDummies && unrealTowerDummies) {
-      return [
-        ...getTrackingDebugPoints(
-          transformedTrackedTowerDummies,
-          "rgba(245, 158, 11, 0.95)",
-          "Model ",
-        ),
-        ...getTrackingDebugPoints(
-          unrealTowerDummies,
-          "rgba(14, 165, 233, 0.95)",
-          "Track ",
-        ),
-      ];
-    }
-
-    return getTrackingDebugPoints(activeFootprint);
-  }, [
-    activeTowerCode,
-    primaryPreparedModel.towerFootprints,
-    showTrackingDebug,
-    towerTrackingTransform,
-    transformedTrackedTowerDummies,
-    unrealTowerDummies,
-  ]);
-  const trackingCameraRays = useMemo(
-    () => getTrackingCameraRays(trackingCameraPath),
-    [trackingCameraPath],
-  );
   const pickApartmentAtClientPoint = useCallback(
     (clientX: number, clientY: number) => {
       if (hotspotScopedPickableMeshes.length === 0) {
@@ -2962,57 +2324,11 @@ const TowerScene = memo(function TowerScene({
     console.groupEnd();
     trackingDebugLoggedRef.current = true;
   }, [activeTowerCode, showTrackingDebug, transformedTrackedTowerDummies, unrealTowerDummies]);
-  const trackingViewLabel = useMemo(() => {
-    if (!trackingCameraPath.length) {
-      return `Tower ${activeTowerCode} Tracking`;
-    }
-
-    return `Tower ${activeTowerCode} ${trackingCameraView?.key ?? currentTrackingKey}`;
-  }, [activeTowerCode, currentTrackingKey, trackingCameraPath.length, trackingCameraView?.key]);
   const fallbackScenePosition = BASE_MODEL_OFFSET;
   const trackedScenePosition: [number, number, number] = [0, 0, 0];
   const shouldShowSelectedApartment = selectedApartmentId !== null;
   const shouldRenderTowerProxies =
     showTowerMeshes || showTrackingDebug || shouldShowSelectedApartment;
-  const visibleAmenityMarkers = useMemo(
-    () => (showTowerMeshes ? MASTER_PLAN_AMENITY_MARKERS : []),
-    [showTowerMeshes],
-  );
-  const visibleTowerFootprints = useMemo(() => {
-    const footprints: TowerFootprint[] = [];
-
-    const towerAFootprint = towerATrackingTransform
-      ? transformTowerFootprint(
-          preparedTowerA.trackedTowerFootprints.A ??
-            preparedTowerA.towerFootprints.A,
-          towerATrackingTransform,
-        )
-      : preparedTowerA.towerFootprints.A ?? null;
-    const towerBFootprint = towerBTrackingTransform
-      ? transformTowerFootprint(
-          preparedTowerB.trackedTowerFootprints.B ??
-            preparedTowerB.towerFootprints.B,
-          towerBTrackingTransform,
-        )
-      : preparedTowerB.towerFootprints.B ?? null;
-
-    if (towerAFootprint) {
-      footprints.push(towerAFootprint);
-    }
-
-    if (towerBFootprint) {
-      footprints.push(towerBFootprint);
-    }
-
-    return footprints;
-  }, [
-    preparedTowerA.towerFootprints.A,
-    preparedTowerA.trackedTowerFootprints.A,
-    preparedTowerB.towerFootprints.B,
-    preparedTowerB.trackedTowerFootprints.B,
-    towerATrackingTransform,
-    towerBTrackingTransform,
-  ]);
   const hotspotHoveredApartmentId = useMemo(
     () =>
       hoveredApartmentId &&
@@ -3183,21 +2499,6 @@ const TowerScene = memo(function TowerScene({
         />
       ) : null}
 
-      {visibleAmenityMarkers.length > 0 ? (
-        <AmenityMarkers
-          amenities={visibleAmenityMarkers}
-          buildingFootprints={visibleTowerFootprints}
-          occlusionMeshes={combinedPickableMeshes}
-        />
-      ) : null}
-
-      {showTrackingDebug ? (
-        <TrackingDebugOverlay
-          currentViewLabel={trackingViewLabel}
-          rays={trackingCameraRays}
-          points={towerDebugPoints}
-        />
-      ) : null}
     </>
   );
 });

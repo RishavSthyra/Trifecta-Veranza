@@ -1,17 +1,24 @@
 import fs from "fs"
 import path from "path"
+import os from "os"
 import sharp from "sharp"
 
 const INPUT = "./raw-panos"
-const OUTPUT = "./public/panos"
+const OUTPUT = "./public/bare-shell-pano"
 
 const PREVIEW_WIDTH = 2000
-const TILE_CONCURRENCY = 8
 
-// Photo Sphere Viewer tiled adapter needs power-of-2 grid.
-// For 24576 x 12288, 64 x 32 is perfect:
-// 24576 / 64 = 384
-// 12288 / 32 = 384
+const CPU_THREADS =
+  typeof os.availableParallelism === "function"
+    ? os.availableParallelism()
+    : os.cpus().length
+
+sharp.concurrency(CPU_THREADS)
+sharp.simd(true)
+
+const FILE_CONCURRENCY = Math.max(1, Math.min(4, Math.floor(CPU_THREADS / 4)))
+const TILE_CONCURRENCY = Math.max(16, CPU_THREADS * 2)
+
 const TARGET_COLS = 64
 const TARGET_ROWS = 32
 
@@ -26,6 +33,27 @@ function getPanoId(file: string): string {
 
 function ensureDir(dir: string): void {
   fs.mkdirSync(dir, { recursive: true })
+}
+
+function pathExists(targetPath: string): boolean {
+  return fs.existsSync(targetPath)
+}
+
+function isAlreadyProcessed(folder: string): boolean {
+  const previewPath = path.join(folder, "preview.jpg")
+  const metaPath = path.join(folder, "meta.json")
+  const tilesFolder = path.join(folder, "tiles")
+
+  if (!pathExists(folder)) return false
+  if (!pathExists(previewPath)) return false
+  if (!pathExists(metaPath)) return false
+  if (!pathExists(tilesFolder)) return false
+
+  const tileFiles = fs
+    .readdirSync(tilesFolder)
+    .filter((file) => /\.jpg$/i.test(file))
+
+  return tileFiles.length > 0
 }
 
 async function runInBatches<T>(
@@ -46,6 +74,11 @@ async function processImage(file: string): Promise<void> {
   const inputPath = path.join(INPUT, file)
   const folder = path.join(OUTPUT, panoId)
   const tilesFolder = path.join(folder, "tiles")
+
+  if (isAlreadyProcessed(folder)) {
+    console.log(`skipping: ${file} -> ${panoId} already exists in destination`)
+    return
+  }
 
   ensureDir(folder)
   ensureDir(tilesFolder)
@@ -119,6 +152,12 @@ async function processImage(file: string): Promise<void> {
   }
 
   await runInBatches(tileJobs, TILE_CONCURRENCY, async (job) => {
+    const tilePath = path.join(tilesFolder, `tile_${job.col}_${job.row}.jpg`)
+
+    if (pathExists(tilePath)) {
+      return
+    }
+
     await baseImage
       .clone()
       .extract({
@@ -131,7 +170,7 @@ async function processImage(file: string): Promise<void> {
         quality: 80,
         mozjpeg: true,
       })
-      .toFile(path.join(tilesFolder, `tile_${job.col}_${job.row}.jpg`))
+      .toFile(tilePath)
   })
 
   const metaJson = {
@@ -139,7 +178,7 @@ async function processImage(file: string): Promise<void> {
     height: fullHeight,
     cols,
     rows,
-    tileSize: tileWidth, // 384 for 24576x12288 with 64x32 grid
+    tileSize: tileWidth,
     preview: "preview.jpg",
     tileFormat: "jpg",
     tileUrl: "tiles/tile_{col}_{row}.jpg",
@@ -173,14 +212,19 @@ async function run(): Promise<void> {
     return
   }
 
+  console.log("CPU threads detected:", CPU_THREADS)
+  console.log("sharp concurrency:", CPU_THREADS)
+  console.log("file concurrency:", FILE_CONCURRENCY)
+  console.log("tile concurrency:", TILE_CONCURRENCY)
+
   const totalStart = Date.now()
 
-  for (const file of files) {
+  await runInBatches(files, FILE_CONCURRENCY, async (file) => {
     const start = Date.now()
     await processImage(file)
     const seconds = ((Date.now() - start) / 1000).toFixed(1)
     console.log(`${file} took ${seconds}s`)
-  }
+  })
 
   const totalMinutes = ((Date.now() - totalStart) / 1000 / 60).toFixed(2)
   console.log(`All panos processed successfully in ${totalMinutes} min`)
@@ -190,4 +234,3 @@ run().catch((err) => {
   console.error(err)
   process.exit(1)
 })
-

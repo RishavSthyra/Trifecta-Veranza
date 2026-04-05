@@ -36,10 +36,10 @@ const OverviewLeftPage = forwardRef<HTMLDivElement, Props>(({ number: _number },
         className="relative h-full w-full"
       >
         <Image
-          src={"https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774911464/HighresScreenshot00012.jpg"}
+          src={"https://cdn.sthyra.com/images/bros_1.webp"}
           alt="Project overview tower"
           fill
-          className="absolute h-full w-full object-cover object-[35%_90%]"
+          className="absolute h-full w-full object-cover object-[45%_40%]"
           priority
         />
       </motion.div>

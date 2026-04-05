@@ -1,5 +1,6 @@
 "use client";
 
+import NextImage from "next/image";
 import {
   startTransition,
   useCallback,
@@ -29,6 +30,7 @@ import {
   Building2,
   ChevronDown,
   MapPin,
+  Play,
   Search,
   SlidersHorizontal,
   X,
@@ -50,15 +52,17 @@ const SPECIAL_UNIT_VIDEO_FLAT = "3601";
 const SPECIAL_UNIT_VIDEO_HOTSPOT = "A1";
 const SPECIAL_UNIT_VIDEO_FRAME = 1;
 const SPECIAL_UNIT_VIDEO_URL =
-  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774879490/Tf_3-1.mp4";
+  "https://cdn.sthyra.com/videos/Unit__Viefdw_optimized.mp4";
 const SPECIAL_UNIT_VIDEO_REVERSE_URL =
-  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774880750/Tf_3-1_reversed.mp4";
+  "https://cdn.sthyra.com/videos/Unit__Viefdw_3s_reversed.mp4";
 const MASTER_PLAN_EXIT_REVERSE_VIDEO_URL =
   "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774916774/Tf_Reversed.mp4";
 const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
 const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
 const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;
 const HOTSPOT_NAVIGATION_MS_PER_FRAME = 6.8;
+const BARE_SHELL_PANEL_PREVIEW_IMAGE =
+  "https://cdn.sthyra.com/interior-panos-trifecta/bare-shell-pano/LS_BP_panoPath_F0000/preview.jpg";
 
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
@@ -713,6 +717,9 @@ export default function MasterPlanLayout({
       setIsMobileSheetOpen(true);
     }
   }, [selectedTower]);
+  const handleOpenBareShellWalkthrough = useCallback(() => {
+    router.push("/walkthrough?mode=bare-shell");
+  }, [router]);
 
   const closeSpecialUnitVideo = useCallback(() => {
     if (specialUnitVideoTimeoutRef.current !== null) {
@@ -1406,6 +1413,65 @@ export default function MasterPlanLayout({
               }`}
             />
           ) : null}
+
+          <AnimatePresence>
+            {selectedApartment ? (
+              <motion.div
+                initial={{ opacity: 0, x: 24, y: 12 }}
+                animate={{ opacity: 1, x: 0, y: 0 }}
+                exit={{ opacity: 0, x: 24, y: 12 }}
+                transition={{ duration: 0.26, ease: smoothEase }}
+                className="pointer-events-none absolute left-6 top-1/2 z-40 hidden -translate-y-1/2 xl:block 2xl:left-10"
+              >
+                <button
+                  type="button"
+                  onClick={handleOpenBareShellWalkthrough}
+                  className="pointer-events-auto group relative flex h-[320px] w-[280px] flex-col overflow-hidden rounded-[40px] border border-white/15 bg-black/20 shadow-[0_20px_40px_rgba(0,0,0,0.4)] backdrop-blur-[10px] transition-all duration-300 hover:scale-[1.02] hover:border-white/30"
+                  aria-label="Open bare shell walkthrough"
+                >
+                  <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
+                    <NextImage
+                      src={BARE_SHELL_PANEL_PREVIEW_IMAGE}
+                      alt="Bare shell walkthrough preview"
+                      fill
+                      sizes="280px"
+                      className="object-cover transition-all duration-700 group-hover:scale-[1.05]"
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.1)_50%,rgba(0,0,0,0.7)_100%)]" />
+                  </div>
+
+                  <div className="relative flex h-full flex-col p-6">
+                    <div className="flex items-start justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/60">
+                        Bare Shell
+                      </p>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/25 shadow-[0_4px_12px_rgba(0,0,0,0.2)] backdrop-blur-[4px]">
+                        <Play className="h-3 w-3 fill-white ml-0.5" />
+                      </div>
+                    </div>
+
+                    <div className="my-auto text-center">
+                      <p className="mx-auto max-w-[180px] text-[22px] font-medium leading-[1.2] tracking-[-0.01em] text-white">
+                        Open alternate walkthrough
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="h-px w-full bg-white/20" />
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
+                          <Play className="h-2 w-2 fill-white" />
+                        </div>
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-white/80">
+                          Video Walkthrough
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
 
           <AnimatePresence>
             {selectedApartment ? (

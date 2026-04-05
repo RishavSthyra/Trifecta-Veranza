@@ -192,7 +192,7 @@ const SelectedFlatDetailsPanel = forwardRef<
             </div>
 
             <div
-              className="group relative mt-4 shrink-0 overflow-hidden rounded-[28px] border border-white/12 bg-black/20"
+              className="mt-4 group relative shrink-0 overflow-hidden rounded-[28px] border border-white/12 bg-black/20"
               onClick={handleOpenWalkthrough}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {

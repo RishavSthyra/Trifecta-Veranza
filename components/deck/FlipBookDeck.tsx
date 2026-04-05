@@ -14,6 +14,7 @@ import UnitPlanRightPage from "./pages/TowerA_01_right";
 import LeafOverlay from "@/components/ui/LeafOverlay";
 import { unitPlans } from "@/data/unitPlans";
 import MobileDeckLanding from "./MobileDeckLanding";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type PageFlipInstance = {
   flipNext: (corner?: "top" | "bottom") => void;
@@ -82,6 +83,7 @@ export default function FlipBookDeck() {
     width: 1400,
     height: 900,
   });
+  const [currentPage, setCurrentPage] = useState(0);
 
   useEffect(() => {
     const updateViewport = () => {
@@ -143,6 +145,15 @@ export default function FlipBookDeck() {
   const isTablet = viewport.width >= 640 && viewport.width < 1024;
   const isSmallLaptop = viewport.width >= 1024 && viewport.width < 1280;
   const useStackedDeck = viewport.width < 1280;
+  const lastPageIndex = pages.length - 1;
+
+  const goToPreviousPage = () => {
+    bookRef.current?.pageFlip()?.flipPrev("bottom");
+  };
+
+  const goToNextPage = () => {
+    bookRef.current?.pageFlip()?.flipNext("bottom");
+  };
 
   const bookConfig = (() => {
     // Desktop: keep your current layout
@@ -277,16 +288,39 @@ export default function FlipBookDeck() {
                 swipeDistance={30}
                 showPageCorners
                 disableFlipByClick={false}
-                onFlip={() => {}}
+                onFlip={(event) => {
+                  setCurrentPage(event.data);
+                }}
                 className="mx-auto max-w-full"
                 style={{}}
               >
                 {pages}
               </HTMLFlipBook>
             </div>
+
+            <button
+              type="button"
+              onClick={goToPreviousPage}
+              disabled={currentPage <= 0}
+              aria-label="Turn page left"
+              className="absolute bottom-6 left-6 z-20 inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/35 bg-white/18 text-white shadow-[0_20px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl transition duration-200 hover:bg-white/26 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <ChevronLeft className="h-6 w-6" strokeWidth={2.3} />
+            </button>
+
+            <button
+              type="button"
+              onClick={goToNextPage}
+              disabled={currentPage >= lastPageIndex}
+              aria-label="Turn page right"
+              className="absolute bottom-6 right-6 z-20 inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/35 bg-white/18 text-white shadow-[0_20px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl transition duration-200 hover:bg-white/26 disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <ChevronRight className="h-6 w-6 " strokeWidth={2.3} />
+            </button>
           </div>
         )}
       </div>
     </div>
   );
 }
+

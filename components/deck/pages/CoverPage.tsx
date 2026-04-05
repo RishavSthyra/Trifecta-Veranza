@@ -130,7 +130,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
 
           <motion.h1
             variants={textReveal}
-            className={`${titleFont.className} max-w-[330px] text-[2.35rem] font-semibold leading-[0.88] tracking-[-0.035em] text-[#1f1b16] sm:max-w-[520px] sm:text-[4.25rem] lg:max-w-full lg:text-[4.9rem]`}
+            className={`${titleFont.className} max-w-[330px] text-[2.35rem] font-semibold leading-[0.88] tracking-[-0.035em] text-[#1f1b16] sm:max-w-[520px] sm:text-[4.25rem] lg:max-w-full lg:text-[2.9rem] 2xl:text-[4.9rem]`}
           >
             The New Standard of Refined Urban Living
           </motion.h1>
@@ -166,9 +166,9 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
           {/* <div className="absolute bottom-[18%] left-1/2 h-[42%] w-[58%] -translate-x-1/2 rounded-[999px] bg-[radial-gradient(circle,rgba(255,255,255,0.38)_0%,rgba(255,255,255,0.12)_38%,transparent_72%)] blur-2xl" /> */}
 
           <img
-            src="https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855534/Aparttments_Clouds.png"
+            src="https://cdn.sthyra.com/images/bros.webp"
             alt="Project cover"
-            className="relative z-10 h-full w-auto max-w-none object-contain object-bottom scale-[1.18] sm:scale-[1.3] lg:scale-[1.36]"
+            className="relative z-10 h-[75%] w-auto max-w-none object-contain object-bottom "
           />
         </div>
       </motion.div>

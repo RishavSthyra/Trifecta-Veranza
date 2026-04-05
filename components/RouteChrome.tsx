@@ -7,6 +7,7 @@ import { BiHome } from "react-icons/bi";
 import { IoMapOutline } from "react-icons/io5";
 import { PiMapPinAreaFill } from "react-icons/pi";
 import QuoteRequestController from "@/components/QuoteRequestController";
+import { Footprints } from 'lucide-react';
 import { FloatingDock } from "@/components/ui/floating-dock";
 
 const dockItems = [
@@ -30,6 +31,11 @@ const dockItems = [
     icon: <IoMapOutline className="h-full w-full text-neutral-100" />,
     href: "/area-map",
   },
+  {
+    title: "Walkthrough",
+    icon: <Footprints className="h-full w-full text-neutral-100" />,
+    href: "/exterior-walkthrough",
+  },
 ];
 
 export default function RouteChrome() {
@@ -37,9 +43,15 @@ export default function RouteChrome() {
   const [isMasterPlanFlatOpen, setIsMasterPlanFlatOpen] = useState(false);
   const [shouldMergeDockIntoCta, setShouldMergeDockIntoCta] = useState(false);
   const isAdminRoute = pathname.startsWith("/admin");
-  const isImmersiveRoute = pathname === "/tower-hover-test";
+  const isExteriorWalkthroughRoute =
+    pathname === "/exterios-walkthrough" || pathname === "/exterior-tour";
+  const isImmersiveRoute =
+    pathname === "/tower-hover-test" || pathname === "/project-layout";
+  const isDocklessRoute = pathname === "/test";
+  const shouldMergeLinksForRoute = shouldMergeDockIntoCta || isExteriorWalkthroughRoute;
   const shouldHideDock =
-    shouldMergeDockIntoCta ||
+    isDocklessRoute ||
+    shouldMergeLinksForRoute ||
     (pathname === "/master-plan" && isMasterPlanFlatOpen);
 
   useEffect(() => {
@@ -100,7 +112,7 @@ export default function RouteChrome() {
         />
       ) : null}
 
-      <QuoteRequestController mergeRouteLinks={shouldMergeDockIntoCta} />
+      <QuoteRequestController mergeRouteLinks={shouldMergeLinksForRoute} />
     </>
   );
 }

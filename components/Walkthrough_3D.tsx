@@ -2,18 +2,15 @@
 
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import NextImage from "next/image";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import navData from "@/data/nav.json";
+import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import navData from "@/data/trifecta_pano_walkthrough_data_Interior.json";
+import bareShellNavData from "@/data/trifecta_pano_walkthrough_data_BareShell.json";
 import {
   CLOUDINARY_PANO_IMAGE_BASE_URL,
   CLOUDINARY_PANO_RAW_BASE_URL,
   getPanoMetaUrl,
+  getPanoFolderCandidates,
   getPanoPreviewUrl,
   getPanoTileUrl,
 } from "@/lib/pano-cloudinary";
@@ -50,6 +47,11 @@ const uiFont = Manrope({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
 });
+
+const BARE_SHELL_PANO_IMAGE_BASE_URL =
+  "https://cdn.sthyra.com/interior-panos-trifecta/bare-shell-pano/";
+const BARE_SHELL_PANO_RAW_BASE_URL =
+  "https://cdn.sthyra.com/interior-panos-trifecta/bare-shell-pano/";
 
 type ApartmentTourProps = {
   modelUrl: string;
@@ -115,6 +117,12 @@ type PanoTileDescriptor = {
   url: string;
 };
 
+type DrawablePanoImage = HTMLImageElement | ImageBitmap;
+
+function getFrameToken(value: string) {
+  return value.match(/F\d{4}$/i)?.[0].toUpperCase() ?? null;
+}
+
 type DebugInfo = {
   cameraWorld: { x: number; y: number; z: number };
   cameraNav: { x: number; y: number; z: number };
@@ -148,26 +156,49 @@ type Bounds3 = {
   maxZ: number;
 };
 
-const SOURCE_BOTTOM_LEFT = {
+const LEGACY_SOURCE_BOTTOM_LEFT = {
   x: 1899.143896,
   y: -7958.955338,
-  z: 10799.999023,
+  z: 10799.999023 - 86,
 };
 
-const SOURCE_TOP_RIGHT = {
+const LEGACY_SOURCE_TOP_RIGHT = {
   x: 581.121048,
   y: -9052.578353,
-  z: 11084.998992,
+  z: 11084.998992 - 86,
 };
 
-const SOURCE_COORDINATE_BOUNDS: Bounds3 = {
-  minX: Math.min(SOURCE_BOTTOM_LEFT.x, SOURCE_TOP_RIGHT.x),
-  maxX: Math.max(SOURCE_BOTTOM_LEFT.x, SOURCE_TOP_RIGHT.x),
-  minY: Math.min(SOURCE_BOTTOM_LEFT.y, SOURCE_TOP_RIGHT.y),
-  maxY: Math.max(SOURCE_BOTTOM_LEFT.y, SOURCE_TOP_RIGHT.y),
-  minZ: Math.min(SOURCE_BOTTOM_LEFT.z, SOURCE_TOP_RIGHT.z),
-  maxZ: Math.max(SOURCE_BOTTOM_LEFT.z, SOURCE_TOP_RIGHT.z),
+const LEGACY_SOURCE_COORDINATE_BOUNDS: Bounds3 = {
+  minX: Math.min(LEGACY_SOURCE_BOTTOM_LEFT.x, LEGACY_SOURCE_TOP_RIGHT.x),
+  maxX: Math.max(LEGACY_SOURCE_BOTTOM_LEFT.x, LEGACY_SOURCE_TOP_RIGHT.x),
+  minY: Math.min(LEGACY_SOURCE_BOTTOM_LEFT.y, LEGACY_SOURCE_TOP_RIGHT.y),
+  maxY: Math.max(LEGACY_SOURCE_BOTTOM_LEFT.y, LEGACY_SOURCE_TOP_RIGHT.y),
+  minZ: Math.min(LEGACY_SOURCE_BOTTOM_LEFT.z, LEGACY_SOURCE_TOP_RIGHT.z),
+  maxZ: Math.max(LEGACY_SOURCE_BOTTOM_LEFT.z, LEGACY_SOURCE_TOP_RIGHT.z),
 };
+
+const BARE_SHELL_SOURCE_BOTTOM_LEFT = {
+  x: 4651.149307,
+  y: -9052.57788,
+  z: 10800.0,
+};
+
+const BARE_SHELL_SOURCE_TOP_RIGHT = {
+  x: 5850.028969,
+  y: -7958.955825,
+  z: 11085.0,
+};
+
+const BARE_SHELL_SOURCE_COORDINATE_BOUNDS: Bounds3 = {
+  minX: Math.min(BARE_SHELL_SOURCE_BOTTOM_LEFT.x, BARE_SHELL_SOURCE_TOP_RIGHT.x),
+  maxX: Math.max(BARE_SHELL_SOURCE_BOTTOM_LEFT.x, BARE_SHELL_SOURCE_TOP_RIGHT.x),
+  minY: Math.min(BARE_SHELL_SOURCE_BOTTOM_LEFT.y, BARE_SHELL_SOURCE_TOP_RIGHT.y),
+  maxY: Math.max(BARE_SHELL_SOURCE_BOTTOM_LEFT.y, BARE_SHELL_SOURCE_TOP_RIGHT.y),
+  minZ: Math.min(BARE_SHELL_SOURCE_BOTTOM_LEFT.z, BARE_SHELL_SOURCE_TOP_RIGHT.z),
+  maxZ: Math.max(BARE_SHELL_SOURCE_BOTTOM_LEFT.z, BARE_SHELL_SOURCE_TOP_RIGHT.z),
+};
+
+const LEGACY_REFERENCE_PANO_Z = 10894.549;
 
 const ROOM_LABELS: Record<string, string> = {
   LS_BP_panoPath_Interior_F0000: "Living Room",
@@ -196,6 +227,73 @@ function panoIdFromFilename(filename: string) {
   return filename.replace(/\.[^.]+$/, "").replace(/^NewLS_/i, "LS_");
 }
 
+function getBareShellPanoFolderCandidates(panoId: string) {
+  const frameMatch = panoId.match(/F\d{4}$/i)?.[0];
+  const interiorSegmentMatch = panoId.match(/LS_BP_panoPath_Interior(\d+)_/i);
+  const exactDroppedInterior = panoId.replace(/_Interior/gi, "");
+  const candidates = new Set<string>();
+
+  if (exactDroppedInterior !== panoId) {
+    candidates.add(exactDroppedInterior);
+  }
+
+  if (interiorSegmentMatch && frameMatch) {
+    const segmentNumber = Number(interiorSegmentMatch[1]);
+
+    if (Number.isFinite(segmentNumber) && segmentNumber > 1) {
+      candidates.add(`LS_BP_panoPath${segmentNumber - 1}_${frameMatch}`);
+    }
+  }
+
+  if (frameMatch) {
+    candidates.add(`LS_BP_panoPath_${frameMatch}`);
+
+    for (let segment = 2; segment <= 8; segment += 1) {
+      candidates.add(`LS_BP_panoPath${segment}_${frameMatch}`);
+    }
+  }
+
+  return [...candidates];
+}
+
+function getModeAwarePanoFolderCandidates(panoId: string, isBareShellMode: boolean) {
+  return isBareShellMode
+    ? getBareShellPanoFolderCandidates(panoId)
+    : getPanoFolderCandidates(panoId);
+}
+
+function computeSourceCoordinateBounds(points: NavPoint[]): Bounds3 {
+  if (points.length === 0) {
+    return {
+      minX: 0,
+      maxX: 0,
+      minY: 0,
+      maxY: 0,
+      minZ: 0,
+      maxZ: 0,
+    };
+  }
+
+  return points.reduce<Bounds3>(
+    (bounds, point) => ({
+      minX: Math.min(bounds.minX, point.x),
+      maxX: Math.max(bounds.maxX, point.x),
+      minY: Math.min(bounds.minY, point.y),
+      maxY: Math.max(bounds.maxY, point.y),
+      minZ: Math.min(bounds.minZ, point.z),
+      maxZ: Math.max(bounds.maxZ, point.z),
+    }),
+    {
+      minX: points[0].x,
+      maxX: points[0].x,
+      minY: points[0].y,
+      maxY: points[0].y,
+      minZ: points[0].z,
+      maxZ: points[0].z,
+    },
+  );
+}
+
 function formatFallbackRoomLabel(source: string) {
   const match = source.match(/F(\d{4})$/i);
   return match ? `Room ${match[1]}` : source;
@@ -210,14 +308,51 @@ function getRoomLabel(id: string, imageFilename: string) {
   );
 }
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+function loadImage(
+  src: string,
+  options?: { fetchPriority?: "high" | "low" | "auto" },
+): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = "anonymous";
+    img.decoding = "async";
+    (
+      img as HTMLImageElement & {
+        fetchPriority?: "high" | "low" | "auto";
+      }
+    ).fetchPriority = options?.fetchPriority ?? "auto";
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
     img.src = src;
   });
+}
+
+async function loadDrawableImage(
+  src: string,
+  options?: { fetchPriority?: "high" | "low" | "auto" },
+): Promise<DrawablePanoImage> {
+  if (typeof window === "undefined") {
+    return loadImage(src, options);
+  }
+
+  try {
+    const response = await fetch(src, {
+      cache: "force-cache",
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image: ${src}`);
+    }
+
+    const blob = await response.blob();
+
+    if (typeof createImageBitmap === "function") {
+      return await createImageBitmap(blob);
+    }
+  } catch {
+  }
+
+  return loadImage(src, options);
 }
 
 Effect.ShadersStore["panoProjectorVertexShader"] = `
@@ -289,16 +424,100 @@ export default function ApartmentTour({
   thumbnailBasePath = CLOUDINARY_PANO_IMAGE_BASE_URL,
   className,
 }: ApartmentTourProps) {
+  const searchParams = useSearchParams();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const tabsScrollerRef = useRef<HTMLDivElement | null>(null);
   const moveToNavRef = useRef<((id: string) => void) | null>(null);
   const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
+  const [isViewerMasked, setIsViewerMasked] = useState(true);
+  const [showProjection, setShowProjection] = useState(true);
+  const requestedBareShellMode = useMemo(() => {
+    const mode = searchParams.get("mode")?.toLowerCase();
+    return mode === "bare-shell" || mode === "bareshell";
+  }, [searchParams]);
+  const [isBareShellMode, setIsBareShellMode] = useState(requestedBareShellMode);
+  const effectiveModelUrl = isBareShellMode
+    ? encodeURI("/models/BARESHELLS3606.glb")
+    : modelUrl;
+  const isBareShellModeRef = useRef(isBareShellMode);
+  const showDebug = false;
 
-  const ALL_NAV_POINTS = useMemo(() => navData as NavPoint[], []);
+  const FURNISHED_NAV_POINTS = useMemo(() => navData as NavPoint[], []);
+  const BARE_SHELL_NAV_POINTS = useMemo(() => bareShellNavData as NavPoint[], []);
+  const bareShellNavByFrame = useMemo(() => {
+    const frameMap = new Map<string, NavPoint>();
+
+    BARE_SHELL_NAV_POINTS.forEach((point) => {
+      const frameToken =
+        getFrameToken(panoIdFromFilename(point.image_filename)) ??
+        getFrameToken(point.id);
+
+      if (frameToken) {
+        frameMap.set(frameToken, point);
+      }
+    });
+
+    return frameMap;
+  }, [BARE_SHELL_NAV_POINTS]);
+  const ALL_NAV_POINTS = useMemo(
+    () =>
+      FURNISHED_NAV_POINTS.map((point) => {
+        if (!isBareShellMode) {
+          return point;
+        }
+
+        const frameToken =
+          getFrameToken(panoIdFromFilename(point.image_filename)) ??
+          getFrameToken(point.id);
+        const bareShellPoint = frameToken
+          ? bareShellNavByFrame.get(frameToken)
+          : undefined;
+
+        if (!bareShellPoint) {
+          return point;
+        }
+
+        return {
+          ...point,
+          x: bareShellPoint.x,
+          y: bareShellPoint.y,
+          z: bareShellPoint.z,
+          pitch: bareShellPoint.pitch,
+          yaw: bareShellPoint.yaw,
+          roll: bareShellPoint.roll,
+          facing_axis: bareShellPoint.facing_axis,
+          forward_vector: bareShellPoint.forward_vector,
+          right_vector: bareShellPoint.right_vector,
+          left_vector: bareShellPoint.left_vector,
+        };
+      }),
+    [FURNISHED_NAV_POINTS, bareShellNavByFrame, isBareShellMode],
+  );
+  const sourceCoordinateBounds = useMemo(
+    () => {
+      if (isBareShellMode) {
+        return BARE_SHELL_SOURCE_COORDINATE_BOUNDS;
+      }
+
+      const currentBounds = computeSourceCoordinateBounds(ALL_NAV_POINTS);
+      const currentReferenceZ = (currentBounds.minZ + currentBounds.maxZ) / 2;
+      const zShift = currentReferenceZ - LEGACY_REFERENCE_PANO_Z;
+
+      return {
+        ...LEGACY_SOURCE_COORDINATE_BOUNDS,
+        minZ: LEGACY_SOURCE_COORDINATE_BOUNDS.minZ + zShift,
+        maxZ: LEGACY_SOURCE_COORDINATE_BOUNDS.maxZ + zShift,
+      };
+    },
+    [ALL_NAV_POINTS, isBareShellMode],
+  );
   const DEFAULT_START_NAV_ID = "BP_panoPath_Interior_F0000";
   const [availableNavIds, setAvailableNavIds] = useState<Set<string> | null>(
     null,
   );
+  const [availablePanoFolders, setAvailablePanoFolders] = useState<
+    Record<string, string>
+  >({});
   const NAV_POINTS = useMemo(() => {
     if (!availableNavIds) {
       return [] as NavPoint[];
@@ -315,22 +534,35 @@ export default function ApartmentTour({
   const activeRoomIdRef = useRef(START_NAV_ID);
   const refreshProjectionModeRef = useRef<(() => void) | null>(null);
 
+  const [activeRoomId, setActiveRoomId] = useState<string>(START_NAV_ID);
+  useEffect(() => {
+    setIsBareShellMode(requestedBareShellMode);
+  }, [requestedBareShellMode]);
+
+  useEffect(() => {
+    setIsViewerMasked(true);
+    isBareShellModeRef.current = isBareShellMode;
+    refreshProjectionModeRef.current?.();
+  }, [isBareShellMode]);
+
   const tabs = useMemo<RoomTab[]>(
     () =>
       NAV_POINTS.map((item) => {
-        const panoId = panoIdFromFilename(item.image_filename);
+        const sourcePanoId = panoIdFromFilename(item.image_filename);
+        const panoId = availablePanoFolders[item.id]
+          ?? getModeAwarePanoFolderCandidates(sourcePanoId, isBareShellMode)[0]
+          ?? sourcePanoId;
+        const effectiveThumbnailBase = isBareShellMode
+          ? BARE_SHELL_PANO_IMAGE_BASE_URL
+          : thumbnailBasePath;
         return {
           id: item.id,
           label: getRoomLabel(item.id, item.image_filename),
-          image: getPanoPreviewUrl(panoId, "preview.jpg", thumbnailBasePath),
+          image: getPanoPreviewUrl(panoId, "preview.jpg", effectiveThumbnailBase),
         };
       }),
-    [NAV_POINTS, thumbnailBasePath],
+    [NAV_POINTS, availablePanoFolders, thumbnailBasePath, isBareShellMode],
   );
-
-  const [activeRoomId, setActiveRoomId] = useState<string>(START_NAV_ID);
-  const [showProjection, setShowProjection] = useState(true);
-  const showDebug = false;
 
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({
     cameraWorld: { x: 0, y: 0, z: 0 },
@@ -348,6 +580,9 @@ export default function ApartmentTour({
 
   useEffect(() => {
     showProjectionRef.current = showProjection;
+    if (showProjection) {
+      setIsViewerMasked(true);
+    }
     refreshProjectionModeRef.current?.();
   }, [showProjection]);
 
@@ -359,18 +594,31 @@ export default function ApartmentTour({
     let cancelled = false;
 
     const hydrateAvailableNavIds = async () => {
+      const effectiveMetaBasePath = isBareShellMode
+        ? BARE_SHELL_PANO_RAW_BASE_URL
+        : panoMetaBasePath;
+
       const availability = await Promise.allSettled(
         ALL_NAV_POINTS.map(async (item) => {
           const panoId = panoIdFromFilename(item.image_filename);
-          const response = await fetch(getPanoMetaUrl(panoId, panoMetaBasePath), {
-            cache: "force-cache",
-          });
 
-          if (!response.ok) {
-            return null;
+          for (const candidate of getModeAwarePanoFolderCandidates(
+            panoId,
+            isBareShellMode,
+          )) {
+            const response = await fetch(
+              getPanoMetaUrl(candidate, effectiveMetaBasePath),
+              {
+                cache: "force-cache",
+              },
+            );
+
+            if (response.ok) {
+              return { id: item.id, panoFolderId: candidate };
+            }
           }
 
-          return item.id;
+          return null;
         }),
       );
 
@@ -378,26 +626,34 @@ export default function ApartmentTour({
         return;
       }
 
-      setAvailableNavIds(
-        new Set(
-          availability.flatMap((result) =>
-            result.status === "fulfilled" && result.value ? [result.value] : [],
-          ),
-        ),
-      );
+      const nextAvailablePanoFolders: Record<string, string> = {};
+      const nextAvailableNavIds = new Set<string>();
+
+      availability.forEach((result) => {
+        if (result.status !== "fulfilled" || !result.value) {
+          return;
+        }
+
+        nextAvailableNavIds.add(result.value.id);
+        nextAvailablePanoFolders[result.value.id] = result.value.panoFolderId;
+      });
+
+      setAvailableNavIds(nextAvailableNavIds);
+      setAvailablePanoFolders(nextAvailablePanoFolders);
     };
 
     void hydrateAvailableNavIds().catch((error) => {
       if (!cancelled) {
         console.error("Failed to resolve available Cloudinary panoramas:", error);
         setAvailableNavIds(new Set());
+        setAvailablePanoFolders({});
       }
     });
 
     return () => {
       cancelled = true;
     };
-  }, [ALL_NAV_POINTS, panoMetaBasePath]);
+  }, [ALL_NAV_POINTS, isBareShellMode, panoMetaBasePath]);
 
   useEffect(() => {
     if (NAV_POINTS.length === 0) {
@@ -476,13 +732,41 @@ export default function ApartmentTour({
 
     const canvas = canvasRef.current;
     if (!canvas) return;
+    setIsViewerMasked(true);
 
-    const POSITION_FLIP_X = true;
-    const POSITION_FLIP_Y = false;
+    const POSITION_FLIP_X = isBareShellMode ? true : true;
+    const POSITION_FLIP_Y = isBareShellMode ? false : false;
     const ORIENTATION_FLIP_X = POSITION_FLIP_X;
     const ORIENTATION_FLIP_Y = POSITION_FLIP_Y;
-    const MAX_TEXTURE_CACHE = 6;
+    const deviceMemoryGb =
+      typeof navigator !== "undefined" &&
+      "deviceMemory" in navigator &&
+      typeof (
+        navigator as Navigator & {
+          deviceMemory?: number;
+        }
+      ).deviceMemory === "number"
+        ? (
+            navigator as Navigator & {
+              deviceMemory?: number;
+            }
+          ).deviceMemory!
+        : 4;
+    const hasTouchInput =
+      typeof window !== "undefined" &&
+      (
+        window.matchMedia?.("(pointer: coarse)").matches ||
+        navigator.maxTouchPoints > 0
+      );
+    const isLowMemoryDevice = deviceMemoryGb <= 4;
+    const MAX_TEXTURE_CACHE = isLowMemoryDevice ? 4 : 7;
     const MAX_PROJECTED_PANO_WIDTH = 8192;
+    const ACTIVE_PANO_TILE_CONCURRENCY = isLowMemoryDevice ? 18 : 28;
+    const PRELOAD_PANO_TILE_CONCURRENCY = isLowMemoryDevice ? 8 : 12;
+    const ACTIVE_PANO_PRIORITY_TILE_COUNT = isLowMemoryDevice ? 220 : 320;
+    const PRELOAD_PANO_PRIORITY_TILE_COUNT = isLowMemoryDevice ? 72 : 120;
+    const NEAREST_PANO_PRELOAD_COUNT = isLowMemoryDevice ? 3 : 4;
+    const NEAREST_PANO_PRELOAD_DELAY_MS = 180;
     const NAV_MARKER_RADIUS = 0.17;
     const NAV_MARKER_HEIGHT_OFFSET = 0.06;
     const MAX_VISIBLE_NAV_MARKERS = 4;
@@ -493,12 +777,27 @@ export default function ApartmentTour({
     const PANO_YAW_OFFSET_DEG = 0;
     const PANO_TEXTURE_FLIP_X = true;
     const PANO_LOCAL_OFFSET = {
-      forward: -0.08,
-      right: 0.02,
-      up: 0.015,
+      forward: 0,
+      right: 0,
+      up: 0,
     };
 
-    const sourceBounds: Bounds3 = SOURCE_COORDINATE_BOUNDS;
+    // Faster tile loading for bare shell mode
+    const BARE_SHELL_TILE_CONCURRENCY = isLowMemoryDevice ? 28 : 48;
+    const BARE_SHELL_PRIORITY_TILE_COUNT = isLowMemoryDevice ? 320 : 560;
+    const BARE_SHELL_PRELOAD_TILE_CONCURRENCY = isLowMemoryDevice ? 14 : 22;
+    const BARE_SHELL_PRELOAD_PRIORITY_TILE_COUNT = isLowMemoryDevice ? 120 : 200;
+
+    const getEffectivePanoBasePath = () =>
+      isBareShellModeRef.current ? BARE_SHELL_PANO_IMAGE_BASE_URL : panoBasePath;
+
+    const getEffectivePanoMetaBasePath = () =>
+      isBareShellModeRef.current ? BARE_SHELL_PANO_RAW_BASE_URL : panoMetaBasePath;
+
+    const getTextureCacheKey = (panoFolderId: string) =>
+      `${isBareShellModeRef.current ? "bs:" : "fu:"}${panoFolderId}`;
+
+    const sourceBounds: Bounds3 = sourceCoordinateBounds;
 
     const CORNER_LABEL_HEIGHT = 0.45;
     const PANO_LABEL_HEIGHT = 0.28;
@@ -509,7 +808,15 @@ export default function ApartmentTour({
       adaptToDeviceRatio: true,
       powerPreference: "high-performance",
     });
-    engine.setHardwareScalingLevel(window.devicePixelRatio >= 2 ? 1.2 : 1);
+    engine.setHardwareScalingLevel(
+      hasTouchInput
+        ? window.devicePixelRatio >= 2
+          ? 1.55
+          : 1.25
+        : window.devicePixelRatio >= 2
+          ? 1.2
+          : 1,
+    );
 
     const scene = new Scene(engine);
     scene.clearColor = new Color4(0.95, 0.95, 0.97, 1);
@@ -526,8 +833,8 @@ export default function ApartmentTour({
     camera.minZ = 0.1;
     camera.maxZ = 500;
     camera.speed = 0;
-    camera.inertia = 0.52;
-    camera.angularSensibility = 2500;
+    camera.inertia = hasTouchInput ? 0.68 : 0.52;
+    camera.angularSensibility = hasTouchInput ? 3600 : 2500;
     camera.applyGravity = false;
     camera.checkCollisions = false;
     camera.keysUp = [];
@@ -535,6 +842,22 @@ export default function ApartmentTour({
     camera.keysLeft = [];
     camera.keysRight = [];
     camera.attachControl(canvas, true);
+    canvas.style.touchAction = "none";
+    // canvas.style.webkitTapHighlightColor = "transparent";
+
+    const touchInput = (
+      camera.inputs.attached as {
+        touch?: {
+          touchAngularSensibility?: number;
+          touchMoveSensibility?: number;
+        };
+      }
+    ).touch;
+
+    if (touchInput) {
+      touchInput.touchAngularSensibility = hasTouchInput ? 9000 : 7000;
+      touchInput.touchMoveSensibility = hasTouchInput ? 300 : 220;
+    }
 
     const hoverCursorRoot = new Mesh("hoverCursorRoot", scene);
     hoverCursorRoot.isPickable = false;
@@ -570,8 +893,9 @@ export default function ApartmentTour({
     const discMat = new StandardMaterial("hoverDiscMat", scene);
     discMat.diffuseColor = new Color3(1, 1, 1);
     discMat.emissiveColor = new Color3(1, 1, 1);
-    discMat.alpha = 0.12;
+    discMat.alpha = 0.2;
     discMat.backFaceCulling = false;
+    discMat.disableLighting = true;
     hoverDisc.material = discMat;
 
     const ringMat = new StandardMaterial("hoverRingMat", scene);
@@ -592,11 +916,29 @@ export default function ApartmentTour({
     let sceneMax = new Vector3(10, 5, 10);
 
     const panoTextures = new Map<string, DynamicTexture>();
+    const panoTextureEntries = new Map<
+      string,
+      {
+        texture: DynamicTexture;
+        ctx: CanvasRenderingContext2D;
+        meta: PanoMeta;
+        projectedSize: {
+          width: number;
+          height: number;
+          scaleX: number;
+          scaleY: number;
+        };
+        tiles: PanoTileDescriptor[];
+        loadedTiles: Set<string>;
+      }
+    >();
     const panoTexturePromises = new Map<string, Promise<DynamicTexture>>();
     const panoMetaCache = new Map<string, PanoMeta>();
     const panoMetaPromises = new Map<string, Promise<PanoMeta>>();
     const panoTileListCache = new Map<string, PanoTileDescriptor[]>();
     const panoPreviewPromiseCache = new Map<string, Promise<HTMLImageElement>>();
+    const panoWarmPromises = new Map<string, Promise<void>>();
+    const panoFullPromises = new Map<string, Promise<void>>();
     const textureUseOrder: string[] = [];
 
     const modelMeshes: AbstractMesh[] = [];
@@ -615,6 +957,7 @@ export default function ApartmentTour({
     let pointerDownCanvasPos: { x: number; y: number } | null = null;
     let navTransitionRunId = 0;
     let navMoveRequestId = 0;
+    let nearestPreloadRunId = 0;
     let lastNavMarkerVisualSyncAt = 0;
     let currentCanvasCursor: "grab" | "pointer" = "grab";
 
@@ -622,6 +965,12 @@ export default function ApartmentTour({
       const idx = textureUseOrder.indexOf(id);
       if (idx >= 0) textureUseOrder.splice(idx, 1);
       textureUseOrder.push(id);
+    };
+
+    const setModelVisibility = (value: number) => {
+      for (const mesh of modelMeshes) {
+        mesh.visibility = value;
+      }
     };
 
     const evictOldTextures = (keepIds: string[]) => {
@@ -635,6 +984,9 @@ export default function ApartmentTour({
         const tex = panoTextures.get(oldest);
         if (tex) tex.dispose();
         panoTextures.delete(oldest);
+        panoTextureEntries.delete(oldest);
+        panoWarmPromises.delete(oldest);
+        panoFullPromises.delete(oldest);
         textureUseOrder.shift();
       }
     };
@@ -1052,15 +1404,31 @@ export default function ApartmentTour({
       buildActiveBasisDebug();
     };
 
+    const resolvePanoFolderId = (imageFilename: string, navId?: string) => {
+      const sourcePanoId = panoIdFromFilename(imageFilename);
+      const candidates = getModeAwarePanoFolderCandidates(
+        sourcePanoId,
+        isBareShellModeRef.current,
+      );
+      const mappedFolderId = navId ? availablePanoFolders[navId] : undefined;
+
+      if (mappedFolderId && candidates.includes(mappedFolderId)) {
+        return mappedFolderId;
+      }
+
+      return candidates[0] ?? sourcePanoId;
+    };
+
     const buildTileList = (
-      panoId: string,
+      panoFolderId: string,
       meta: PanoMeta,
     ): PanoTileDescriptor[] => {
+      const effectiveBasePath = getEffectivePanoBasePath();
       if (meta.tiles && meta.tiles.length > 0) {
         return meta.tiles.map((t) => ({
           col: t.col,
           row: t.row,
-          url: getPanoTileUrl(panoId, `tiles/${t.file}`, panoBasePath),
+          url: getPanoTileUrl(panoFolderId, `tiles/${t.file}`, effectiveBasePath),
         }));
       }
 
@@ -1075,11 +1443,11 @@ export default function ApartmentTour({
             col,
             row,
             url: getPanoTileUrl(
-              panoId,
+              panoFolderId,
               tileTemplate
                 .replace("{col}", String(col))
                 .replace("{row}", String(row)),
-              panoBasePath,
+              effectiveBasePath,
             ),
           });
         }
@@ -1087,19 +1455,21 @@ export default function ApartmentTour({
       return list;
     };
 
-    const loadPanoMeta = async (panoId: string) => {
-      const cachedMeta = panoMetaCache.get(panoId);
+    const loadPanoMeta = async (panoFolderId: string) => {
+      // Include mode in cache key so furnished/bare shell don't conflict
+      const metaCacheKey = getTextureCacheKey(panoFolderId);
+      const cachedMeta = panoMetaCache.get(metaCacheKey);
       if (cachedMeta) {
         return cachedMeta;
       }
 
-      const cachedPromise = panoMetaPromises.get(panoId);
+      const cachedPromise = panoMetaPromises.get(metaCacheKey);
       if (cachedPromise) {
         return cachedPromise;
       }
 
       const promise = (async () => {
-        const metaUrl = getPanoMetaUrl(panoId, panoMetaBasePath);
+        const metaUrl = getPanoMetaUrl(panoFolderId, getEffectivePanoMetaBasePath());
         const metaRes = await fetch(metaUrl);
 
         if (!metaRes.ok) {
@@ -1107,51 +1477,72 @@ export default function ApartmentTour({
         }
 
         const meta = (await metaRes.json()) as PanoMeta;
-        panoMetaCache.set(panoId, meta);
+        panoMetaCache.set(metaCacheKey, meta);
         return meta;
       })();
 
-      panoMetaPromises.set(panoId, promise);
+      panoMetaPromises.set(metaCacheKey, promise);
 
       try {
         return await promise;
       } finally {
-        panoMetaPromises.delete(panoId);
+        panoMetaPromises.delete(metaCacheKey);
       }
     };
 
-    const getCachedTileList = (panoId: string, meta: PanoMeta) => {
-      const cachedTileList = panoTileListCache.get(panoId);
+    const getCachedTileList = (panoFolderId: string, meta: PanoMeta) => {
+      // Include mode in cache key so furnished/bare shell don't conflict
+      const tileListCacheKey = getTextureCacheKey(panoFolderId);
+      const cachedTileList = panoTileListCache.get(tileListCacheKey);
       if (cachedTileList) {
         return cachedTileList;
       }
 
-      const tileList = buildTileList(panoId, meta);
-      panoTileListCache.set(panoId, tileList);
+      const rawTileList = buildTileList(panoFolderId, meta);
+      const cols = meta.actualCols ?? meta.cols;
+      const rows = meta.actualRows ?? meta.rows;
+      const centerCol = (cols - 1) / 2;
+      const centerRow = (rows - 1) / 2;
+      const tileList = [...rawTileList].sort((a, b) => {
+        const aPriority =
+          Math.abs(a.row - centerRow) * 1.5 + Math.abs(a.col - centerCol);
+        const bPriority =
+          Math.abs(b.row - centerRow) * 1.5 + Math.abs(b.col - centerCol);
+
+        if (Math.abs(aPriority - bPriority) > 0.001) {
+          return aPriority - bPriority;
+        }
+
+        return a.row - b.row || a.col - b.col;
+      });
+      panoTileListCache.set(tileListCacheKey, tileList);
       return tileList;
     };
 
-    const loadPanoPreview = (panoId: string, meta: PanoMeta) => {
-      const cachedPromise = panoPreviewPromiseCache.get(panoId);
+    const loadPanoPreview = (panoFolderId: string, meta: PanoMeta) => {
+      // Include mode in cache key so furnished/bare shell don't conflict
+      const previewCacheKey = getTextureCacheKey(panoFolderId);
+      const cachedPromise = panoPreviewPromiseCache.get(previewCacheKey);
       if (cachedPromise) {
         return cachedPromise;
       }
 
       const previewPromise = loadImage(
-        getPanoPreviewUrl(panoId, meta.preview, panoBasePath),
+        getPanoPreviewUrl(panoFolderId, meta.preview, getEffectivePanoBasePath()),
+        { fetchPriority: "high" },
       ).catch((error) => {
-        panoPreviewPromiseCache.delete(panoId);
+        panoPreviewPromiseCache.delete(previewCacheKey);
         throw error;
       });
 
-      panoPreviewPromiseCache.set(panoId, previewPromise);
+      panoPreviewPromiseCache.set(previewCacheKey, previewPromise);
       return previewPromise;
     };
 
-    const preloadPanoPreview = async (imageFilename: string) => {
-      const panoId = panoIdFromFilename(imageFilename);
-      const meta = await loadPanoMeta(panoId);
-      await loadPanoPreview(panoId, meta);
+    const preloadPanoPreview = async (imageFilename: string, navId?: string) => {
+      const panoFolderId = resolvePanoFolderId(imageFilename, navId);
+      const meta = await loadPanoMeta(panoFolderId);
+      await loadPanoPreview(panoFolderId, meta);
     };
 
     const getProjectedPanoSize = (meta: PanoMeta) => {
@@ -1169,6 +1560,241 @@ export default function ApartmentTour({
         scaleX: Math.max(1, Math.round(meta.width * scale)) / meta.width,
         scaleY: Math.max(1, Math.round(meta.height * scale)) / meta.height,
       };
+    };
+
+    const drawTileToEntry = async (
+      textureCacheKey: string,
+      entry: {
+        texture: DynamicTexture;
+        ctx: CanvasRenderingContext2D;
+        meta: PanoMeta;
+        projectedSize: {
+          width: number;
+          height: number;
+          scaleX: number;
+          scaleY: number;
+        };
+        tiles: PanoTileDescriptor[];
+        loadedTiles: Set<string>;
+      },
+      tile: PanoTileDescriptor,
+      fetchPriority: "high" | "low" | "auto",
+    ) => {
+      if (disposed || !panoTextureEntries.has(textureCacheKey)) {
+        return;
+      }
+
+      const tileKey = `${tile.col}:${tile.row}`;
+      if (entry.loadedTiles.has(tileKey)) {
+        return;
+      }
+
+      const img = await loadDrawableImage(tile.url, { fetchPriority });
+
+      if (disposed || panoTextureEntries.get(textureCacheKey) !== entry) {
+        if (typeof ImageBitmap !== "undefined" && img instanceof ImageBitmap) {
+          img.close();
+        }
+        return;
+      }
+
+      const { meta, projectedSize, ctx } = entry;
+      const sourceLeft = tile.col * meta.tileSize;
+      const sourceTop = tile.row * meta.tileSize;
+      const sourceW = Math.min(meta.tileSize, meta.width - sourceLeft);
+      const sourceH = Math.min(meta.tileSize, meta.height - sourceTop);
+      const left = Math.round(sourceLeft * projectedSize.scaleX);
+      const top = Math.round(sourceTop * projectedSize.scaleY);
+      const drawW = Math.max(1, Math.round(sourceW * projectedSize.scaleX));
+      const drawH = Math.max(1, Math.round(sourceH * projectedSize.scaleY));
+
+      if (drawW > 0 && drawH > 0) {
+        ctx.drawImage(
+          img,
+          0,
+          0,
+          img.width,
+          img.height,
+          left,
+          top,
+          drawW,
+          drawH,
+        );
+      }
+
+      if (typeof ImageBitmap !== "undefined" && img instanceof ImageBitmap) {
+        img.close();
+      }
+
+      entry.loadedTiles.add(tileKey);
+    };
+
+    const runTileLoad = async (
+      textureCacheKey: string,
+      entry: {
+        texture: DynamicTexture;
+        ctx: CanvasRenderingContext2D;
+        meta: PanoMeta;
+        projectedSize: {
+          width: number;
+          height: number;
+          scaleX: number;
+          scaleY: number;
+        };
+        tiles: PanoTileDescriptor[];
+        loadedTiles: Set<string>;
+      },
+      tiles: PanoTileDescriptor[],
+      concurrency: number,
+      fetchPriority: "high" | "low" | "auto",
+    ) => {
+      const missingTiles: string[] = [];
+
+      for (let i = 0; i < tiles.length; i += concurrency) {
+        if (disposed || panoTextureEntries.get(textureCacheKey) !== entry) {
+          return;
+        }
+
+        const chunk = tiles.slice(i, i + concurrency);
+        const results = await Promise.allSettled(
+          chunk.map((tile) =>
+            drawTileToEntry(textureCacheKey, entry, tile, fetchPriority),
+          ),
+        );
+
+        results.forEach((result, index) => {
+          if (result.status === "rejected") {
+            missingTiles.push(chunk[index].url);
+          }
+        });
+
+        if (disposed || panoTextureEntries.get(textureCacheKey) !== entry) {
+          return;
+        }
+
+        entry.texture.update(false);
+      }
+
+      if (missingTiles.length > 0) {
+        console.warn(
+          `[PANO ${textureCacheKey}] Missing tiles (${missingTiles.length}):`,
+          missingTiles,
+        );
+      }
+    };
+
+    const ensurePanoWarmLoad = (
+      textureCacheKey: string,
+      entry: {
+        texture: DynamicTexture;
+        ctx: CanvasRenderingContext2D;
+        meta: PanoMeta;
+        projectedSize: {
+          width: number;
+          height: number;
+          scaleX: number;
+          scaleY: number;
+        };
+        tiles: PanoTileDescriptor[];
+        loadedTiles: Set<string>;
+      },
+    ) => {
+      const existingFull = panoFullPromises.get(textureCacheKey);
+      if (existingFull) {
+        return existingFull;
+      }
+
+      const existingWarm = panoWarmPromises.get(textureCacheKey);
+      if (existingWarm) {
+        return existingWarm;
+      }
+
+      const warmTileCount = isBareShellModeRef.current
+        ? BARE_SHELL_PRELOAD_PRIORITY_TILE_COUNT
+        : PRELOAD_PANO_PRIORITY_TILE_COUNT;
+      const warmTileConcurrency = isBareShellModeRef.current
+        ? BARE_SHELL_PRELOAD_TILE_CONCURRENCY
+        : PRELOAD_PANO_TILE_CONCURRENCY;
+      const warmTiles = entry.tiles.slice(0, warmTileCount);
+      const promise = runTileLoad(
+        textureCacheKey,
+        entry,
+        warmTiles,
+        warmTileConcurrency,
+        "low",
+      ).finally(() => {
+        panoWarmPromises.delete(textureCacheKey);
+      });
+
+      panoWarmPromises.set(textureCacheKey, promise);
+      return promise;
+    };
+
+    const ensurePanoFullLoad = (
+      textureCacheKey: string,
+      entry: {
+        texture: DynamicTexture;
+        ctx: CanvasRenderingContext2D;
+        meta: PanoMeta;
+        projectedSize: {
+          width: number;
+          height: number;
+          scaleX: number;
+          scaleY: number;
+        };
+        tiles: PanoTileDescriptor[];
+        loadedTiles: Set<string>;
+      },
+    ) => {
+      const existingFull = panoFullPromises.get(textureCacheKey);
+      if (existingFull) {
+        return existingFull;
+      }
+
+      // Use faster loading for bare shell mode
+      const priorityTileCount = isBareShellModeRef.current
+        ? BARE_SHELL_PRIORITY_TILE_COUNT
+        : ACTIVE_PANO_PRIORITY_TILE_COUNT;
+      const tileConcurrency = isBareShellModeRef.current
+        ? BARE_SHELL_TILE_CONCURRENCY
+        : ACTIVE_PANO_TILE_CONCURRENCY;
+
+      const promise = (async () => {
+        await ensurePanoWarmLoad(textureCacheKey, entry).catch(() => undefined);
+        const activePriorityTiles = entry.tiles
+          .slice(0, priorityTileCount)
+          .filter((tile) => !entry.loadedTiles.has(`${tile.col}:${tile.row}`));
+        const remainingTiles = entry.tiles
+          .slice(priorityTileCount)
+          .filter(
+            (tile) => !entry.loadedTiles.has(`${tile.col}:${tile.row}`),
+          );
+
+        await runTileLoad(
+          textureCacheKey,
+          entry,
+          activePriorityTiles,
+          tileConcurrency,
+          "high",
+        );
+
+        const restTiles = remainingTiles.filter(
+          (tile) => !entry.loadedTiles.has(`${tile.col}:${tile.row}`),
+        );
+
+        await runTileLoad(
+          textureCacheKey,
+          entry,
+          restTiles,
+          tileConcurrency,
+          "high",
+        );
+      })().finally(() => {
+        panoFullPromises.delete(textureCacheKey);
+      });
+
+      panoFullPromises.set(textureCacheKey, promise);
+      return promise;
     };
 
     let lastCursorNormal = Vector3.Forward();
@@ -1331,8 +1957,8 @@ export default function ApartmentTour({
         scene,
       );
       outlineMaterial.diffuseColor = new Color3(1, 1, 1);
-      outlineMaterial.emissiveColor = new Color3(0.18, 0.18, 0.18);
-      outlineMaterial.alpha = 0.3;
+      outlineMaterial.emissiveColor = new Color3(0.92, 0.92, 0.92);
+      outlineMaterial.alpha = 0.54;
       outlineMaterial.backFaceCulling = false;
       outlineMaterial.disableLighting = true;
       outline.material = outlineMaterial;
@@ -1352,8 +1978,8 @@ export default function ApartmentTour({
         scene,
       );
       fillMaterial.diffuseColor = new Color3(1, 1, 1);
-      fillMaterial.emissiveColor = new Color3(0.18, 0.18, 0.18);
-      fillMaterial.alpha = 0.3;
+      fillMaterial.emissiveColor = new Color3(0.96, 0.96, 0.96);
+      fillMaterial.alpha = 0.2;
       fillMaterial.backFaceCulling = false;
       fillMaterial.disableLighting = true;
       fill.material = fillMaterial;
@@ -1413,25 +2039,25 @@ export default function ApartmentTour({
 
         if (isActive) {
           visual.fillMaterial.diffuseColor.copyFromFloats(1, 1, 1);
-          visual.fillMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
-          visual.fillMaterial.alpha = 0.3;
+          visual.fillMaterial.emissiveColor.copyFromFloats(0.96, 0.96, 0.96);
+          visual.fillMaterial.alpha = 0.2;
           visual.outlineMaterial.diffuseColor.copyFromFloats(1, 1, 1);
-          visual.outlineMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
-          visual.outlineMaterial.alpha = 0.3;
+          visual.outlineMaterial.emissiveColor.copyFromFloats(0.92, 0.92, 0.92);
+          visual.outlineMaterial.alpha = 0.54;
         } else if (isHovered) {
           visual.fillMaterial.diffuseColor.copyFromFloats(1, 1, 1);
-          visual.fillMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
-          visual.fillMaterial.alpha = 0.3;
+          visual.fillMaterial.emissiveColor.copyFromFloats(0.98, 0.98, 0.98);
+          visual.fillMaterial.alpha = 0.24;
           visual.outlineMaterial.diffuseColor.copyFromFloats(1, 1, 1);
-          visual.outlineMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
-          visual.outlineMaterial.alpha = 0.3;
+          visual.outlineMaterial.emissiveColor.copyFromFloats(1, 1, 1);
+          visual.outlineMaterial.alpha = 0.62;
         } else {
           visual.fillMaterial.diffuseColor.copyFromFloats(1, 1, 1);
-          visual.fillMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
-          visual.fillMaterial.alpha = 0.3;
+          visual.fillMaterial.emissiveColor.copyFromFloats(0.96, 0.96, 0.96);
+          visual.fillMaterial.alpha = 0.2;
           visual.outlineMaterial.diffuseColor.copyFromFloats(1, 1, 1);
-          visual.outlineMaterial.emissiveColor.copyFromFloats(0.18, 0.18, 0.18);
-          visual.outlineMaterial.alpha = 0.3;
+          visual.outlineMaterial.emissiveColor.copyFromFloats(0.92, 0.92, 0.92);
+          visual.outlineMaterial.alpha = 0.54;
         }
       }
     };
@@ -1908,20 +2534,35 @@ export default function ApartmentTour({
       });
     };
 
-    const loadPanoTextureFromTiles = async (imageFilename: string) => {
-      const panoId = panoIdFromFilename(imageFilename);
+    const loadPanoTextureFromTiles = async (
+      imageFilename: string,
+      navId?: string,
+      options?: { mode?: "active" | "preload" },
+    ) => {
+      const panoFolderId = resolvePanoFolderId(imageFilename, navId);
+      // Include mode in cache key so furnished/bare shell don't conflict
+      const textureCacheKey = getTextureCacheKey(panoFolderId);
+      const loadMode = options?.mode ?? "active";
 
-      if (panoTextures.has(panoId)) {
-        touchTexture(panoId);
-        return panoTextures.get(panoId)!;
+      if (panoTextures.has(textureCacheKey)) {
+        touchTexture(textureCacheKey);
+        const cachedEntry = panoTextureEntries.get(textureCacheKey);
+        if (cachedEntry) {
+          if (loadMode === "active") {
+            void ensurePanoFullLoad(textureCacheKey, cachedEntry);
+          } else {
+            void ensurePanoWarmLoad(textureCacheKey, cachedEntry);
+          }
+        }
+        return panoTextures.get(textureCacheKey)!;
       }
 
-      if (panoTexturePromises.has(panoId)) {
-        return panoTexturePromises.get(panoId)!;
+      if (panoTexturePromises.has(textureCacheKey)) {
+        return panoTexturePromises.get(textureCacheKey)!;
       }
 
       const promise = (async () => {
-        const meta = await loadPanoMeta(panoId);
+        const meta = await loadPanoMeta(panoFolderId);
         const projectedSize = getProjectedPanoSize(meta);
 
         const drawCanvas = document.createElement("canvas");
@@ -1935,7 +2576,7 @@ export default function ApartmentTour({
 
         ctx.imageSmoothingEnabled = true;
 
-        const previewImg = await loadPanoPreview(panoId, meta);
+        const previewImg = await loadPanoPreview(panoFolderId, meta);
         ctx.drawImage(previewImg, 0, 0, projectedSize.width, projectedSize.height);
 
         if (
@@ -1943,12 +2584,12 @@ export default function ApartmentTour({
           projectedSize.height !== meta.height
         ) {
           console.info(
-            `[PANO ${panoId}] Downscaling projection texture from ${meta.width}x${meta.height} to ${projectedSize.width}x${projectedSize.height} to stay within GPU limits.`,
+            `[PANO ${panoFolderId}] Downscaling projection texture from ${meta.width}x${meta.height} to ${projectedSize.width}x${projectedSize.height} to stay within GPU limits.`,
           );
         }
 
         const dynamicTexture = new DynamicTexture(
-          `pano-dynamic-${panoId}`,
+          `pano-dynamic-${textureCacheKey}`,
           drawCanvas,
           scene,
           false,
@@ -1957,78 +2598,39 @@ export default function ApartmentTour({
         dynamicTexture.wrapV = Texture.CLAMP_ADDRESSMODE;
         dynamicTexture.update(false);
 
-        panoTextures.set(panoId, dynamicTexture);
-        touchTexture(panoId);
+        panoTextures.set(textureCacheKey, dynamicTexture);
+        touchTexture(textureCacheKey);
 
-        const tiles = getCachedTileList(panoId, meta);
-        const missingTiles: string[] = [];
-        const concurrency = 8;
-
-        const runChunk = async (chunk: typeof tiles) => {
-          const results = await Promise.allSettled(
-            chunk.map(async ({ col, row, url }) => {
-              const img = await loadImage(url);
-
-              const sourceLeft = col * meta.tileSize;
-              const sourceTop = row * meta.tileSize;
-              const sourceW = Math.min(meta.tileSize, meta.width - sourceLeft);
-              const sourceH = Math.min(meta.tileSize, meta.height - sourceTop);
-              const left = Math.round(sourceLeft * projectedSize.scaleX);
-              const top = Math.round(sourceTop * projectedSize.scaleY);
-              const drawW = Math.max(1, Math.round(sourceW * projectedSize.scaleX));
-              const drawH = Math.max(1, Math.round(sourceH * projectedSize.scaleY));
-
-              if (drawW > 0 && drawH > 0) {
-                ctx.drawImage(
-                  img,
-                  0,
-                  0,
-                  img.width,
-                  img.height,
-                  left,
-                  top,
-                  drawW,
-                  drawH,
-                );
-              }
-            }),
-          );
-
-          results.forEach((r, i) => {
-            if (r.status === "rejected") {
-              missingTiles.push(chunk[i].url);
-            }
-          });
-
-          dynamicTexture.update(false);
+        const tiles = getCachedTileList(panoFolderId, meta);
+        const entry = {
+          texture: dynamicTexture,
+          ctx,
+          meta,
+          projectedSize,
+          tiles,
+          loadedTiles: new Set<string>(),
         };
+        panoTextureEntries.set(textureCacheKey, entry);
 
-        void (async () => {
-          for (let i = 0; i < tiles.length; i += concurrency) {
-            await runChunk(tiles.slice(i, i + concurrency));
-          }
-
-          dynamicTexture.update(false);
-
-          if (missingTiles.length > 0) {
-            console.warn(
-              `[PANO ${panoId}] Missing tiles (${missingTiles.length}):`,
-              missingTiles,
-            );
-          }
-        })().catch((err) => {
-          console.warn(`Tile stitching warning for ${panoId}`, err);
-        });
+        if (loadMode === "active") {
+          void ensurePanoFullLoad(textureCacheKey, entry).catch((err) => {
+            console.warn(`Tile stitching warning for ${panoFolderId}`, err);
+          });
+        } else {
+          void ensurePanoWarmLoad(textureCacheKey, entry).catch((err) => {
+            console.warn(`Tile warmup warning for ${panoFolderId}`, err);
+          });
+        }
 
         return dynamicTexture;
       })();
 
-      panoTexturePromises.set(panoId, promise);
+      panoTexturePromises.set(textureCacheKey, promise);
 
       try {
         return await promise;
       } finally {
-        panoTexturePromises.delete(panoId);
+        panoTexturePromises.delete(textureCacheKey);
       }
     };
 
@@ -2043,12 +2645,26 @@ export default function ApartmentTour({
           return { id: n.id, d2: dx * dx + dy * dy, image: n.image_filename };
         })
         .sort((a, b) => a.d2 - b.d2)
-        .slice(0, 3);
+        .slice(0, NEAREST_PANO_PRELOAD_COUNT);
 
       for (const item of nearest) {
-        void preloadPanoPreview(item.image);
-        void loadPanoTextureFromTiles(item.image);
+        void preloadPanoPreview(item.image, item.id);
+        void loadPanoTextureFromTiles(item.image, item.id, {
+          mode: "preload",
+        });
       }
+    };
+
+    const scheduleNearestPanoPreload = (currentId: string) => {
+      const runId = ++nearestPreloadRunId;
+
+      window.setTimeout(() => {
+        if (disposed || runId !== nearestPreloadRunId) {
+          return;
+        }
+
+        void preloadNearestPanos(currentId);
+      }, NEAREST_PANO_PRELOAD_DELAY_MS);
     };
 
     const moveToNavPoint = async (
@@ -2060,21 +2676,29 @@ export default function ApartmentTour({
       const moveRequestId = ++navMoveRequestId;
 
       try {
-        const panoId = panoIdFromFilename(navPoint.nav.image_filename);
+        const panoId = resolvePanoFolderId(
+          navPoint.nav.image_filename,
+          navPoint.nav.id,
+        );
+        const textureCacheKey = getTextureCacheKey(panoId);
         const currentPoint = getActiveMappedNavPoint();
         const shouldAnimate =
           options?.animate ?? (currentPoint != null && currentPoint.nav.id !== navId);
         const cachedTexture = showProjectionRef.current
-          ? (panoTextures.get(panoId) ?? null)
+          ? (panoTextures.get(textureCacheKey) ?? null)
           : null;
         let texturePromise: Promise<Texture | null> | null = null;
 
         if (showProjectionRef.current) {
           texturePromise = loadPanoTextureFromTiles(
             navPoint.nav.image_filename,
+            navPoint.nav.id,
+            { mode: "active" },
           );
         } else {
           restoreOriginalMaterials();
+          setModelVisibility(1);
+          setIsViewerMasked(false);
         }
 
         if (shouldAnimate) {
@@ -2095,15 +2719,16 @@ export default function ApartmentTour({
             return;
           }
 
-          touchTexture(panoId);
-          evictOldTextures([panoId]);
+          touchTexture(textureCacheKey);
+          evictOldTextures([textureCacheKey]);
 
           if (showProjectionRef.current && texture) {
             applyProjectionToMeshes(texture, navPoint);
             setProjectionOpacity(1);
+            setModelVisibility(1);
           }
 
-          void preloadNearestPanos(navPoint.nav.id);
+          scheduleNearestPanoPreload(navPoint.nav.id);
         }
 
         const cameraPos = navPoint.worldPosition.clone();
@@ -2146,12 +2771,15 @@ export default function ApartmentTour({
           },
           cameraNav: worldToNavSpace(cameraPos),
         }));
+        setIsViewerMasked(false);
       } catch (error) {
         if (moveRequestId !== navMoveRequestId) {
           return;
         }
         setTransitionOverlayOpacity(0);
         setProjectionOpacity(1);
+        setModelVisibility(showProjectionRef.current ? 0 : 1);
+        setIsViewerMasked(false);
         console.error("Failed to move to pano/nav point:", error);
       }
     };
@@ -2247,23 +2875,35 @@ export default function ApartmentTour({
 
       if (!showProjectionRef.current) {
         restoreOriginalMaterials();
+        setModelVisibility(1);
+        setIsViewerMasked(false);
         return;
       }
 
       try {
+        setModelVisibility(0);
         const texture = await loadPanoTextureFromTiles(
           navPoint.nav.image_filename,
+          navPoint.nav.id,
+          { mode: "active" },
         );
         applyProjectionToMeshes(texture, navPoint);
+        setProjectionOpacity(1);
+        setModelVisibility(1);
+        setIsViewerMasked(false);
       } catch (error) {
+        setModelVisibility(0);
         console.error("Failed to refresh projection mode:", error);
       }
     };
 
     const loadModel = async () => {
       try {
-        const fileName = modelUrl.split("/").pop() ?? "";
-        const rootUrl = modelUrl.slice(0, modelUrl.length - fileName.length);
+        const fileName = effectiveModelUrl.split("/").pop() ?? "";
+        const rootUrl = effectiveModelUrl.slice(
+          0,
+          effectiveModelUrl.length - fileName.length,
+        );
 
         const result = await SceneLoader.ImportMeshAsync(
           "",
@@ -2291,6 +2931,7 @@ export default function ApartmentTour({
         if (visibleMeshes.length === 0) return;
 
         captureModelBounds(visibleMeshes);
+        setModelVisibility(showProjectionRef.current ? 0 : 1);
 
         mappedNavPoints = buildMappedNavPoints();
         rebuildNavMarkers();
@@ -2298,6 +2939,7 @@ export default function ApartmentTour({
 
         await moveToNavPoint(START_NAV_ID, { animate: false });
       } catch (error) {
+        setIsViewerMasked(false);
         console.error("Failed to load apartment tour:", error);
       }
     };
@@ -2347,19 +2989,29 @@ export default function ApartmentTour({
       scene.dispose();
       engine.dispose();
     };
-  }, [NAV_POINTS, START_NAV_ID, modelUrl, panoBasePath, panoMetaBasePath, showDebug]);
+  }, [
+    NAV_POINTS,
+    START_NAV_ID,
+    availablePanoFolders,
+    effectiveModelUrl,
+    isBareShellMode,
+    panoBasePath,
+    panoMetaBasePath,
+    showDebug,
+    sourceCoordinateBounds,
+  ]);
 
   const fmtUi = (n: number | null | undefined) =>
     typeof n === "number" ? n.toFixed(3) : "--";
 
   const activeNavIsOutsideSourceBounds =
     debugInfo.activeNavRaw != null &&
-    (debugInfo.activeNavRaw.x < SOURCE_COORDINATE_BOUNDS.minX ||
-      debugInfo.activeNavRaw.x > SOURCE_COORDINATE_BOUNDS.maxX ||
-      debugInfo.activeNavRaw.y < SOURCE_COORDINATE_BOUNDS.minY ||
-      debugInfo.activeNavRaw.y > SOURCE_COORDINATE_BOUNDS.maxY ||
-      debugInfo.activeNavRaw.z < SOURCE_COORDINATE_BOUNDS.minZ ||
-      debugInfo.activeNavRaw.z > SOURCE_COORDINATE_BOUNDS.maxZ);
+    (debugInfo.activeNavRaw.x < sourceCoordinateBounds.minX ||
+      debugInfo.activeNavRaw.x > sourceCoordinateBounds.maxX ||
+      debugInfo.activeNavRaw.y < sourceCoordinateBounds.minY ||
+      debugInfo.activeNavRaw.y > sourceCoordinateBounds.maxY ||
+      debugInfo.activeNavRaw.z < sourceCoordinateBounds.minZ ||
+      debugInfo.activeNavRaw.z > sourceCoordinateBounds.maxZ);
 
   return (
     <div className={`relative h-full w-full ${className ?? ""}`}>
@@ -2371,6 +3023,11 @@ export default function ApartmentTour({
           display: "block",
           cursor: "grab",
         }}
+      />
+      <div
+        className={`pointer-events-none absolute inset-0 z-10 bg-[#040404] transition-opacity duration-250 ${
+          isViewerMasked ? "opacity-100" : "opacity-0"
+        }`}
       />
       <div
         ref={transitionOverlayRef}
@@ -2400,7 +3057,18 @@ export default function ApartmentTour({
               </div>
 
               <div className="pointer-events-none shrink-0">
-                <div className="pointer-events-auto">
+                <div className="pointer-events-auto flex items-center gap-2">
+                <button
+                  onClick={() => setIsBareShellMode((prev) => !prev)}
+                  className={`rounded-full border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] transition duration-300 sm:px-5 sm:text-[11px] ${
+                    isBareShellMode
+                      ? "border-[#d9b56f]/34 bg-[linear-gradient(135deg,rgba(231,199,129,0.92),rgba(180,129,53,0.76))] text-[#23170d] shadow-[0_10px_24px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,247,222,0.42)] hover:brightness-105"
+                      : "border-white/14 bg-black/10 text-white shadow-[0_8px_20px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-[8px] hover:bg-white/[0.08]"
+                  }`}
+                >
+                  {isBareShellMode ? "Show Furnished" : "Bare Shell"}
+                </button>
+
                 <button
                   onClick={() => setShowProjection((prev) => !prev)}
                   className={`rounded-full border px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] transition duration-300 sm:px-5 sm:text-[11px] ${
@@ -2446,8 +3114,8 @@ export default function ApartmentTour({
                       : "Inside source bounds"}
                   </span>
                   <span className="text-white/60">
-                    Source Z range: {fmtUi(SOURCE_COORDINATE_BOUNDS.minZ)} to{" "}
-                    {fmtUi(SOURCE_COORDINATE_BOUNDS.maxZ)}
+                    Source Z range: {fmtUi(sourceCoordinateBounds.minZ)} to{" "}
+                    {fmtUi(sourceCoordinateBounds.maxZ)}
                   </span>
                 </div>
 
@@ -2518,7 +3186,7 @@ export default function ApartmentTour({
                 <button
                   type="button"
                   onClick={() => moveCarouselBy(-1)}
-                  className={`${uiFont.className} pointer-events-auto hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-lg text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:bg-white/[0.06] sm:inline-flex`}
+                  className={`${uiFont.className} pointer-events-auto inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-lg text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-200 active:scale-95 hover:bg-white/[0.06] sm:h-10 sm:w-10`}
                   aria-label="Previous room"
                 >
                   &#8249;
@@ -2526,7 +3194,7 @@ export default function ApartmentTour({
 
                 <div
                   ref={tabsScrollerRef}
-                  className="pointer-events-auto flex min-w-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-3 pb-5 pt-6 scroll-smooth sm:gap-4 sm:px-4 sm:pb-6 sm:pt-7"
+                  className="pointer-events-auto flex min-w-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain px-2 pb-4 pt-5 scroll-smooth [-webkit-overflow-scrolling:touch] sm:gap-4 sm:px-4 sm:pb-6 sm:pt-7"
                   onWheel={(event) => {
                     if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
                       return;
@@ -2538,7 +3206,7 @@ export default function ApartmentTour({
                     });
                   }}
                 >
-                  {tabs.map((tab) => {
+                  {tabs.map((tab, index) => {
                     const isActive = tab.id === activeRoomId;
 
                     return (
@@ -2547,7 +3215,7 @@ export default function ApartmentTour({
                         type="button"
                         data-room-id={tab.id}
                         onClick={() => moveToNavRef.current?.(tab.id)}
-                        className={`group relative block w-[144px] shrink-0 snap-center text-left sm:w-[164px] lg:w-[178px] ${
+                        className={`group relative block w-[132px] shrink-0 snap-center touch-manipulation text-left sm:w-[164px] lg:w-[178px] ${
                           isActive
                             ? "z-10"
                             : "z-0"
@@ -2568,7 +3236,9 @@ export default function ApartmentTour({
                               fill
                               sizes="(max-width: 640px) 144px, (max-width: 1024px) 164px, 178px"
                               quality={64}
-                              loading="lazy"
+                              loading="eager"
+                              priority={index < 8}
+                              fetchPriority={index < 4 ? "high" : "auto"}
                               draggable={false}
                               className={`object-cover will-change-transform transition duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] ${
                                 isActive
@@ -2602,7 +3272,7 @@ export default function ApartmentTour({
                 <button
                   type="button"
                   onClick={() => moveCarouselBy(1)}
-                  className={`${uiFont.className} pointer-events-auto hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-lg text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition hover:bg-white/[0.06] sm:inline-flex`}
+                  className={`${uiFont.className} pointer-events-auto inline-flex h-11 w-11 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-lg text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-200 active:scale-95 hover:bg-white/[0.06] sm:h-10 sm:w-10`}
                   aria-label="Next room"
                 >
                   &#8250;

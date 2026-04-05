@@ -11,10 +11,11 @@ import "@photo-sphere-viewer/core/index.css";
 import "@photo-sphere-viewer/virtual-tour-plugin/index.css";
 import "@photo-sphere-viewer/markers-plugin/index.css";
 
-import navData from "@/data/nav.json";
+import navData from "@/data/trifecta_pano_walkthrough_data_Interior.json";
 import {
   CLOUDINARY_PANO_IMAGE_BASE_URL,
   CLOUDINARY_PANO_RAW_BASE_URL,
+  getPanoFolderCandidates,
   getPanoMetaUrl,
   getPanoPreviewUrl,
   getPanoTileUrl,
@@ -83,7 +84,15 @@ type BuiltNode = {
   }>;
   data: NavItem & {
     panoId: string;
+    panoFolderId: string;
     label: string;
+  };
+};
+
+type ActiveTourNode = Pick<BuiltNode, "id"> & {
+  name?: string;
+  data?: {
+    panoId?: string;
   };
 };
 
@@ -210,20 +219,27 @@ async function buildNodes(
   const metaEntries = await Promise.all(
     items.map(async (item) => {
       const panoId = imageToPanoId(item.image_filename);
-      const res = await fetch(getPanoMetaUrl(panoId, metaBaseUrl));
+      const panoFolderCandidates = getPanoFolderCandidates(panoId);
 
-      if (!res.ok) {
-        console.warn("Skipping missing pano:", panoId);
-        return null;
+      for (const panoFolderId of panoFolderCandidates) {
+        const res = await fetch(getPanoMetaUrl(panoFolderId, metaBaseUrl));
+
+        if (!res.ok) {
+          continue;
+        }
+
+        const meta: PanoMeta = await res.json();
+        return {
+          item,
+          meta,
+          panoId,
+          panoFolderId,
+          supportsTiles: canUseTiledPanorama(meta),
+        };
       }
 
-      const meta: PanoMeta = await res.json();
-      return {
-        item,
-        meta,
-        panoId,
-        supportsTiles: canUseTiledPanorama(meta),
-      };
+      console.warn("Skipping missing pano:", panoId);
+      return null;
     }),
   );
 
@@ -231,13 +247,14 @@ async function buildNodes(
     item: NavItem;
     meta: PanoMeta;
     panoId: string;
+    panoFolderId: string;
     supportsTiles: boolean;
   }[];
 
   const usesTiledAdapter =
     valid.length > 0 && valid.every((entry) => entry.supportsTiles);
 
-  const nodes = valid.map(({ item, meta, panoId }) => {
+  const nodes = valid.map(({ item, meta, panoId, panoFolderId }) => {
     const neighbors = valid
       .map((v) => v.item)
       .filter((other) => other.id !== item.id)
@@ -249,17 +266,17 @@ async function buildNodes(
     return {
       id: item.id,
       name: label,
-      thumbnail: getPreviewUrl(panoId, meta, imageBaseUrl),
+      thumbnail: getPreviewUrl(panoFolderId, meta, imageBaseUrl),
       panorama: usesTiledAdapter
         ? {
             width: meta.width,
             cols: meta.cols,
             rows: meta.rows,
-            baseUrl: getPreviewUrl(panoId, meta, imageBaseUrl),
+            baseUrl: getPreviewUrl(panoFolderId, meta, imageBaseUrl),
             tileUrl: (col: number, row: number) =>
-              getTileUrl(panoId, meta, col, row, imageBaseUrl),
+              getTileUrl(panoFolderId, meta, col, row, imageBaseUrl),
           }
-        : getPreviewUrl(panoId, meta, imageBaseUrl),
+        : getPreviewUrl(panoFolderId, meta, imageBaseUrl),
       links: neighbors.map((target) => ({
         nodeId: target.id,
         position: {
@@ -270,6 +287,7 @@ async function buildNodes(
       data: {
         ...item,
         panoId,
+        panoFolderId,
         label,
       },
     };
@@ -420,8 +438,11 @@ export default function PanoViewer() {
       markersRef.current = markersPlugin;
       virtualTourRef.current = virtualTourPlugin;
 
-      function syncInfoMarkers(node: BuiltNode) {
+      function syncInfoMarkers(node: ActiveTourNode) {
         const panoId = node.data?.panoId ?? node.name;
+        if (!panoId) {
+          return;
+        }
         const markers = buildInfoMarkersForPano(panoId);
         markersPlugin.setMarkers(
           markers as Parameters<MarkersPlugin["setMarkers"]>[0],
@@ -429,7 +450,7 @@ export default function PanoViewer() {
         setActiveNodeId(node.id);
       }
 
-      virtualTourPlugin.addEventListener("node-changed", ({ node }: { node: BuiltNode }) => {
+      virtualTourPlugin.addEventListener("node-changed", ({ node }) => {
         syncInfoMarkers(node);
       });
 
