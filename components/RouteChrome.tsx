@@ -15,10 +15,14 @@ function shouldUseMergedChrome() {
     return false;
   }
 
+  const compactViewport = window.matchMedia("(max-width: 1279px)").matches;
+  const primaryPointerCoarse = window.matchMedia("(pointer: coarse)").matches;
+  const finePointerAvailable =
+    window.matchMedia("(pointer: fine)").matches ||
+    window.matchMedia("(any-pointer: fine)").matches;
+
   return (
-    window.matchMedia("(max-width: 1279px)").matches ||
-    window.matchMedia("(pointer: coarse)").matches ||
-    window.matchMedia("(any-pointer: coarse)").matches
+    compactViewport || (primaryPointerCoarse && !finePointerAvailable)
   );
 }
 
@@ -57,24 +61,28 @@ export default function RouteChrome() {
 
     const compactViewportMedia = window.matchMedia("(max-width: 1279px)");
     const touchViewportMedia = window.matchMedia("(pointer: coarse)");
-    const anyTouchViewportMedia = window.matchMedia("(any-pointer: coarse)");
+    const finePointerMedia = window.matchMedia("(pointer: fine)");
+    const anyFinePointerMedia = window.matchMedia("(any-pointer: fine)");
     const syncTouchViewport = () => {
       setShouldMergeDockIntoCta(
         compactViewportMedia.matches ||
-          touchViewportMedia.matches ||
-          anyTouchViewportMedia.matches,
+          (touchViewportMedia.matches &&
+            !finePointerMedia.matches &&
+            !anyFinePointerMedia.matches),
       );
     };
 
     syncTouchViewport();
     compactViewportMedia.addEventListener("change", syncTouchViewport);
     touchViewportMedia.addEventListener("change", syncTouchViewport);
-    anyTouchViewportMedia.addEventListener("change", syncTouchViewport);
+    finePointerMedia.addEventListener("change", syncTouchViewport);
+    anyFinePointerMedia.addEventListener("change", syncTouchViewport);
 
     return () => {
       compactViewportMedia.removeEventListener("change", syncTouchViewport);
       touchViewportMedia.removeEventListener("change", syncTouchViewport);
-      anyTouchViewportMedia.removeEventListener("change", syncTouchViewport);
+      finePointerMedia.removeEventListener("change", syncTouchViewport);
+      anyFinePointerMedia.removeEventListener("change", syncTouchViewport);
     };
   }, []);
 

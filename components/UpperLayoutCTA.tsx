@@ -28,10 +28,14 @@ function shouldBottomDockCta() {
     return false;
   }
 
+  const compactViewport = window.matchMedia("(max-width: 1279px)").matches;
+  const primaryPointerCoarse = window.matchMedia("(pointer: coarse)").matches;
+  const finePointerAvailable =
+    window.matchMedia("(pointer: fine)").matches ||
+    window.matchMedia("(any-pointer: fine)").matches;
+
   return (
-    window.matchMedia("(max-width: 1279px)").matches ||
-    window.matchMedia("(pointer: coarse)").matches ||
-    window.matchMedia("(any-pointer: coarse)").matches
+    compactViewport || (primaryPointerCoarse && !finePointerAvailable)
   );
 }
 
@@ -84,25 +88,29 @@ export default function UpperLayoutCTA({
 
     const compactViewportMedia = window.matchMedia("(max-width: 1279px)");
     const touchViewportMedia = window.matchMedia("(pointer: coarse)");
-    const anyTouchViewportMedia = window.matchMedia("(any-pointer: coarse)");
+    const finePointerMedia = window.matchMedia("(pointer: fine)");
+    const anyFinePointerMedia = window.matchMedia("(any-pointer: fine)");
 
     const syncBottomDock = () => {
       setShouldDockAtBottom(
         compactViewportMedia.matches ||
-          touchViewportMedia.matches ||
-          anyTouchViewportMedia.matches,
+          (touchViewportMedia.matches &&
+            !finePointerMedia.matches &&
+            !anyFinePointerMedia.matches),
       );
     };
 
     syncBottomDock();
     compactViewportMedia.addEventListener("change", syncBottomDock);
     touchViewportMedia.addEventListener("change", syncBottomDock);
-    anyTouchViewportMedia.addEventListener("change", syncBottomDock);
+    finePointerMedia.addEventListener("change", syncBottomDock);
+    anyFinePointerMedia.addEventListener("change", syncBottomDock);
 
     return () => {
       compactViewportMedia.removeEventListener("change", syncBottomDock);
       touchViewportMedia.removeEventListener("change", syncBottomDock);
-      anyTouchViewportMedia.removeEventListener("change", syncBottomDock);
+      finePointerMedia.removeEventListener("change", syncBottomDock);
+      anyFinePointerMedia.removeEventListener("change", syncBottomDock);
     };
   }, []);
 
