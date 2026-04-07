@@ -140,12 +140,23 @@ export default function FlipBookDeck() {
       <ClosingPage key="closing" number={closingPageNumber} />,
     ];
   }, []);
+  const isSafariLike =
+    typeof navigator !== "undefined"
+      ? /Safari/i.test(navigator.userAgent ?? "") &&
+        !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android/i.test(
+          navigator.userAgent ?? "",
+        )
+      : false;
 
   const isMobile = viewport.width < 640;
   const isTablet = viewport.width >= 640 && viewport.width < 1024;
   const isSmallLaptop = viewport.width >= 1024 && viewport.width < 1280;
   const isCompactDesktop = viewport.width >= 1280 && viewport.width < 1700;
   const useStackedDeck = viewport.width < 1280;
+  const isShortDesktopViewport = !useStackedDeck && viewport.height < 960;
+  const useResponsiveDesktopBook =
+    !useStackedDeck &&
+    (isCompactDesktop || isShortDesktopViewport || (isSafariLike && viewport.width < 1800));
   const lastPageIndex = pages.length - 1;
 
   const goToPreviousPage = () => {
@@ -156,43 +167,60 @@ export default function FlipBookDeck() {
     bookRef.current?.pageFlip()?.flipNext("bottom");
   };
 
+  const compactDesktopPageWidth = Math.max(
+    500,
+    Math.min(
+      Math.floor((viewport.width - (isSafariLike ? 180 : 220)) / 2),
+      isSafariLike || isShortDesktopViewport ? 560 : 610,
+    ),
+  );
+  const compactDesktopPageHeight = Math.max(
+    660,
+    Math.min(
+      viewport.height - (isSafariLike ? 132 : 112),
+      isSafariLike || isShortDesktopViewport ? 750 : 810,
+    ),
+  );
+  const desktopPageHeight = Math.max(720, Math.min(viewport.height - 96, 920));
+  const desktopPageWidth = Math.max(
+    560,
+    Math.min(Math.floor((viewport.width - 260) / 2), 760),
+  );
+
   const bookConfig = (() => {
-    if (isCompactDesktop) {
+    if (useResponsiveDesktopBook) {
       return {
-        width: 900,
-        height: 860,
-        minWidth: 760,
-        maxWidth: 920,
-        minHeight: 720,
-        maxHeight: 880,
+        width: compactDesktopPageWidth,
+        height: compactDesktopPageHeight,
+        minWidth: compactDesktopPageWidth,
+        maxWidth: compactDesktopPageWidth,
+        minHeight: compactDesktopPageHeight,
+        maxHeight: compactDesktopPageHeight,
       };
     }
 
-    // Desktop: keep your current layout
     if (!isMobile && !isTablet && !isSmallLaptop) {
       return {
-        width: 1000,
-        height: 950,
-        minWidth: 280,
-        maxWidth: 1000,
-        minHeight: 420,
-        maxHeight: 950,
+        width: desktopPageWidth,
+        height: desktopPageHeight,
+        minWidth: desktopPageWidth,
+        maxWidth: desktopPageWidth,
+        minHeight: desktopPageHeight,
+        maxHeight: desktopPageHeight,
       };
     }
 
-    // Small laptops: slightly taller, less square
     if (isSmallLaptop) {
       return {
-        width: 860,
-        height: 980,
-        minWidth: 640,
-        maxWidth: 900,
-        minHeight: 720,
-        maxHeight: 1000,
+        width: 540,
+        height: Math.max(700, Math.min(viewport.height - 110, 760)),
+        minWidth: 540,
+        maxWidth: 540,
+        minHeight: Math.max(700, Math.min(viewport.height - 110, 760)),
+        maxHeight: Math.max(700, Math.min(viewport.height - 110, 760)),
       };
     }
 
-    // Tablets: more portrait-like
     if (isTablet) {
       return {
         width: 700,
@@ -220,7 +248,7 @@ export default function FlipBookDeck() {
       className={`relative min-h-dvh justify-center bg-neutral-100 ${
         useStackedDeck
           ? "overflow-y-auto overflow-x-hidden bg-[linear-gradient(180deg,#d5b785_0%,#c19b64_26%,#f5ede0_62%,#f7f1e7_100%)] px-0 pb-0 pt-16 sm:pt-18"
-          : "flex items-start overflow-auto px-1.5 pb-4 pt-16 sm:items-center sm:overflow-hidden sm:px-4 sm:py-4 sm:pt-6"
+          : "flex h-dvh items-center overflow-hidden px-1.5 pb-4 pt-6 sm:px-4 sm:py-4"
       }`}
     >
       {!useStackedDeck ? (

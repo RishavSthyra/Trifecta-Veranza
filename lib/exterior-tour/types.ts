@@ -67,7 +67,9 @@ export type PanoMeta = {
   rows: number;
   actualCols?: number;
   actualRows?: number;
-  tileSize: number;
+  tileSize?: number;
+  tileWidth?: number;
+  tileHeight?: number;
   preview?: string;
   tileFormat?: string;
   tileUrl?: string;

@@ -4,9 +4,14 @@ import os from "os"
 import sharp from "sharp"
 
 const INPUT = "./raw-panos"
-const OUTPUT = "./public/bare-shell-pano"
+const RESIZED = "./resized-panos"
+const OUTPUT = "./public/bareshell-pano-trifecta-new"
 
 const PREVIEW_WIDTH = 2000
+
+// 🔥 perfect pano size (2:1 ratio)
+const TARGET_WIDTH = 16384
+const TARGET_HEIGHT = 8192
 
 const CPU_THREADS =
   typeof os.availableParallelism === "function"
@@ -19,9 +24,9 @@ sharp.simd(true)
 const FILE_CONCURRENCY = Math.max(1, Math.min(4, Math.floor(CPU_THREADS / 4)))
 const TILE_CONCURRENCY = Math.max(16, CPU_THREADS * 2)
 
-// CHANGED: 8 x 4 grid = 32 tiles total
-const TARGET_COLS = 8
-const TARGET_ROWS = 4
+// 🔥 grid (now guaranteed square tiles)
+const TARGET_COLS = 16
+const TARGET_ROWS = 8
 
 const SHARP_INPUT_OPTIONS = {
   limitInputPixels: false,
@@ -68,23 +73,58 @@ async function runInBatches<T>(
   }
 }
 
+//
+// 🔥 STEP 1: RESIZE PANOS (ULTRA HIGH QUALITY)
+//
+async function resizePano(file: string): Promise<string> {
+  const inputPath = path.join(INPUT, file)
+  const outputPath = path.join(RESIZED, file)
+
+  if (pathExists(outputPath)) {
+    console.log("already resized:", file)
+    return outputPath
+  }
+
+  console.log("resizing:", file)
+
+  await sharp(inputPath, SHARP_INPUT_OPTIONS)
+    .resize(TARGET_WIDTH, TARGET_HEIGHT, {
+      fit: "inside", // keeps 2:1 by cropping if needed
+      kernel: sharp.kernel.lanczos3, // 🔥 best quality resize
+    })
+    .jpeg({
+      quality: 90, // 🔥 max quality
+
+      mozjpeg: false,
+    })
+    .toFile(outputPath)
+
+  return outputPath
+}
+
+//
+// 🔥 STEP 2: TILE FROM RESIZED PANO
+//
 async function processImage(file: string): Promise<void> {
   console.log("processing:", file)
 
   const panoId = getPanoId(file)
-  const inputPath = path.join(INPUT, file)
+
+  // 🔥 USE RESIZED VERSION
+  const resizedPath = await resizePano(file)
+
   const folder = path.join(OUTPUT, panoId)
   const tilesFolder = path.join(folder, "tiles")
 
   if (isAlreadyProcessed(folder)) {
-    console.log(`skipping: ${file} -> ${panoId} already exists in destination`)
+    console.log(`skipping: ${file} already processed`)
     return
   }
 
   ensureDir(folder)
   ensureDir(tilesFolder)
 
-  const baseImage = sharp(inputPath, SHARP_INPUT_OPTIONS)
+  const baseImage = sharp(resizedPath, SHARP_INPUT_OPTIONS)
   const meta = await baseImage.metadata()
 
   if (!meta.width || !meta.height) {
@@ -97,27 +137,17 @@ async function processImage(file: string): Promise<void> {
   const cols = TARGET_COLS
   const rows = TARGET_ROWS
 
-  if (fullWidth % cols !== 0 || fullHeight % rows !== 0) {
-    throw new Error(
-      [
-        `Panorama "${file}" is not evenly divisible by the target grid.`,
-        `Image size: ${fullWidth} x ${fullHeight}`,
-        `Target grid: ${cols} x ${rows}`,
-        `Remainders: width % cols = ${fullWidth % cols}, height % rows = ${fullHeight % rows}`,
-        `Use a different TARGET_COLS / TARGET_ROWS or resize/pad the source panorama first.`,
-      ].join("\n")
-    )
-  }
-
   const tileWidth = fullWidth / cols
   const tileHeight = fullHeight / rows
 
+  // now ALWAYS square
   if (tileWidth !== tileHeight) {
-    console.warn(
-      `Warning: tiles are not square for ${file}. tileWidth=${tileWidth}, tileHeight=${tileHeight}`
-    )
+    throw new Error("Tiles are not square — something is wrong")
   }
 
+  //
+  // preview
+  //
   await baseImage
     .clone()
     .resize({
@@ -125,19 +155,14 @@ async function processImage(file: string): Promise<void> {
       withoutEnlargement: true,
     })
     .jpeg({
-      quality: 70,
-      mozjpeg: true,
+      quality: 90,
     })
     .toFile(path.join(folder, "preview.jpg"))
 
-  const tileJobs: Array<{
-    row: number
-    col: number
-    left: number
-    top: number
-    width: number
-    height: number
-  }> = []
+  //
+  // tiles
+  //
+  const tileJobs: any[] = []
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
@@ -153,11 +178,12 @@ async function processImage(file: string): Promise<void> {
   }
 
   await runInBatches(tileJobs, TILE_CONCURRENCY, async (job) => {
-    const tilePath = path.join(tilesFolder, `tile_${job.col}_${job.row}.jpg`)
+    const tilePath = path.join(
+      tilesFolder,
+      `tile_${job.col}_${job.row}.jpg`
+    )
 
-    if (pathExists(tilePath)) {
-      return
-    }
+    if (pathExists(tilePath)) return
 
     await baseImage
       .clone()
@@ -168,12 +194,15 @@ async function processImage(file: string): Promise<void> {
         height: job.height,
       })
       .jpeg({
-        quality: 80,
-        mozjpeg: true,
+        quality: 95, // 🔥 very high, almost lossless
+        chromaSubsampling: "4:4:4",
       })
       .toFile(tilePath)
   })
 
+  //
+  // meta
+  //
   const metaJson = {
     width: fullWidth,
     height: fullHeight,
@@ -198,13 +227,17 @@ async function processImage(file: string): Promise<void> {
   })
 }
 
+//
+// 🔥 MAIN
+//
 async function run(): Promise<void> {
   ensureDir(INPUT)
+  ensureDir(RESIZED)
   ensureDir(OUTPUT)
 
   const files = fs
     .readdirSync(INPUT)
-    .filter((file) => /\.(png|jpg|jpeg)$/i.test(file))
+    .filter((file) => /\.(png|jpg|jpeg|webp)$/i.test(file))
     .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
 
   if (files.length === 0) {
@@ -212,23 +245,21 @@ async function run(): Promise<void> {
     return
   }
 
-  console.log("CPU threads detected:", CPU_THREADS)
-  console.log("sharp concurrency:", CPU_THREADS)
-  console.log("file concurrency:", FILE_CONCURRENCY)
-  console.log("tile concurrency:", TILE_CONCURRENCY)
-  console.log("target grid:", `${TARGET_COLS} x ${TARGET_ROWS}`)
+  console.log("CPU:", CPU_THREADS)
+  console.log("grid:", `${TARGET_COLS} x ${TARGET_ROWS}`)
+  console.log("target size:", `${TARGET_WIDTH} x ${TARGET_HEIGHT}`)
 
   const totalStart = Date.now()
 
   await runInBatches(files, FILE_CONCURRENCY, async (file) => {
     const start = Date.now()
     await processImage(file)
-    const seconds = ((Date.now() - start) / 1000).toFixed(1)
-    console.log(`${file} took ${seconds}s`)
+    console.log(`${file} done in ${((Date.now() - start) / 1000).toFixed(1)}s`)
   })
 
-  const totalMinutes = ((Date.now() - totalStart) / 1000 / 60).toFixed(2)
-  console.log(`All panos processed successfully in ${totalMinutes} min`)
+  console.log(
+    `All done in ${((Date.now() - totalStart) / 1000 / 60).toFixed(2)} min`
+  )
 }
 
 run().catch((err) => {

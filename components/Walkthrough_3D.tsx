@@ -3,7 +3,8 @@
 import { Manrope } from "next/font/google";
 import NextImage from "next/image";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Menu, X } from "lucide-react";
 import navData from "@/data/trifecta_pano_walkthrough_data_Interior.json";
 import bareShellNavData from "@/data/trifecta_pano_walkthrough_data_BareShell.json";
 import {
@@ -95,7 +96,9 @@ type PanoMeta = {
   rows: number;
   actualCols?: number;
   actualRows?: number;
-  tileSize: number;
+  tileSize?: number;
+  tileWidth?: number;
+  tileHeight?: number;
   preview: string;
   tileFormat?: string;
   tileUrl?: string;
@@ -303,6 +306,14 @@ function getRoomLabel(id: string, imageFilename: string) {
   );
 }
 
+function getMetaTileWidth(meta: PanoMeta) {
+  return meta.tileWidth ?? meta.tileSize ?? 0;
+}
+
+function getMetaTileHeight(meta: PanoMeta) {
+  return meta.tileHeight ?? meta.tileSize ?? 0;
+}
+
 function loadImage(
   src: string,
   options?: { fetchPriority?: "high" | "low" | "auto" },
@@ -421,7 +432,6 @@ export default function ApartmentTour({
 }: ApartmentTourProps) {
   const searchParams = useSearchParams();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const tabsScrollerRef = useRef<HTMLDivElement | null>(null);
   const moveToNavRef = useRef<((id: string) => void) | null>(null);
   const transitionOverlayRef = useRef<HTMLDivElement | null>(null);
   const [isViewerMasked, setIsViewerMasked] = useState(true);
@@ -530,6 +540,7 @@ export default function ApartmentTour({
   const refreshProjectionModeRef = useRef<(() => void) | null>(null);
 
   const [activeRoomId, setActiveRoomId] = useState<string>(START_NAV_ID);
+  const [isRoomMenuOpen, setIsRoomMenuOpen] = useState(false);
   useEffect(() => {
     setIsBareShellMode(requestedBareShellMode);
   }, [requestedBareShellMode]);
@@ -584,6 +595,10 @@ export default function ApartmentTour({
   useEffect(() => {
     activeRoomIdRef.current = activeRoomId;
   }, [activeRoomId]);
+
+  useEffect(() => {
+    setIsRoomMenuOpen(false);
+  }, [activeRoomId, isBareShellMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -668,52 +683,6 @@ export default function ApartmentTour({
     activeRoomIdRef.current = nextActiveRoomId;
     setActiveRoomId(nextActiveRoomId);
   }, [NAV_POINTS, START_NAV_ID]);
-
-  const moveCarouselBy = useCallback(
-    (direction: -1 | 1) => {
-      if (tabs.length === 0) {
-        return;
-      }
-
-      const currentIndex = Math.max(
-        tabs.findIndex((tab) => tab.id === activeRoomIdRef.current),
-        0,
-      );
-      const nextIndex = (currentIndex + direction + tabs.length) % tabs.length;
-      const nextTab = tabs[nextIndex];
-
-      if (!nextTab) {
-        return;
-      }
-
-      moveToNavRef.current?.(nextTab.id);
-    },
-    [tabs],
-  );
-
-  useEffect(() => {
-    const scroller = tabsScrollerRef.current;
-
-    if (!scroller) {
-      return;
-    }
-
-    const activeCard = scroller.querySelector<HTMLElement>(
-      `[data-room-id="${activeRoomId}"]`,
-    );
-
-    if (!activeCard) {
-      return;
-    }
-
-    const targetLeft =
-      activeCard.offsetLeft - scroller.clientWidth / 2 + activeCard.clientWidth / 2;
-
-    scroller.scrollTo({
-      left: Math.max(0, targetLeft),
-      behavior: "smooth",
-    });
-  }, [activeRoomId, tabs]);
 
   useEffect(() => {
     if (NAV_POINTS.length === 0) {
@@ -1596,10 +1565,17 @@ export default function ApartmentTour({
       }
 
       const { meta, projectedSize, ctx } = entry;
-      const sourceLeft = tile.col * meta.tileSize;
-      const sourceTop = tile.row * meta.tileSize;
-      const sourceW = Math.min(meta.tileSize, meta.width - sourceLeft);
-      const sourceH = Math.min(meta.tileSize, meta.height - sourceTop);
+      const tileWidth = getMetaTileWidth(meta);
+      const tileHeight = getMetaTileHeight(meta);
+
+      if (tileWidth <= 0 || tileHeight <= 0) {
+        throw new Error("Panorama meta is missing tile dimensions.");
+      }
+
+      const sourceLeft = tile.col * tileWidth;
+      const sourceTop = tile.row * tileHeight;
+      const sourceW = Math.min(tileWidth, meta.width - sourceLeft);
+      const sourceH = Math.min(tileHeight, meta.height - sourceTop);
       const left = Math.round(sourceLeft * projectedSize.scaleX);
       const top = Math.round(sourceTop * projectedSize.scaleY);
       const drawW = Math.max(1, Math.round(sourceW * projectedSize.scaleX));
@@ -2562,11 +2538,19 @@ export default function ApartmentTour({
         const meta = await loadPanoMeta(panoFolderId);
         const projectedSize = getProjectedPanoSize(meta);
 
-        const drawCanvas = document.createElement("canvas");
-        drawCanvas.width = projectedSize.width;
-        drawCanvas.height = projectedSize.height;
+        const dynamicTexture = new DynamicTexture(
+          `pano-dynamic-${textureCacheKey}`,
+          {
+            width: projectedSize.width,
+            height: projectedSize.height,
+          },
+          scene,
+          false,
+        );
+        dynamicTexture.wrapU = Texture.WRAP_ADDRESSMODE;
+        dynamicTexture.wrapV = Texture.CLAMP_ADDRESSMODE;
 
-        const ctx = drawCanvas.getContext("2d");
+        const ctx = dynamicTexture.getContext() as CanvasRenderingContext2D | null;
         if (!ctx) {
           throw new Error("Could not create 2D canvas context");
         }
@@ -2574,6 +2558,7 @@ export default function ApartmentTour({
         ctx.imageSmoothingEnabled = true;
 
         const previewImg = await loadPanoPreview(panoFolderId, meta);
+        ctx.clearRect(0, 0, projectedSize.width, projectedSize.height);
         ctx.drawImage(previewImg, 0, 0, projectedSize.width, projectedSize.height);
 
         if (
@@ -2585,14 +2570,6 @@ export default function ApartmentTour({
           );
         }
 
-        const dynamicTexture = new DynamicTexture(
-          `pano-dynamic-${textureCacheKey}`,
-          drawCanvas,
-          scene,
-          false,
-        );
-        dynamicTexture.wrapU = Texture.WRAP_ADDRESSMODE;
-        dynamicTexture.wrapV = Texture.CLAMP_ADDRESSMODE;
         dynamicTexture.update(false);
 
         panoTextures.set(textureCacheKey, dynamicTexture);
@@ -3053,6 +3030,122 @@ export default function ApartmentTour({
         </div>
       </div>
 
+      <div className="pointer-events-none absolute left-4 top-4 z-20 sm:left-6 sm:top-6">
+        <button
+          type="button"
+          aria-label="Open rooms menu"
+          onClick={() => setIsRoomMenuOpen(true)}
+          className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-[1.2rem] border border-white/10 bg-black/26 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/20 hover:bg-black/36"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div
+        className={`absolute inset-0 z-30 flex ${
+          isRoomMenuOpen ? "pointer-events-auto" : "pointer-events-none"
+        }`}
+      >
+        <button
+          type="button"
+          aria-label="Close rooms menu"
+          onClick={() => setIsRoomMenuOpen(false)}
+          className={`absolute inset-0 bg-black/46 transition duration-200 ${
+            isRoomMenuOpen ? "opacity-100" : "opacity-0"
+          }`}
+        />
+
+        <div
+          className={`relative h-full w-[min(90vw,360px)] border-r border-white/10 bg-[linear-gradient(180deg,rgba(4,6,10,0.96)_0%,rgba(7,10,15,0.94)_100%)] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition duration-300 lg:w-[420px] ${
+            isRoomMenuOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className={`${uiFont.className} text-[10px] uppercase tracking-[0.32em] text-white/42`}>
+                {isBareShellMode ? "Bare Shell" : "Furnished"}
+              </div>
+              <div className="mt-2 text-[1.65rem] font-semibold leading-none tracking-[-0.04em] text-white">
+                Room Index
+              </div>
+            </div>
+
+            <button
+              type="button"
+              aria-label="Close rooms menu"
+              onClick={() => setIsRoomMenuOpen(false)}
+              className="flex h-11 w-11 items-center justify-center rounded-[1rem] border border-white/10 bg-white/5 text-white transition hover:border-white/20 hover:bg-white/10"
+            >
+              <X className="h-4.5 w-4.5" />
+            </button>
+          </div>
+
+          <div className={`${uiFont.className} mt-3 text-[12px] leading-5 text-white/46`}>
+            Select a room to move instantly.
+          </div>
+
+          <div className="mt-5 max-h-[calc(100dvh-10rem)] space-y-2.5 overflow-y-auto pr-1">
+            {tabs.map((tab, index) => {
+              const isActive = tab.id === activeRoomId;
+
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  data-room-id={tab.id}
+                  onClick={() => {
+                    moveToNavRef.current?.(tab.id);
+                    setIsRoomMenuOpen(false);
+                  }}
+                  className={`group relative flex w-full items-center gap-3 overflow-hidden rounded-[20px] border px-3 py-3 text-left transition duration-300 ${
+                    isActive
+                      ? "border-[#d7bc8d]/28 bg-[linear-gradient(180deg,rgba(255,255,255,0.10),rgba(255,255,255,0.06))] shadow-[0_18px_30px_rgba(0,0,0,0.20)]"
+                      : "border-white/8 bg-white/[0.03] hover:border-white/14 hover:bg-white/[0.06]"
+                  }`}
+                >
+                  <div className="relative h-[72px] w-[108px] shrink-0 overflow-hidden rounded-[14px]">
+                    <NextImage
+                      src={tab.image}
+                      alt={tab.label}
+                      fill
+                      sizes="108px"
+                      quality={68}
+                      loading="eager"
+                      priority={index < 8}
+                      fetchPriority={index < 4 ? "high" : "auto"}
+                      draggable={false}
+                      className={`object-cover transition duration-500 ${
+                        isActive ? "scale-[1.03]" : "scale-100 group-hover:scale-[1.02]"
+                      }`}
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,10,14,0.02)_0%,rgba(8,10,14,0.06)_32%,rgba(8,10,14,0.26)_100%)]" />
+                  </div>
+
+                  <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className={`${uiFont.className} truncate text-[14px] font-semibold leading-none text-white`}>
+                        {tab.label}
+                      </p>
+                      <p className={`${uiFont.className} mt-1 text-[9px] uppercase tracking-[0.24em] ${
+                        isActive ? "text-[#dcc59c]/78" : "text-white/38"
+                      }`}>
+                        {isActive ? "Current" : "Open"}
+                      </p>
+                    </div>
+
+                    {isActive ? (
+                      <span className="shrink-0 rounded-full border border-[#d7bc8d]/24 bg-[#d7bc8d]/10 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#f1dfc1]">
+                        Live
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div className="pointer-events-none absolute inset-x-0 bottom-0 px-3 pb-4 sm:px-6 sm:pb-6">
         <div className="mx-auto max-w-[1640px]">
           <div className="relative">
@@ -3139,106 +3232,6 @@ export default function ApartmentTour({
                 </div>
               </div>
             ) : null}
-
-            <div className="relative rounded-[28px] bg-transparent px-4 pb-2 pt-4 sm:px-5 sm:pb-3 sm:pt-5">
-              {/* <div className="pointer-events-none absolute inset-x-[18%] top-0 h-12 rounded-[100%] bg-[radial-gradient(circle_at_center,rgba(214,183,121,0.1),rgba(214,183,121,0.02)_52%,transparent_78%)] blur-2xl" /> */}
-              <div className="relative flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => moveCarouselBy(-1)}
-                  className={`${uiFont.className} pointer-events-auto inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-base text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-200 active:scale-95 hover:bg-white/[0.06] sm:h-9 sm:w-9`}
-                  aria-label="Previous room"
-                >
-                  &#8249;
-                </button>
-
-                <div
-                  ref={tabsScrollerRef}
-                  className="pointer-events-auto flex min-w-0 flex-1 snap-x snap-mandatory gap-2.5 overflow-x-auto overscroll-x-contain px-2 pb-3 pt-4 scroll-smooth [-webkit-overflow-scrolling:touch] sm:gap-3 sm:px-3 sm:pb-5 sm:pt-6"
-                  onWheel={(event) => {
-                    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) {
-                      return;
-                    }
-
-                    event.preventDefault();
-                    event.currentTarget.scrollBy({
-                      left: event.deltaY,
-                    });
-                  }}
-                >
-                  {tabs.map((tab, index) => {
-                    const isActive = tab.id === activeRoomId;
-
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        data-room-id={tab.id}
-                        onClick={() => moveToNavRef.current?.(tab.id)}
-                        className={`group relative block w-[118px] shrink-0 snap-center touch-manipulation text-left sm:w-[132px] lg:w-[144px] xl:w-[154px] ${
-                          isActive
-                            ? "z-10"
-                            : "z-0"
-                        }`}
-                      >
-                        <div
-                          className={`relative origin-bottom overflow-hidden rounded-[22px] will-change-transform transition-[transform,box-shadow,filter,opacity] duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] ${
-                            isActive
-                              ? "translate-y-[-3px] scale-[1.05] opacity-100 shadow-[0_18px_36px_rgba(0,0,0,0.24)]"
-                              : "translate-y-0 scale-[0.94] opacity-72 shadow-[0_8px_18px_rgba(0,0,0,0.12)] group-hover:translate-y-[-1px] group-hover:scale-[0.98] group-hover:opacity-90"
-                          }`}
-                        >
-                          <div className="pointer-events-none absolute inset-x-4 top-0 h-8 rounded-b-[999px] opacity-80" />
-                          <div className="relative m-[3px] aspect-[100/64] overflow-hidden rounded-[18px]">
-                            <NextImage
-                              src={tab.image}
-                              alt={tab.label}
-                              fill
-                              sizes="(max-width: 640px) 118px, (max-width: 1024px) 132px, (max-width: 1440px) 144px, 154px"
-                              quality={64}
-                              loading="eager"
-                              priority={index < 8}
-                              fetchPriority={index < 4 ? "high" : "auto"}
-                              draggable={false}
-                              className={`object-cover will-change-transform transition duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] ${
-                                isActive
-                                  ? "scale-[1.03]"
-                                  : "scale-[0.985] group-hover:scale-[1.01]"
-                              }`}
-                            />
-                            {/* <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0)_30%,rgba(0,0,0,0.1)_100%)]" /> */}
-                            {/* <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/8" /> */}
-                          </div>
-                        </div>
-                        <div className="px-2 pt-2.5">
-                          <p
-                            className={`${uiFont.className} truncate leading-none tracking-[-0.01em] transition-[font-size,opacity,transform] duration-700 ease-[cubic-bezier(0.19,1,0.22,1)] ${
-                              isActive
-                                ? "translate-y-0 text-[13px] font-semibold text-white sm:text-[14px]"
-                                : "translate-y-[-1px] text-[11px] font-medium text-white/64 sm:text-[12px]"
-                            }`}
-                          >
-                            {tab.label}
-                          </p>
-                          {/* <p className={`${uiFont.className} mt-1 text-[10px] font-medium tracking-[0.16em] text-white/38`}>
-                            {tab.id.split("_").pop()}
-                          </p> */}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => moveCarouselBy(1)}
-                  className={`${uiFont.className} pointer-events-auto inline-flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-base text-white/68 shadow-[0_8px_20px_rgba(0,0,0,0.14),inset_0_1px_0_rgba(255,255,255,0.08)] transition duration-200 active:scale-95 hover:bg-white/[0.06] sm:h-9 sm:w-9`}
-                  aria-label="Next room"
-                >
-                  &#8250;
-                </button>
-              </div>
-            </div>
           </div>
         </div>
       </div>

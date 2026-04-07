@@ -1343,7 +1343,7 @@ export default function ExteriorPanoWalkthrough({
               <img
                 src={EXTERIOR_MINIMAP_IMAGE_URL}
                 alt="Trifecta amenity minimap"
-                className="h-full w-full"
+                className="h-full w-full rounded-4xl"
                 draggable={false}
               />
 

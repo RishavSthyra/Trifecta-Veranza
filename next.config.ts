@@ -4,30 +4,36 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "res.cloudinary.com",
-        port: "",
         pathname: "/dlhfbu3kh/image/upload/**",
       },
       {
         protocol: "https",
         hostname: "res.cloudinary.com",
-        port: "",
         pathname: "/dp7bxmquq/image/upload/**",
       },
       {
         protocol: "https",
         hostname: "cdn.sthyra.com",
-        port: "",
         pathname: "/images/**",
       },
       {
         protocol: "https",
         hostname: "cdn.sthyra.com",
-        port: "",
         pathname: "/interior-panos-trifecta/**",
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.sthyra.com",
+        pathname: "/interior-pano-trifecta-new/**",
+      },
+
+      {
+        protocol: "https",
+        hostname: "cdn.sthyra.com",
+        pathname: "/bareshell-pano-trifecta-new/**",
       },
     ],
   },
 };
 
 export default nextConfig;
-
