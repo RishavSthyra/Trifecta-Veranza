@@ -29,7 +29,6 @@ import {
   BufferGeometry,
   DoubleSide,
   EdgesGeometry,
-  Euler,
   Group,
   LineBasicMaterial,
   MathUtils,
@@ -57,7 +56,7 @@ import {
   isApartmentIdAllowedAtHotspot,
 } from "@/lib/master-plan-hotspots";
 import trackingData from "@/data/trifecta_unreal_tracking_data.json";
-import precomputedTransforms from "@/data/precomputedTransforms.json";
+import precomputedSceneData from "@/data/precomputedSceneData.json";
 import type {
   InventoryApartment,
   InventoryStatus,
@@ -232,6 +231,11 @@ type SimilarityTransform = {
   quaternion: Quaternion;
   scale: number;
 };
+type SerializedTrackingCamera = {
+  position: [number, number, number];
+  quaternion: [number, number, number, number];
+  fov: number;
+};
 type SerializedSimilarityTransform = {
   position: [number, number, number];
   quaternion: [number, number, number, number];
@@ -257,11 +261,13 @@ const TOWER_A_TRACKING_KEYS = [
   "A5",
   "A6",
 ] as const satisfies UnrealCameraKey[];
-const PRECOMPUTED_TRACKING_TRANSFORMS = precomputedTransforms as Record<
+const PRECOMPUTED_SCENE_DATA = precomputedSceneData as Record<
   TowerCode,
-  Partial<Record<UnrealCameraKey, SerializedSimilarityTransform>>
+  {
+    camera: Partial<Record<UnrealCameraKey, SerializedTrackingCamera>>;
+    transform: SerializedSimilarityTransform;
+  }
 >;
-const TRACKING_CAMERA_DISTANCE = 12;
 const HIGHLIGHT_EDGE_GEOMETRY_CACHE = new WeakMap<Mesh["geometry"], EdgesGeometry>();
 const HIGHLIGHT_EXPANDED_MATRIX_CACHE = new WeakMap<
   Matrix4,
@@ -984,26 +990,10 @@ function unrealToThreePosition(point: UnrealVector3Like) {
   return new Vector3(point.x, point.z, point.y);
 }
 
-function unrealEulerToThreeQuaternion(rotation: {
-  pitch: number;
-  yaw: number;
-  roll: number;
-}) {
-  const euler = new Euler(
-    MathUtils.degToRad(rotation.pitch),
-    -MathUtils.degToRad(rotation.yaw) - Math.PI / 2,
-    -MathUtils.degToRad(rotation.roll),
-    "YXZ",
-  );
-
-  return new Quaternion().setFromEuler(euler);
-}
-
-function getPrecomputedTowerTrackingTransform(
+function getPrecomputedTowerTransform(
   towerCode: TowerCode,
-  trackingKey: UnrealCameraKey,
 ): SimilarityTransform | null {
-  const transform = PRECOMPUTED_TRACKING_TRANSFORMS[towerCode]?.[trackingKey];
+  const transform = PRECOMPUTED_SCENE_DATA[towerCode]?.transform;
 
   if (!transform) {
     return null;
@@ -1014,6 +1004,31 @@ function getPrecomputedTowerTrackingTransform(
     quaternion: new Quaternion(...transform.quaternion),
     scale: transform.scale,
   } satisfies SimilarityTransform;
+}
+
+function getPrecomputedTrackingCameraView(
+  towerCode: TowerCode,
+  trackingKey: UnrealCameraKey,
+  aspect: number,
+) {
+  const cameraData = PRECOMPUTED_SCENE_DATA[towerCode]?.camera?.[trackingKey];
+
+  if (!cameraData) {
+    return null;
+  }
+
+  const horizontalFov = MathUtils.degToRad(cameraData.fov);
+  const verticalFov = MathUtils.radToDeg(
+    2 * Math.atan(Math.tan(horizontalFov / 2) / aspect),
+  );
+
+  return {
+    fov: verticalFov,
+    key: trackingKey,
+    position: new Vector3(...cameraData.position),
+    quaternion: new Quaternion(...cameraData.quaternion),
+    target: new Vector3(),
+  } satisfies TrackingCameraView;
 }
 
 function getUnrealTowerFootprintInThreeSpace(
@@ -1036,42 +1051,42 @@ function getUnrealTowerFootprintInThreeSpace(
   } satisfies TowerFootprint;
 }
 
-function getTowerTrackingCameraPath(
-  aspect: number,
-) {
-  return TOWER_A_TRACKING_KEYS.flatMap((key) => {
-    const cameraData = trackingData[key]?.camera;
+function getTrackingInterpolationSegment(currentFrame: number) {
+  const normalizedFrame =
+    ((currentFrame - 1 + TOTAL_FRAMES) % TOTAL_FRAMES) + 1;
 
-    if (!cameraData) {
-      return [];
+  for (let index = 0; index < SNAP_FRAMES.length; index += 1) {
+    const startFrame = SNAP_FRAMES[index];
+    const endFrame =
+      index === SNAP_FRAMES.length - 1
+        ? SNAP_FRAMES[0] + TOTAL_FRAMES
+        : SNAP_FRAMES[index + 1];
+    const adjustedFrame =
+      index === SNAP_FRAMES.length - 1 && normalizedFrame < startFrame
+        ? normalizedFrame + TOTAL_FRAMES
+        : normalizedFrame;
+
+    if (adjustedFrame < startFrame || adjustedFrame > endFrame) {
+      continue;
     }
-    const horizontalFov = MathUtils.degToRad(cameraData.fov);
-    const verticalFov = MathUtils.radToDeg(
-      2 * Math.atan(Math.tan(horizontalFov / 2) / aspect),
-    );
-    // A1 used to look correct because the older setup was only locally
-    // accurate near the first shot. The 4-view snap system hid that because it
-    // only visited a few discrete angles. In the tracked 6-view system the
-    // GLB is moved into tracked world by the solved transform, so the camera
-    // path must stay in raw tracked space rather than being transformed again.
-    const position = unrealToThreePosition(cameraData.position);
-    const quaternion = unrealEulerToThreeQuaternion(cameraData.rotation);
-    const target = position.clone().add(
-      new Vector3(0, 0, -1)
-        .applyQuaternion(quaternion)
-        .multiplyScalar(TRACKING_CAMERA_DISTANCE),
-    );
 
-    return [
-      {
-        fov: verticalFov,
-        key,
-        position,
-        quaternion,
-        target,
-      } satisfies TrackingCameraView,
-    ];
-  });
+    const duration = Math.max(endFrame - startFrame, 1);
+    const t = clampNumber((adjustedFrame - startFrame) / duration, 0, 1);
+
+    return {
+      fromKey: TOWER_A_TRACKING_KEYS[index],
+      fromTrackingIndex: index,
+      t,
+      toKey: TOWER_A_TRACKING_KEYS[(index + 1) % TOWER_A_TRACKING_KEYS.length],
+    };
+  }
+
+  return {
+    fromKey: TOWER_A_TRACKING_KEYS[0],
+    fromTrackingIndex: 0,
+    t: 0,
+    toKey: TOWER_A_TRACKING_KEYS[1] ?? TOWER_A_TRACKING_KEYS[0],
+  };
 }
 
 function transformTowerFootprint(
@@ -2207,33 +2222,75 @@ const TowerScene = memo(function TowerScene({
     [trackingVideoAspect],
   );
   const cameraTargetY = primaryPreparedModel.scaledHeight * 0.52;
-  const trackingFrameInfo = useMemo(
+  const nearestTrackingFrameInfo = useMemo(
     () => getNearestSnapFrameInfo(currentFrame),
     [currentFrame],
   );
-  const trackingCameraPath = useMemo(
-    () => getTowerTrackingCameraPath(normalizedTrackingVideoAspect),
-    [normalizedTrackingVideoAspect],
+  const trackingInterpolation = useMemo(
+    () => getTrackingInterpolationSegment(currentFrame),
+    [currentFrame],
   );
-  const trackingSnapshots = useMemo(
-    () =>
-      TOWER_A_TRACKING_KEYS.map((key, index) => ({
-        cameraView: trackingCameraPath[index] ?? null,
-        key,
-        towerATransform: getPrecomputedTowerTrackingTransform("A", key),
-        towerBTransform: getPrecomputedTowerTrackingTransform("B", key),
-      })),
-    [trackingCameraPath],
+  const towerATrackingTransform = useMemo(
+    () => getPrecomputedTowerTransform("A"),
+    [],
   );
-  const currentTrackingSnapshot =
-    trackingSnapshots[trackingFrameInfo.index] ?? trackingSnapshots[0] ?? null;
+  const towerBTrackingTransform = useMemo(
+    () => getPrecomputedTowerTransform("B"),
+    [],
+  );
   const currentTrackingKey =
-    currentTrackingSnapshot?.key ?? TOWER_A_TRACKING_KEYS[0];
-  const towerATrackingTransform = currentTrackingSnapshot?.towerATransform ?? null;
-  const towerBTrackingTransform = currentTrackingSnapshot?.towerBTransform ?? null;
+    TOWER_A_TRACKING_KEYS[nearestTrackingFrameInfo.index] ?? TOWER_A_TRACKING_KEYS[0];
   const towerTrackingTransform =
     activeTowerCode === "B" ? towerBTrackingTransform : towerATrackingTransform;
-  const trackingCameraView = currentTrackingSnapshot?.cameraView ?? null;
+  const trackingCameraView = useMemo(() => {
+    const fromCamera = getPrecomputedTrackingCameraView(
+      activeTowerCode,
+      trackingInterpolation.fromKey,
+      normalizedTrackingVideoAspect,
+    );
+    const toCamera = getPrecomputedTrackingCameraView(
+      activeTowerCode,
+      trackingInterpolation.toKey,
+      normalizedTrackingVideoAspect,
+    );
+
+    if (!fromCamera && !toCamera) {
+      return null;
+    }
+
+    if (!fromCamera) {
+      return toCamera;
+    }
+
+    if (!toCamera) {
+      return fromCamera;
+    }
+
+    const position = new Vector3().lerpVectors(
+      fromCamera.position,
+      toCamera.position,
+      trackingInterpolation.t,
+    );
+    const quaternion = new Quaternion().slerpQuaternions(
+      fromCamera.quaternion,
+      toCamera.quaternion,
+      trackingInterpolation.t,
+    );
+
+    return {
+      fov: MathUtils.lerp(fromCamera.fov, toCamera.fov, trackingInterpolation.t),
+      key: fromCamera.key,
+      position,
+      quaternion,
+      target: new Vector3(),
+    } satisfies TrackingCameraView;
+  }, [
+    activeTowerCode,
+    normalizedTrackingVideoAspect,
+    trackingInterpolation.fromKey,
+    trackingInterpolation.t,
+    trackingInterpolation.toKey,
+  ]);
   const unrealTowerDummies = useMemo(
     () =>
       showTrackingDebug
@@ -2571,7 +2628,7 @@ const TowerScene = memo(function TowerScene({
       return;
     }
 
-    if (trackingCameraPath.length) {
+    if (trackingCameraView) {
       return;
     }
 
@@ -2594,7 +2651,7 @@ const TowerScene = memo(function TowerScene({
       <PerspectiveCamera
         ref={cameraRef}
         makeDefault
-        far={trackingCameraPath.length ? 100000 : 400}
+        far={trackingCameraView ? 100000 : 400}
         fov={34}
         near={0.01}
         position={BASE_CAMERA_POSITION}

@@ -35,10 +35,14 @@ export default function RouteChrome() {
     pathname === "/exterios-walkthrough" ||
     pathname === "/exterior-tour" ||
     pathname === "/exterior-walkthrough";
+  const isInteriorWalkthroughRoute = pathname === "/walkthrough";
   const isImmersiveRoute =
     pathname === "/tower-hover-test" || pathname === "/project-layout";
   const isDocklessRoute = pathname === "/test";
-  const shouldMergeLinksForRoute = shouldMergeDockIntoCta || isExteriorWalkthroughRoute;
+  const shouldMergeLinksForRoute =
+    shouldMergeDockIntoCta ||
+    isExteriorWalkthroughRoute ||
+    isInteriorWalkthroughRoute;
   const shouldHideDock =
     isDocklessRoute ||
     shouldMergeLinksForRoute ||

@@ -2,7 +2,15 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { Box3, Group, Object3D, Quaternion, Vector2, Vector3 } from "three";
+import {
+  Box3,
+  Euler,
+  Group,
+  Object3D,
+  Quaternion,
+  Vector2,
+  Vector3,
+} from "three";
 import trackingData from "../data/trifecta_unreal_tracking_data.json";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -12,6 +20,7 @@ const TARGET_MODEL_HEIGHT = 10;
 const TRACKING_KEYS = ["A1", "A2", "A3", "A4", "A5", "A6"] as const;
 
 type TowerCode = "A" | "B";
+type TrackingKey = (typeof TRACKING_KEYS)[number];
 
 type TowerFootprint = {
   ta1: Vector3;
@@ -31,6 +40,37 @@ type OutputTransform = {
   quaternion: [number, number, number, number];
   scale: number;
 };
+
+type OutputCamera = {
+  position: [number, number, number];
+  quaternion: [number, number, number, number];
+  fov: number;
+};
+
+type OutputSceneData = Record<
+  TowerCode,
+  {
+    camera: Record<TrackingKey, OutputCamera>;
+    transform: OutputTransform;
+  }
+>;
+
+const round = (value: number) => Number(value.toFixed(6));
+
+function roundVector3(vector: Vector3): [number, number, number] {
+  return [round(vector.x), round(vector.y), round(vector.z)];
+}
+
+function roundQuaternion(
+  quaternion: Quaternion,
+): [number, number, number, number] {
+  return [
+    round(quaternion.x),
+    round(quaternion.y),
+    round(quaternion.z),
+    round(quaternion.w),
+  ];
+}
 
 function getQuadPoints(quad: TowerFootprint) {
   return [quad.ta1, quad.ta2, quad.ta3, quad.ta4];
@@ -95,6 +135,17 @@ function computeSimilarityTransformFromQuads(
     .sub(modelCenter.clone().applyQuaternion(quaternion).multiplyScalar(scale));
 
   return { position, quaternion, scale };
+}
+
+function eulerToQuaternion(pitch: number, yaw: number, roll: number) {
+  const euler = new Euler(
+    (pitch * Math.PI) / 180,
+    (-yaw * Math.PI) / 180 - Math.PI / 2,
+    (-roll * Math.PI) / 180,
+    "YXZ",
+  );
+
+  return new Quaternion().setFromEuler(euler);
 }
 
 async function loadScene(modelPath: string): Promise<{ scene: Group }> {
@@ -179,7 +230,7 @@ function unrealToThreePosition(point: { x: number; y: number; z: number }) {
 }
 
 function getTrackedViewTowerFootprint(
-  trackingKey: (typeof TRACKING_KEYS)[number],
+  trackingKey: TrackingKey,
   towerCode: TowerCode,
 ): TowerFootprint {
   const dummies = trackingData[trackingKey]?.dummies;
@@ -201,6 +252,26 @@ function getTrackedViewTowerFootprint(
   };
 }
 
+function getOutputCamera(trackingKey: TrackingKey): OutputCamera {
+  const camera = trackingData[trackingKey]?.camera;
+
+  if (!camera) {
+    throw new Error(`Missing camera for ${trackingKey}`);
+  }
+
+  return {
+    position: roundVector3(unrealToThreePosition(camera.position)),
+    quaternion: roundQuaternion(
+      eulerToQuaternion(
+        camera.rotation.pitch,
+        camera.rotation.yaw,
+        camera.rotation.roll,
+      ),
+    ),
+    fov: round(camera.fov),
+  };
+}
+
 async function main() {
   const [towerAGltf, towerBGltf] = await Promise.all([
     loadScene("public/models/forglb.glb"),
@@ -213,35 +284,46 @@ async function main() {
   };
 
   const output = {
-    A: {} as Record<string, OutputTransform>,
-    B: {} as Record<string, OutputTransform>,
-  };
+    A: {
+      camera: {} as Record<TrackingKey, OutputCamera>,
+      transform: {
+        position: [0, 0, 0],
+        quaternion: [0, 0, 0, 1],
+        scale: 1,
+      } as OutputTransform,
+    },
+    B: {
+      camera: {} as Record<TrackingKey, OutputCamera>,
+      transform: {
+        position: [0, 0, 0],
+        quaternion: [0, 0, 0, 1],
+        scale: 1,
+      } as OutputTransform,
+    },
+  } satisfies OutputSceneData;
 
   (["A", "B"] as const).forEach((towerCode) => {
+    const transform = computeSimilarityTransformFromQuads(
+      towerFootprints[towerCode],
+      getTrackedViewTowerFootprint(TRACKING_KEYS[0], towerCode),
+    );
+
+    if (!transform) {
+      throw new Error(`Failed to compute transform for tower ${towerCode}`);
+    }
+
+    output[towerCode].transform = {
+      position: roundVector3(transform.position),
+      quaternion: roundQuaternion(transform.quaternion),
+      scale: round(transform.scale),
+    };
+
     TRACKING_KEYS.forEach((trackingKey) => {
-      const transform = computeSimilarityTransformFromQuads(
-        towerFootprints[towerCode],
-        getTrackedViewTowerFootprint(trackingKey, towerCode),
-      );
-
-      if (!transform) {
-        throw new Error(`Failed to compute transform for ${towerCode} ${trackingKey}`);
-      }
-
-      output[towerCode][trackingKey] = {
-        position: transform.position.toArray() as [number, number, number],
-        quaternion: transform.quaternion.toArray() as [
-          number,
-          number,
-          number,
-          number,
-        ],
-        scale: transform.scale,
-      };
+      output[towerCode].camera[trackingKey] = getOutputCamera(trackingKey);
     });
   });
 
-  const outputPath = path.resolve(ROOT_DIR, "data/precomputedTransforms.json");
+  const outputPath = path.resolve(ROOT_DIR, "data/precomputedSceneData.json");
   await writeFile(outputPath, `${JSON.stringify(output, null, 2)}\n`, "utf8");
   console.log(`Wrote ${outputPath}`);
 }
