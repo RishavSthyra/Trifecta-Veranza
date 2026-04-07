@@ -12,6 +12,11 @@ import {
   useRef,
   useState,
 } from "react";
+import {
+  computeBoundsTree,
+  disposeBoundsTree,
+  acceleratedRaycast,
+} from "three-mesh-bvh";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import {
   AdaptiveDpr,
@@ -21,6 +26,7 @@ import {
 } from "@react-three/drei";
 import {
   Box3,
+  BufferGeometry,
   DoubleSide,
   EdgesGeometry,
   Euler,
@@ -51,11 +57,17 @@ import {
   isApartmentIdAllowedAtHotspot,
 } from "@/lib/master-plan-hotspots";
 import trackingData from "@/data/trifecta_unreal_tracking_data.json";
+import precomputedTransforms from "@/data/precomputedTransforms.json";
 import type {
   InventoryApartment,
   InventoryStatus,
   TowerType,
 } from "@/types/inventory";
+(BufferGeometry.prototype as { computeBoundsTree?: typeof computeBoundsTree })
+  .computeBoundsTree = computeBoundsTree;
+(BufferGeometry.prototype as { disposeBoundsTree?: typeof disposeBoundsTree })
+  .disposeBoundsTree = disposeBoundsTree;
+Mesh.prototype.raycast = acceleratedRaycast as Mesh["raycast"];
 const MODEL_PATH_A = "/models/forglb.glb";
 const MODEL_PATH_B = "/models/forglb - Copy.glb";
 const INTERACTION_MODEL_PATH_A = "/models/forglb.glb";
@@ -92,7 +104,8 @@ const TRACKING_VIDEO_ASPECT = 3840 / 2560;
 const VIDEO_SYNC_THRESHOLD_SECONDS = 1 / (MASTER_PLAN_SCRUB_VIDEO_FPS * 1.5);
 const VIDEO_FAST_SEEK_THRESHOLD_SECONDS = 0.18;
 const ENABLE_TRACKING_DEBUG = false;
-const FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD = 12;
+const FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD = 6;
+const MAX_HIGHLIGHTS = 80;
 const MOBILE_STAGE_MAX_SCALE = 2.8;
 const MOBILE_STAGE_MIN_SCALE = 1;
 const MOBILE_STAGE_TAP_MOVE_THRESHOLD_PX = 10;
@@ -154,7 +167,6 @@ type InventoryApartmentIndex = Map<TowerType, Map<string, InventoryApartment>>;
 type PreparedTowerModel = {
   apartments: Map<string, HoverMeshData[]>;
   debugTarget: Vector3;
-  modelTowerDummies: TowerFootprint | null;
   offset: [number, number, number];
   pickableMeshes: Mesh[];
   scaledHeight: number;
@@ -220,6 +232,11 @@ type SimilarityTransform = {
   quaternion: Quaternion;
   scale: number;
 };
+type SerializedSimilarityTransform = {
+  position: [number, number, number];
+  quaternion: [number, number, number, number];
+  scale: number;
+};
 type UnrealVector3Like = {
   x: number;
   y: number;
@@ -240,6 +257,10 @@ const TOWER_A_TRACKING_KEYS = [
   "A5",
   "A6",
 ] as const satisfies UnrealCameraKey[];
+const PRECOMPUTED_TRACKING_TRANSFORMS = precomputedTransforms as Record<
+  TowerCode,
+  Partial<Record<UnrealCameraKey, SerializedSimilarityTransform>>
+>;
 const TRACKING_CAMERA_DISTANCE = 12;
 const HIGHLIGHT_EDGE_GEOMETRY_CACHE = new WeakMap<Mesh["geometry"], EdgesGeometry>();
 const HIGHLIGHT_EXPANDED_MATRIX_CACHE = new WeakMap<
@@ -951,74 +972,6 @@ function getTrackedViewTowerDummies(
   } satisfies Record<keyof TowerFootprint, UnrealVector3Like>;
 }
 
-function getQuadPoints(quad: Record<keyof TowerFootprint, Vector3>) {
-  return [quad.ta1, quad.ta2, quad.ta3, quad.ta4];
-}
-
-function averageVector(points: Vector3[]) {
-  return points
-    .reduce((sum, point) => sum.add(point.clone()), new Vector3())
-    .multiplyScalar(1 / Math.max(points.length, 1));
-}
-
-function computeSimilarityTransformFromQuads(
-  modelQuad: TowerFootprint,
-  unrealQuad: Record<keyof TowerFootprint, Vector3>,
-): SimilarityTransform | null {
-  const modelPoints = getQuadPoints(modelQuad);
-  const unrealPoints = getQuadPoints(unrealQuad);
-  const modelCenter = averageVector(modelPoints);
-  const unrealCenter = averageVector(unrealPoints);
-  const centeredModel = modelPoints.map(
-    (point) => new Vector2(point.x - modelCenter.x, point.z - modelCenter.z),
-  );
-  const centeredUnreal = unrealPoints.map(
-    (point) => new Vector2(point.x - unrealCenter.x, point.z - unrealCenter.z),
-  );
-
-  let dot = 0;
-  let cross = 0;
-  let sourceNorm = 0;
-
-  centeredModel.forEach((point, index) => {
-    dot += point.dot(centeredUnreal[index]);
-    cross += point.x * centeredUnreal[index].y - point.y * centeredUnreal[index].x;
-    sourceNorm += point.lengthSq();
-  });
-
-  if (sourceNorm <= 1e-8) {
-    return null;
-  }
-
-  const rotationAngle = Math.atan2(cross, dot);
-  const quaternion = new Quaternion().setFromAxisAngle(
-    new Vector3(0, 1, 0),
-    rotationAngle,
-  );
-  let scaledDot = 0;
-
-  centeredModel.forEach((point, index) => {
-    const rotatedPoint = point.clone().rotateAround(new Vector2(0, 0), rotationAngle);
-    scaledDot += rotatedPoint.dot(centeredUnreal[index]);
-  });
-
-  const scale = scaledDot / sourceNorm;
-
-  if (!Number.isFinite(scale) || scale <= 0) {
-    return null;
-  }
-
-  const position = unrealCenter
-    .clone()
-    .sub(modelCenter.clone().applyQuaternion(quaternion).multiplyScalar(scale));
-
-  return {
-    position,
-    quaternion,
-    scale,
-  } satisfies SimilarityTransform;
-}
-
 function applyTransformToPoint(point: Vector3, transform: SimilarityTransform) {
   return point
     .clone()
@@ -1046,30 +999,21 @@ function unrealEulerToThreeQuaternion(rotation: {
   return new Quaternion().setFromEuler(euler);
 }
 
-function getTowerTrackingTransforms(
-  modelTowerDummies: TowerFootprint | null,
+function getPrecomputedTowerTrackingTransform(
   towerCode: TowerCode,
-) {
-  if (!modelTowerDummies) {
-    return [] as SimilarityTransform[];
+  trackingKey: UnrealCameraKey,
+): SimilarityTransform | null {
+  const transform = PRECOMPUTED_TRACKING_TRANSFORMS[towerCode]?.[trackingKey];
+
+  if (!transform) {
+    return null;
   }
 
-  return TOWER_A_TRACKING_KEYS.flatMap((trackingKey) => {
-    const trackedViewDummies = getTrackedViewTowerDummies(trackingKey, towerCode);
-
-    if (!trackedViewDummies) {
-      return [];
-    }
-
-    const transform = computeSimilarityTransformFromQuads(modelTowerDummies, {
-      ta1: unrealToThreePosition(trackedViewDummies.ta1),
-      ta2: unrealToThreePosition(trackedViewDummies.ta2),
-      ta3: unrealToThreePosition(trackedViewDummies.ta3),
-      ta4: unrealToThreePosition(trackedViewDummies.ta4),
-    });
-
-    return transform ? [transform] : [];
-  });
+  return {
+    position: new Vector3(...transform.position),
+    quaternion: new Quaternion(...transform.quaternion),
+    scale: transform.scale,
+  } satisfies SimilarityTransform;
 }
 
 function getUnrealTowerFootprintInThreeSpace(
@@ -1609,7 +1553,6 @@ function prepareTowerScene(
 ) {
   const trackingScene = cloneSkeleton(sourceScene) as Group;
   const scene = cloneSkeleton(interactionSceneSource) as Group;
-  const modelTowerDummies = collectModelTowerDummies(trackingScene);
   const apartments = new Map<string, HoverMeshData[]>();
   const pickableMeshes: Mesh[] = [];
   const towerBounds = new Map<TowerCode, Box3>();
@@ -1618,9 +1561,11 @@ function prepareTowerScene(
   trackingScene.updateWorldMatrix(true, true);
 
   scene.traverse((object) => {
+    
     if (!(object instanceof Mesh)) {
       return;
     }
+          object.geometry.computeBoundsTree?.();
 
     object.visible = true;
     object.frustumCulled = true;
@@ -1703,7 +1648,6 @@ function prepareTowerScene(
   return {
     apartments,
     debugTarget: new Vector3(0, size.y * 0.32 * scale, 0),
-    modelTowerDummies,
     offset,
     pickableMeshes,
     scaledHeight: size.y * scale,
@@ -1854,8 +1798,9 @@ const HighlightOverlay = memo(function HighlightOverlay({
       meshData: HoverMeshData;
       palette: ApartmentHighlightPalette;
     }> = [];
+    const limitedIds = Array.from(filteredApartmentIds).slice(0, MAX_HIGHLIGHTS);
 
-    filteredApartmentIds.forEach((apartmentId) => {
+    limitedIds.forEach((apartmentId) => {
       if (
         apartmentId === hoveredApartmentId ||
         apartmentId === selectedApartmentId
@@ -2045,6 +1990,7 @@ const HoverTracker = memo(function HoverTracker({
     let latestButtons = 0;
     let latestOffsetX = 0;
     let latestOffsetY = 0;
+    let lastTime = 0;
 
     const updateHover = (
       apartmentId: string | null,
@@ -2064,6 +2010,13 @@ const HoverTracker = memo(function HoverTracker({
 
     const processPointerMove = () => {
       frameId = 0;
+      const now = performance.now();
+
+      if (now - lastTime < 50) {
+        return;
+      }
+
+      lastTime = now;
 
       if (latestButtons !== 0) {
         updateHover(null, null);
@@ -2258,44 +2211,19 @@ const TowerScene = memo(function TowerScene({
     () => getNearestSnapFrameInfo(currentFrame),
     [currentFrame],
   );
-  const towerATrackingTransforms = useMemo(
-    () =>
-      getTowerTrackingTransforms(
-        preparedTowerA.trackedTowerFootprints.A ?? null,
-        "A",
-      ),
-    [preparedTowerA.trackedTowerFootprints],
-  );
-  const towerBTrackingTransforms = useMemo(
-    () =>
-      getTowerTrackingTransforms(
-        preparedTowerB.trackedTowerFootprints.B ?? null,
-        "B",
-      ),
-    [preparedTowerB.trackedTowerFootprints],
-  );
   const trackingCameraPath = useMemo(
-    () =>
-      towerATrackingTransforms.length > 0 || towerBTrackingTransforms.length > 0
-        ? getTowerTrackingCameraPath(normalizedTrackingVideoAspect)
-        : [],
-    [
-      normalizedTrackingVideoAspect,
-      towerATrackingTransforms.length,
-      towerBTrackingTransforms.length,
-    ],
+    () => getTowerTrackingCameraPath(normalizedTrackingVideoAspect),
+    [normalizedTrackingVideoAspect],
   );
   const trackingSnapshots = useMemo(
     () =>
       TOWER_A_TRACKING_KEYS.map((key, index) => ({
         cameraView: trackingCameraPath[index] ?? null,
         key,
-        towerATransform:
-          towerATrackingTransforms[index] ?? towerATrackingTransforms[0] ?? null,
-        towerBTransform:
-          towerBTrackingTransforms[index] ?? towerBTrackingTransforms[0] ?? null,
+        towerATransform: getPrecomputedTowerTrackingTransform("A", key),
+        towerBTransform: getPrecomputedTowerTrackingTransform("B", key),
       })),
-    [trackingCameraPath, towerATrackingTransforms, towerBTrackingTransforms],
+    [trackingCameraPath],
   );
   const currentTrackingSnapshot =
     trackingSnapshots[trackingFrameInfo.index] ?? trackingSnapshots[0] ?? null;
@@ -2684,7 +2612,7 @@ const TowerScene = memo(function TowerScene({
           <group position={trackedScenePosition} scale={preparedTowerA.scale}>
             <group position={preparedTowerA.offset}>
               <primitive object={preparedTowerA.scene} />
-              {shouldShowHighlightOverlay ? (
+              {shouldShowHighlightOverlay && interactionMode === "idle" ? (
                 <HighlightOverlay
                   apartments={preparedTowerA.apartments}
                   filteredApartmentIds={effectiveFilteredApartmentIds}
@@ -2708,7 +2636,7 @@ const TowerScene = memo(function TowerScene({
           <group position={trackedScenePosition} scale={preparedTowerB.scale}>
             <group position={preparedTowerB.offset}>
               <primitive object={preparedTowerB.scene} />
-              {shouldShowHighlightOverlay ? (
+              {shouldShowHighlightOverlay && interactionMode === "idle" ? (
                 <HighlightOverlay
                   apartments={preparedTowerB.apartments}
                   filteredApartmentIds={effectiveFilteredApartmentIds}
@@ -2731,7 +2659,7 @@ const TowerScene = memo(function TowerScene({
         >
           <group position={primaryPreparedModel.offset}>
             <primitive object={primaryPreparedModel.scene} />
-            {shouldShowHighlightOverlay ? (
+            {shouldShowHighlightOverlay && interactionMode === "idle" ? (
               <HighlightOverlay
                 apartments={primaryPreparedModel.apartments}
                 filteredApartmentIds={effectiveFilteredApartmentIds}
@@ -2746,14 +2674,14 @@ const TowerScene = memo(function TowerScene({
         </group>
       ) : null}
 
-      {allowHover ? (
-        <HoverTracker
-          allowHover
-          interactionMode={interactionMode}
-          onHoverChange={handleSceneHover}
-          pickableMeshes={hotspotScopedPickableMeshes}
-        />
-      ) : null}
+{allowHover && interactionMode === "idle" ? (
+  <HoverTracker
+    allowHover={allowHover}
+    interactionMode={interactionMode}
+    onHoverChange={handleSceneHover}
+    pickableMeshes={hotspotScopedPickableMeshes}
+  />
+) : null}
 
     </>
   );
