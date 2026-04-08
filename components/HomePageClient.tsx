@@ -18,6 +18,38 @@ type IdleWindow = Window &
     ) => number;
   };
 
+const HERO_VIDEO_URL =
+  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774905518/Tf_Fixed.mp4";
+const ENTRY_VIDEO_URL =
+  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774906461/Tf_Fixed_Final_2.mp4";
+
+function getVideoLoadProgress(video: HTMLVideoElement) {
+  const duration = video.duration;
+
+  if (Number.isFinite(duration) && duration > 0 && video.buffered.length > 0) {
+    const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+    return Math.max(0, Math.min(1, bufferedEnd / duration));
+  }
+
+  if (video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+    return 1;
+  }
+
+  if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+    return 0.84;
+  }
+
+  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    return 0.58;
+  }
+
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+    return 0.26;
+  }
+
+  return 0.08;
+}
+
 export default function HomePageClient() {
   const loaderStartedAtRef = useRef(0);
   const [progress, setProgress] = useState(0);
@@ -56,6 +88,8 @@ export default function HomePageClient() {
     const createdLinks: HTMLLinkElement[] = [];
     const warmVideos: HTMLVideoElement[] = [];
     const abortController = new AbortController();
+    let heroProgressAnimationFrame: number | null = null;
+    let heroProgressInterval: number | null = null;
 
     const appendPreloadLink = (
       href: string,
@@ -84,6 +118,7 @@ export default function HomePageClient() {
       video.src = src;
       video.load();
       warmVideos.push(video);
+      return video;
     };
 
     appendPreloadLink(
@@ -91,12 +126,12 @@ export default function HomePageClient() {
       "image",
     );
     appendPreloadLink(
-      "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774905518/Tf_Fixed.mp4",
+      HERO_VIDEO_URL,
       "video",
       "anonymous",
     );
     appendPreloadLink(
-      "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774906461/Tf_Fixed_Final_2.mp4",
+      ENTRY_VIDEO_URL,
       "video",
       "anonymous",
     );
@@ -104,7 +139,73 @@ export default function HomePageClient() {
     appendPreloadLink("/models/forglb.glb", "fetch");
     appendPreloadLink("/models/forglb%20-%20Copy.glb", "fetch");
 
+    const warmHeroVideo = warmVideoSource(HERO_VIDEO_URL);
+    warmVideoSource(ENTRY_VIDEO_URL);
     warmVideoSource(MASTER_PLAN_SCRUB_HQ_VIDEO_PATH);
+
+    const reportHeroProgress = () => {
+      setProgress((currentProgress) => {
+        if (heroReady) {
+          return 100;
+        }
+
+        const targetValue = Math.round(
+          Math.max(currentProgress, Math.min(getVideoLoadProgress(warmHeroVideo) * 100, 96)),
+        );
+        const dampedStep = Math.max(
+          1,
+          Math.round((targetValue - currentProgress) * 0.45),
+        );
+
+        return Math.min(targetValue, currentProgress + dampedStep);
+      });
+    };
+
+    const handleHeroWarmReady = () => {
+      if (heroProgressAnimationFrame !== null) {
+        window.cancelAnimationFrame(heroProgressAnimationFrame);
+      }
+
+      heroProgressAnimationFrame = window.requestAnimationFrame(() => {
+        heroProgressAnimationFrame = null;
+        setProgress((currentProgress) => Math.max(currentProgress, 100));
+        setHeroReady(true);
+      });
+    };
+
+    const handleHeroWarmProgress = () => {
+      if (heroProgressAnimationFrame !== null) {
+        return;
+      }
+
+      heroProgressAnimationFrame = window.requestAnimationFrame(() => {
+        heroProgressAnimationFrame = null;
+        reportHeroProgress();
+
+        if (warmHeroVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          handleHeroWarmReady();
+        }
+      });
+    };
+
+    warmHeroVideo.addEventListener("loadedmetadata", handleHeroWarmProgress);
+    warmHeroVideo.addEventListener("loadeddata", handleHeroWarmProgress);
+    warmHeroVideo.addEventListener("progress", handleHeroWarmProgress);
+    warmHeroVideo.addEventListener("canplay", handleHeroWarmReady);
+    warmHeroVideo.addEventListener("canplaythrough", handleHeroWarmReady);
+    warmHeroVideo.addEventListener("stalled", handleHeroWarmProgress);
+    warmHeroVideo.addEventListener("suspend", handleHeroWarmProgress);
+    warmHeroVideo.addEventListener("error", handleHeroWarmReady);
+
+    heroProgressInterval = window.setInterval(() => {
+      reportHeroProgress();
+
+      if (warmHeroVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        handleHeroWarmReady();
+      }
+    }, 250);
+
+    void warmHeroVideo.play().catch(() => undefined);
 
     const warmMasterPlanAssets = () => {
       const frameUrls = getMasterPlanFramePreloadSequence(1, 10).map((frame) =>
@@ -146,6 +247,20 @@ export default function HomePageClient() {
     return () => {
       abortController.abort();
       cleanupIdle?.();
+      if (heroProgressAnimationFrame !== null) {
+        window.cancelAnimationFrame(heroProgressAnimationFrame);
+      }
+      if (heroProgressInterval !== null) {
+        window.clearInterval(heroProgressInterval);
+      }
+      warmHeroVideo.removeEventListener("loadedmetadata", handleHeroWarmProgress);
+      warmHeroVideo.removeEventListener("loadeddata", handleHeroWarmProgress);
+      warmHeroVideo.removeEventListener("progress", handleHeroWarmProgress);
+      warmHeroVideo.removeEventListener("canplay", handleHeroWarmReady);
+      warmHeroVideo.removeEventListener("canplaythrough", handleHeroWarmReady);
+      warmHeroVideo.removeEventListener("stalled", handleHeroWarmProgress);
+      warmHeroVideo.removeEventListener("suspend", handleHeroWarmProgress);
+      warmHeroVideo.removeEventListener("error", handleHeroWarmReady);
       createdLinks.forEach((link) => link.remove());
       warmVideos.forEach((video) => {
         video.pause();

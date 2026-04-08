@@ -66,6 +66,10 @@ const BARE_SHELL_FLOOR_MAP_URL = "https://cdn.sthyra.com/images/Tower_A_06_2D.we
 const DEFAULT_ZOOM = 0;
 const MIN_PITCH = -Math.PI / 2 + 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.08;
+const INTERIOR_SPHERE_RESOLUTION = 128;
+const INTERIOR_SLOW_SPHERE_RESOLUTION = 96;
+const INTERIOR_MIN_FOV = 36;
+const INTERIOR_MAX_FOV = 74;
 const FURNISHED_MAP_FLIP_X = false;
 const FURNISHED_MAP_FLIP_Y = false;
 const BARE_SHELL_MAP_FLIP_X = false;
@@ -797,7 +801,9 @@ export default function InteriorPanoWalkthrough({
       const viewer = new Viewer({
         container: viewerHostRef.current,
         adapter: EquirectangularTilesAdapter.withConfig({
-          resolution: isSlowNetwork ? 32 : 64,
+          resolution: isSlowNetwork
+            ? INTERIOR_SLOW_SPHERE_RESOLUTION
+            : INTERIOR_SPHERE_RESOLUTION,
           showErrorTile: false,
           baseBlur: true,
           antialias: true,
@@ -807,10 +813,14 @@ export default function InteriorPanoWalkthrough({
         mousewheelCtrlKey: false,
         defaultYaw: "0deg",
         defaultZoomLvl: DEFAULT_ZOOM,
-        minFov: 30,
-        maxFov: 90,
+        minFov: INTERIOR_MIN_FOV,
+        maxFov: INTERIOR_MAX_FOV,
         moveSpeed: 2,
         moveInertia: 0.92,
+        rendererParameters: {
+          antialias: true,
+          powerPreference: "high-performance",
+        },
         plugins: [
           MarkersPlugin,
           VirtualTourPlugin.withConfig({
@@ -940,7 +950,7 @@ export default function InteriorPanoWalkthrough({
         </button>
       </div>
 
-      <div className="pointer-events-none absolute right-6 top-[2rem] z-30 hidden w-[300px] xl:block">
+      <div className="pointer-events-none absolute right-4 top-[1.5rem] z-30 hidden w-[220px] xl:block 2xl:right-6 2xl:top-[2rem] 2xl:w-[300px]">
         <div className="pointer-events-auto rounded-[1.6rem] p-3 ">
             <Image
               src={floorMapUrl}

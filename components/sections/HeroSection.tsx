@@ -173,6 +173,7 @@ export default function HeroSection({
 
     let readyFrameId: number | null = null;
     let rafId: number | null = null;
+    let pollId: number | null = null;
 
     const markVideoReady = () => {
       setVideoReady(true);
@@ -196,8 +197,14 @@ export default function HeroSection({
       };
     }
 
+    heroVideo.muted = true;
+    heroVideo.defaultMuted = true;
+    heroVideo.playsInline = true;
+    heroVideo.setAttribute("playsinline", "true");
+    heroVideo.setAttribute("webkit-playsinline", "true");
     heroVideo.load();
     reportProgress();
+    void heroVideo.play().catch(() => undefined);
 
     const handleCanPlay = () => {
       reportProgress();
@@ -206,6 +213,9 @@ export default function HeroSection({
 
     const handleLoadedData = () => {
       reportProgress();
+      if (heroVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        markVideoReady();
+      }
     };
 
     const handleProgress = () => {
@@ -224,12 +234,32 @@ export default function HeroSection({
       markVideoFallbackReady();
     };
 
+    const handleStateCheck = () => {
+      reportProgress();
+
+      if (heroVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        markVideoReady();
+      }
+    };
+
     heroVideo.addEventListener("loadedmetadata", handleProgress);
     heroVideo.addEventListener("loadeddata", handleLoadedData);
     heroVideo.addEventListener("progress", handleProgress);
     heroVideo.addEventListener("canplay", handleCanPlay);
     heroVideo.addEventListener("canplaythrough", handleCanPlay);
+    heroVideo.addEventListener("playing", handleStateCheck);
+    heroVideo.addEventListener("stalled", handleStateCheck);
+    heroVideo.addEventListener("suspend", handleStateCheck);
+    heroVideo.addEventListener("waiting", handleStateCheck);
     heroVideo.addEventListener("error", handleFallbackReady);
+
+    pollId = window.setInterval(() => {
+      handleStateCheck();
+
+      if (heroVideo.paused && !videoReady) {
+        void heroVideo.play().catch(() => undefined);
+      }
+    }, 250);
 
     return () => {
       if (readyFrameId !== null) {
@@ -240,14 +270,22 @@ export default function HeroSection({
         window.cancelAnimationFrame(rafId);
       }
 
+      if (pollId !== null) {
+        window.clearInterval(pollId);
+      }
+
       heroVideo.removeEventListener("loadedmetadata", handleProgress);
       heroVideo.removeEventListener("loadeddata", handleLoadedData);
       heroVideo.removeEventListener("progress", handleProgress);
       heroVideo.removeEventListener("canplay", handleCanPlay);
       heroVideo.removeEventListener("canplaythrough", handleCanPlay);
+      heroVideo.removeEventListener("playing", handleStateCheck);
+      heroVideo.removeEventListener("stalled", handleStateCheck);
+      heroVideo.removeEventListener("suspend", handleStateCheck);
+      heroVideo.removeEventListener("waiting", handleStateCheck);
       heroVideo.removeEventListener("error", handleFallbackReady);
     };
-  }, [onHeroVideoProgressChange]);
+  }, [onHeroVideoProgressChange, videoReady]);
 
   useEffect(() => {
     onHeroReadyChange?.(videoReady);

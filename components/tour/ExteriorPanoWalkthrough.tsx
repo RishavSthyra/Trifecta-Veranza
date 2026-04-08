@@ -87,6 +87,10 @@ const uiFont = Manrope({
 const DEFAULT_ZOOM = 46;
 const MIN_PITCH = -Math.PI / 2 + 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.08;
+const EXTERIOR_SPHERE_RESOLUTION = 128;
+const EXTERIOR_COARSE_SPHERE_RESOLUTION = 96;
+const EXTERIOR_MIN_FOV = 36;
+const EXTERIOR_MAX_FOV = 74;
 const RESOLVED_PANO_CACHE_LIMIT = 10;
 const ACTIVE_HQ_TILE_LIMIT = 220;
 const ACTIVE_HQ_TILE_CONCURRENCY = 24;
@@ -592,7 +596,9 @@ export default function ExteriorPanoWalkthrough({
       localViewer = new Viewer({
         container: viewerHostRef.current,
         adapter: EquirectangularTilesAdapter.withConfig({
-          resolution: 64,
+          resolution: prefersCoarsePointerRef.current
+            ? EXTERIOR_COARSE_SPHERE_RESOLUTION
+            : EXTERIOR_SPHERE_RESOLUTION,
           showErrorTile: false,
           baseBlur: true,
           antialias: true,
@@ -602,7 +608,13 @@ export default function ExteriorPanoWalkthrough({
         touchmoveTwoFingers: false,
         mousewheelCtrlKey: false,
         defaultZoomLvl: prefersCoarsePointerRef.current ? DEFAULT_ZOOM - 3 : DEFAULT_ZOOM,
+        minFov: EXTERIOR_MIN_FOV,
+        maxFov: EXTERIOR_MAX_FOV,
         moveInertia: true,
+        rendererParameters: {
+          antialias: true,
+          powerPreference: "high-performance",
+        },
       });
 
       viewerRef.current = localViewer;
@@ -1312,7 +1324,7 @@ export default function ExteriorPanoWalkthrough({
 
       <div className="pointer-events-auto absolute bottom-2 right-2 z-30 hidden lg:block xl:bottom-3 xl:right-3">
         <div
-          className={`relative h-[235px] w-[420px] max-w-[28vw] overflow-hidden ${
+          className={`relative h-[180px] w-[300px] max-w-[24vw] overflow-hidden xl:h-[205px] xl:w-[360px] xl:max-w-[26vw] 2xl:h-[235px] 2xl:w-[420px] 2xl:max-w-[28vw] ${
             minimapZoom > 1
               ? isMinimapDragging
                 ? "cursor-grabbing"
