@@ -8,7 +8,7 @@ import { FiPhone, FiDownload, FiDollarSign, FiGrid, FiHome } from "react-icons/f
 import { BiHome } from "react-icons/bi";
 import { IoMapOutline } from "react-icons/io5";
 import { PiMapPinAreaFill } from "react-icons/pi";
-import { Footprints, User } from "lucide-react";
+import { Footprints, Menu, User, X } from "lucide-react";
 
 interface CtaButtonType {
   name: string;
@@ -69,6 +69,7 @@ export default function UpperLayoutCTA({
   );
   const [shouldHideCompactDesktopRail, setShouldHideCompactDesktopRail] =
     useState(() => shouldHideMasterPlanCompactDesktopRail(pathname));
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const scrollerDragRef = useRef<{
     dragging: boolean;
@@ -237,6 +238,74 @@ export default function UpperLayoutCTA({
 
   if (shouldHideCompactDesktopRail) {
     return null;
+  }
+
+  if (shouldDockAtBottom) {
+    return (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),0.45rem)] z-50 px-2 pb-0">
+        <div className="flex items-end justify-start">
+          <button
+            type="button"
+            onClick={() => setIsMobileMenuOpen((value) => !value)}
+            className="pointer-events-auto inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/18 bg-black/92 text-white shadow-[0_18px_48px_rgba(0,0,0,0.58)] backdrop-blur-xl transition active:scale-[0.98]"
+            aria-label={isMobileMenuOpen ? "Close quick actions" : "Open quick actions"}
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </button>
+
+          <AnimatePresence initial={false}>
+            {isMobileMenuOpen ? (
+              <motion.div
+                initial={{ opacity: 0, x: -12, scale: 0.96 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, x: -12, scale: 0.96 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="pointer-events-auto ml-2.5 flex max-w-[calc(100vw-5.75rem)] items-center gap-2 overflow-x-auto rounded-full border border-white/14 bg-black/92 px-2.5 py-2 shadow-[0_18px_48px_rgba(0,0,0,0.58)] backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              >
+                {buttons.map((button) =>
+                  button.action === "link" && button.link ? (
+                    <Link
+                      key={button.name}
+                      href={button.link}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-medium ${
+                        button.isHighlight
+                          ? "border-white/60 bg-white text-zinc-900"
+                          : "border-white/10 bg-white/10 text-white"
+                      }`}
+                    >
+                      <span className="flex h-4 w-4 items-center justify-center">
+                        {button.icon}
+                      </span>
+                      <span className="whitespace-nowrap">{button.name}</span>
+                    </Link>
+                  ) : (
+                    <button
+                      key={button.name}
+                      type="button"
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        onQuoteClick();
+                      }}
+                      className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-medium ${
+                        button.isHighlight
+                          ? "border-white/60 bg-white text-zinc-900"
+                          : "border-white/10 bg-white/10 text-white"
+                      }`}
+                    >
+                      <span className="flex h-4 w-4 items-center justify-center">
+                        {button.icon}
+                      </span>
+                      <span className="whitespace-nowrap">{button.name}</span>
+                    </button>
+                  ),
+                )}
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+        </div>
+      </div>
+    );
   }
 
   const handleScrollerPointerDown = (

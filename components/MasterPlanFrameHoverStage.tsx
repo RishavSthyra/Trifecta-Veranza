@@ -2834,6 +2834,7 @@ export default function MasterPlanFrameHoverStage({
   const dragFrameRef = useRef<number | null>(null);
   const hoverCooldownTimeoutRef = useRef<number | null>(null);
   const hoverClearTimeoutRef = useRef<number | null>(null);
+  const hasObservedUserScrubRef = useRef(false);
   const displayedFrameRef = useRef(wrapFrame(currentFrame));
   const displayedFrameStateRef = useRef(wrapFrame(currentFrame));
   const isSettlingRef = useRef(false);
@@ -3584,11 +3585,23 @@ export default function MasterPlanFrameHoverStage({
       return;
     }
 
+    const startupUnlockDelayMs = hasObservedUserScrubRef.current
+      ? performanceProfile.tier === "low"
+        ? 1400
+        : performanceProfile.tier === "constrained"
+          ? 1100
+          : 850
+      : performanceProfile.tier === "low"
+        ? 3400
+        : performanceProfile.tier === "constrained"
+          ? 2600
+          : 2000;
+
     return runWhenBrowserIdle(() => {
       startTransition(() => {
         setIsInteractiveSceneReady(true);
       });
-    }, performanceProfile.tier === "low" ? 2600 : performanceProfile.tier === "constrained" ? 1800 : 1200);
+    }, startupUnlockDelayMs);
   }, [interactionMode, isVideoReady, performanceProfile.tier]);
 
   useEffect(() => {
@@ -3753,6 +3766,7 @@ export default function MasterPlanFrameHoverStage({
 
       if (!dragState.didDrag) {
         dragState.didDrag = true;
+        hasObservedUserScrubRef.current = true;
         clearHoverCooldown();
         setIsDragging(true);
         syncSnapVisibility(displayedFrameRef.current, "dragging");

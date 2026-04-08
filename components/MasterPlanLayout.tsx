@@ -387,6 +387,14 @@ export default function MasterPlanLayout({
   );
   const shouldUseCompactLayout =
     isCompactViewport || isTouchTabletViewport;
+  const compactStageHeightClassName = shouldUseCompactLayout
+    ? "h-[clamp(18.75rem,45svh,27rem)] sm:h-[clamp(20.5rem,48svh,31rem)]"
+    : "h-[clamp(20rem,50svh,32rem)]";
+  const compactLowerContentClassName = shouldUseCompactLayout
+    ? selectedApartment
+      ? "-mt-1 min-h-0 flex-1 px-0 pb-0"
+      : "-mt-1 min-h-0 flex-1 px-0 pb-0"
+    : "mt-2 min-h-0 flex-1 px-3 pb-3";
   const shouldUseTouchBackNavigation =
     shouldUseCompactLayout;
   const shouldShowDesktopSidebar =
@@ -1380,24 +1388,32 @@ export default function MasterPlanLayout({
         }`}
       >
         <div className="relative w-full shrink-0">
-          <div className="relative h-[clamp(20rem,50svh,32rem)] overflow-hidden">
-            {isTopViewMode && !selectedTower ? (
-              <MasterPlanTopViewStage />
-            ) : (
-              <MasterPlanFrameHoverStage
-                apartments={apartments}
-                currentFrame={currentFrame}
-                dragEnabled={false}
-                filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
-                inventoryError={inventoryError}
-                inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
-                onApartmentSelect={handleApartmentSelect}
-                onInteractionChange={setIsStageInteracting}
-                onSetFrame={setWrappedFrame}
-                selectedApartmentId={selectedApartmentMeshId}
-                selectedTower={selectedTower}
-              />
-            )}
+          <div className={`relative overflow-hidden ${compactStageHeightClassName}`}>
+            <div
+              className={`absolute inset-0 ${
+                shouldUseCompactLayout
+                  ? "scale-[1.06] -translate-y-1 transform-gpu sm:scale-[1.05]"
+                  : ""
+              }`}
+            >
+              {isTopViewMode && !selectedTower ? (
+                <MasterPlanTopViewStage />
+              ) : (
+                <MasterPlanFrameHoverStage
+                  apartments={apartments}
+                  currentFrame={currentFrame}
+                  dragEnabled={false}
+                  filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
+                  inventoryError={inventoryError}
+                  inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
+                  onApartmentSelect={handleApartmentSelect}
+                  onInteractionChange={setIsStageInteracting}
+                  onSetFrame={setWrappedFrame}
+                  selectedApartmentId={selectedApartmentMeshId}
+                  selectedTower={selectedTower}
+                />
+              )}
+            </div>
 
             {!isTopViewMode && !isLeaving && !isSpecialVideoOpen ? (
               <div
@@ -1417,13 +1433,7 @@ export default function MasterPlanLayout({
           </div>
         </div>
 
-        <div
-          className={`mt-2 min-h-0 flex-1 px-3 ${
-            shouldUseCompactLayout
-              ? "pb-[calc(env(safe-area-inset-bottom)+6.25rem)]"
-              : "pb-3"
-          }`}
-        >
+        <div className={compactLowerContentClassName}>
           <div
             className={
               selectedApartment
@@ -1433,7 +1443,7 @@ export default function MasterPlanLayout({
           >
             {selectedApartment ? (
               <div
-                className="flex min-h-0 flex-1 items-start justify-center overflow-hidden px-1 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-[max(env(safe-area-inset-top),1rem)]"
+                className="custom-scrollbar flex min-h-0 flex-1 items-start justify-center overflow-y-auto overscroll-contain px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0 [-webkit-overflow-scrolling:touch] touch-pan-y"
                 data-scroll-area="compact-panel"
               >
                 <SelectedFlatDetailsPanel
@@ -1445,7 +1455,7 @@ export default function MasterPlanLayout({
               </div>
             ) : selectedTower ? (
               <div
-                className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain p-3 [-webkit-overflow-scrolling:touch] touch-pan-y"
+                className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-2 pb-2.5 pt-2 [-webkit-overflow-scrolling:touch] touch-pan-y sm:gap-3 sm:px-2.5"
                 data-scroll-area="compact-panel"
               >
                 <MasterPlanFiltersCard
@@ -1477,7 +1487,7 @@ export default function MasterPlanLayout({
               </div>
             ) : (
               <div
-                className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-4 [-webkit-overflow-scrolling:touch] touch-pan-y"
+                className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-2.5 pt-2 [-webkit-overflow-scrolling:touch] touch-pan-y sm:px-2.5"
                 data-scroll-area="compact-panel"
               >
                 <TowerSelect
@@ -1606,6 +1616,7 @@ export default function MasterPlanLayout({
                   ref={selectedFlatPanelRef}
                   apartment={selectedApartment}
                   compact
+                  desktopEnhancedCompact
                   hideCloseButton
                   onClose={clearSelectedApartment}
                 />
@@ -1731,7 +1742,7 @@ export default function MasterPlanLayout({
                   shouldUseCompactLayout ? "" : "xl:hidden"
                 } ${
                   shouldUseCompactLayout
-                    ? "bottom-[calc(env(safe-area-inset-bottom)+5.75rem)]"
+                    ? "bottom-[calc(env(safe-area-inset-bottom)+0.85rem)]"
                     : "bottom-6"
                 }`}
               >
@@ -1748,19 +1759,19 @@ export default function MasterPlanLayout({
                   : { y: "110%", opacity: 0 }
               }
               transition={{ duration: 0.45, ease: smoothEase }}
-              className={`gpu-layer absolute inset-x-3 z-30 ${
+              className={`gpu-layer absolute inset-x-0 z-30 ${
                 shouldUseCompactLayout ? "" : "xl:hidden"
               } ${
                 isMobileSheetOpen ? "pointer-events-auto" : "pointer-events-none"
               } ${
                 shouldUseCompactLayout
-                  ? "bottom-[calc(env(safe-area-inset-bottom)+5.75rem)]"
+                  ? "bottom-0"
                   : "bottom-3"
               }`}
             >
               <div
-                className={`surface-contain flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:rounded-[32px] ${
-                  selectedTower ? "h-[min(82dvh,46rem)]" : "h-auto"
+                className={`surface-contain flex min-h-0 flex-col overflow-hidden rounded-t-[26px] border border-white/60 border-b-0 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:mx-1 sm:rounded-t-[28px] sm:rounded-b-none ${
+                  selectedTower ? "h-[min(84dvh,48rem)]" : "h-auto"
                 }`}
                 data-scroll-area={selectedTower ? "mobile-sheet" : undefined}
               >
@@ -1787,7 +1798,7 @@ export default function MasterPlanLayout({
                       </button>
                     </div>
 
-                    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
+                    <div className="flex min-h-0 flex-1 flex-col gap-2.5 px-2 pb-2.5 pt-2 sm:gap-3 sm:px-2.5">
                       <MasterPlanFiltersCard
                         search={search}
                         onSearchChange={setSearch}
@@ -1895,7 +1906,7 @@ export default function MasterPlanLayout({
                 >
                   <SelectedFlatDetailsPanel
                     apartment={specialVideoApartment}
-                    compact
+                    compact={shouldUseCompactLayout}
                     hideCloseButton={false}
                     onClose={handleSpecialVideoBack}
                   />

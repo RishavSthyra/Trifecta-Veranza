@@ -1,4 +1,15 @@
 import AdminLoginForm from "@/components/admin/AdminLoginForm";
+import { buildPageMetadata } from "@/lib/metadata";
+
+export const metadata = buildPageMetadata({
+  title: "Admin Login",
+  description:
+    "Secure sign-in for the Trifecta Veranza inventory administration area.",
+  robots: {
+    index: false,
+    follow: false,
+  },
+});
 
 export default function AdminLoginPage() {
   return (

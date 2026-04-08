@@ -1,6 +1,7 @@
 import exteriorNodes from "@/data/trifecta_pano_walkthrough_data_Exterior.json";
 import ExteriorPanoWalkthrough from "@/components/tour/ExteriorPanoWalkthrough";
 import type { ExteriorPanoNodeSource } from "@/lib/exterior-tour/types";
+import { buildPageMetadata } from "@/lib/metadata";
 
 const exteriorTourNodes = exteriorNodes as ExteriorPanoNodeSource[];
 
@@ -10,6 +11,18 @@ const preferredInitialNodeId =
 
 /** Preconnect to the panorama CDN — saves ~100-300ms on first connection setup. */
 const CDN_BASE = "https://cdn.sthyra.com";
+
+export const metadata = buildPageMetadata({
+  title: "Exterior Walkthrough",
+  description:
+    "Experience the exterior panoramic walkthrough for Trifecta Veranza with directional navigation and fast node-to-node transitions.",
+  keywords: [
+    "exterior walkthrough",
+    "panorama tour",
+    "site walkthrough",
+    "Trifecta Veranza exterior",
+  ],
+});
 
 /**
  * Resource hints for the exterior walkthrough page.

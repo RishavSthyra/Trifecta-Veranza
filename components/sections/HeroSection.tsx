@@ -18,7 +18,42 @@ type IdleCapableWindow = Window &
 
 type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
 
-export default function HeroSection() {
+type HeroSectionProps = {
+  onHeroReadyChange?: (ready: boolean) => void;
+  onHeroVideoProgressChange?: (progress: number) => void;
+};
+
+function getHeroVideoLoadProgress(video: HTMLVideoElement) {
+  const duration = video.duration;
+
+  if (Number.isFinite(duration) && duration > 0 && video.buffered.length > 0) {
+    const bufferedEnd = video.buffered.end(video.buffered.length - 1);
+    return Math.max(0, Math.min(1, bufferedEnd / duration));
+  }
+
+  if (video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+    return 1;
+  }
+
+  if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+    return 0.84;
+  }
+
+  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+    return 0.58;
+  }
+
+  if (video.readyState >= HTMLMediaElement.HAVE_METADATA) {
+    return 0.26;
+  }
+
+  return 0.08;
+}
+
+export default function HeroSection({
+  onHeroReadyChange,
+  onHeroVideoProgressChange,
+}: HeroSectionProps) {
   const router = useRouter();
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
   const entryVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -137,6 +172,7 @@ export default function HeroSection() {
     if (!heroVideo) return;
 
     let readyFrameId: number | null = null;
+    let rafId: number | null = null;
 
     const markVideoReady = () => {
       setVideoReady(true);
@@ -146,7 +182,12 @@ export default function HeroSection() {
       setVideoReady(true);
     };
 
+    const reportProgress = () => {
+      onHeroVideoProgressChange?.(getHeroVideoLoadProgress(heroVideo));
+    };
+
     if (heroVideo.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+      onHeroVideoProgressChange?.(1);
       readyFrameId = window.requestAnimationFrame(markVideoReady);
       return () => {
         if (readyFrameId !== null) {
@@ -155,18 +196,62 @@ export default function HeroSection() {
       };
     }
 
-    heroVideo.addEventListener("canplaythrough", markVideoReady);
-    heroVideo.addEventListener("error", markVideoFallbackReady);
+    heroVideo.load();
+    reportProgress();
+
+    const handleCanPlay = () => {
+      reportProgress();
+      markVideoReady();
+    };
+
+    const handleLoadedData = () => {
+      reportProgress();
+    };
+
+    const handleProgress = () => {
+      if (rafId !== null) {
+        return;
+      }
+
+      rafId = window.requestAnimationFrame(() => {
+        rafId = null;
+        reportProgress();
+      });
+    };
+
+    const handleFallbackReady = () => {
+      onHeroVideoProgressChange?.(1);
+      markVideoFallbackReady();
+    };
+
+    heroVideo.addEventListener("loadedmetadata", handleProgress);
+    heroVideo.addEventListener("loadeddata", handleLoadedData);
+    heroVideo.addEventListener("progress", handleProgress);
+    heroVideo.addEventListener("canplay", handleCanPlay);
+    heroVideo.addEventListener("canplaythrough", handleCanPlay);
+    heroVideo.addEventListener("error", handleFallbackReady);
 
     return () => {
       if (readyFrameId !== null) {
         window.cancelAnimationFrame(readyFrameId);
       }
 
-      heroVideo.removeEventListener("canplaythrough", markVideoReady);
-      heroVideo.removeEventListener("error", markVideoFallbackReady);
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+
+      heroVideo.removeEventListener("loadedmetadata", handleProgress);
+      heroVideo.removeEventListener("loadeddata", handleLoadedData);
+      heroVideo.removeEventListener("progress", handleProgress);
+      heroVideo.removeEventListener("canplay", handleCanPlay);
+      heroVideo.removeEventListener("canplaythrough", handleCanPlay);
+      heroVideo.removeEventListener("error", handleFallbackReady);
     };
-  }, []);
+  }, [onHeroVideoProgressChange]);
+
+  useEffect(() => {
+    onHeroReadyChange?.(videoReady);
+  }, [onHeroReadyChange, videoReady]);
 
   useEffect(() => {
     router.prefetch("/master-plan");

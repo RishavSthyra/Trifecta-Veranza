@@ -4,20 +4,13 @@ import NextImage from "next/image";
 import { useRouter } from "next/navigation";
 import { forwardRef, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
-import {
-  BedDouble,
-  Building2,
-  Expand,
-  MapPin,
-  Play,
-  Ruler,
-  X,
-} from "lucide-react";
+import { BedDouble, Building2, Expand, MapPin, Play, Ruler, X } from "lucide-react";
 import type { InventoryApartment } from "@/types/inventory";
 
 type SelectedFlatDetailsPanelProps = {
   apartment: InventoryApartment;
   compact?: boolean;
+  desktopEnhancedCompact?: boolean;
   hideCloseButton?: boolean;
   onClose: () => void;
 };
@@ -81,6 +74,7 @@ const SelectedFlatDetailsPanel = forwardRef<
   {
     apartment,
     compact = false,
+    desktopEnhancedCompact = false,
     hideCloseButton = false,
     onClose,
   },
@@ -123,6 +117,13 @@ const SelectedFlatDetailsPanel = forwardRef<
   ];
 
   if (compact) {
+    const compactWrapperClassName = desktopEnhancedCompact
+      ? "pointer-events-auto w-full self-start"
+      : "pointer-events-auto h-full w-full self-stretch";
+    const compactPanelClassName = desktopEnhancedCompact
+      ? "custom-scrollbar relative flex max-h-[60vh] min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[28px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] [-webkit-overflow-scrolling:touch] touch-pan-y sm:rounded-[30px]"
+      : "relative flex min-h-full flex-col rounded-[28px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] sm:rounded-[30px]";
+
     return (
       <motion.div
         ref={ref}
@@ -130,7 +131,7 @@ const SelectedFlatDetailsPanel = forwardRef<
         animate={{ opacity: 1, x: 0, y: 0 }}
         exit={{ opacity: 0, x: 18, y: 8 }}
         transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-        className="pointer-events-auto w-full max-w-[min(94vw,27rem)] self-start"
+        className={compactWrapperClassName}
         data-scroll-area="flat-details-panel"
         data-flat-details-panel
         onTouchMoveCapture={(event) => {
@@ -140,7 +141,7 @@ const SelectedFlatDetailsPanel = forwardRef<
           event.stopPropagation();
         }}
       >
-        <div className="custom-scrollbar relative flex min-h-0 max-h-[min(96dvh,64rem)] flex-col overflow-y-auto overscroll-contain rounded-[32px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] [-webkit-overflow-scrolling:touch] touch-pan-y">
+        <div className={compactPanelClassName}>
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,228,196,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(171,135,86,0.10),transparent_28%)]" />
 
           <div className="relative flex flex-col p-4 sm:p-5">
@@ -177,86 +178,102 @@ const SelectedFlatDetailsPanel = forwardRef<
               )}
             </div>
 
-            <div
-              className="mt-4 group relative shrink-0 overflow-hidden rounded-[28px] border border-white/12 bg-black/20"
-              onClick={handleOpenWalkthrough}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  handleOpenWalkthrough();
-                }
-              }}
-              role="button"
-              tabIndex={0}
-            >
-              <div className="relative h-[40vh] min-h-[40vh] w-full">
-                <NextImage
-                  src="/preview_WALKTHOUGH.jpg"
-                  alt={`${apartment.title} walkthrough preview`}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 420px"
-                  className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.04]"
-                />
-
-                <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,10,14,0.04)_0%,rgba(8,10,14,0.10)_26%,rgba(8,10,14,0.26)_56%,rgba(8,10,14,0.62)_100%)]" />
-
-                <div className="absolute inset-x-0 top-0 flex items-start justify-between p-4">
-                  <div>
-                    <p className="text-[10px] uppercase tracking-[0.24em] text-white/62">
-                      Walkthrough
-                    </p>
-                    <p className="mt-1 text-sm font-medium text-white/92">
-                      Private preview
-                    </p>
-                  </div>
-
-                  <span
-                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] ${statusStyles.badgeClassName}`}
-                  >
-                    <span
-                      className={`inline-flex h-2 w-2 rounded-full ${statusStyles.dotClassName}`}
-                    />
-                    {apartment.status}
-                  </span>
+            <div className="mt-4 rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+              <div className="flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase tracking-[0.26em] text-white/42">
+                    Selected Flat
+                  </p>
+                  <p className="mt-1 truncate text-[1.9rem] font-semibold leading-none tracking-[-0.06em] text-white">
+                    {apartment.title}
+                  </p>
                 </div>
-
-                <div className="absolute inset-0 z-10 flex items-center justify-center">
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      handleOpenWalkthrough();
-                    }}
-                    className="relative flex h-[3.9rem] w-[3.9rem] items-center justify-center rounded-full border border-white/55 bg-white/88 shadow-[0_18px_36px_rgba(15,23,42,0.22)] backdrop-blur-md transition duration-300 hover:scale-105 hover:bg-white sm:h-[4.4rem] sm:w-[4.4rem]"
-                    aria-label="Play walkthrough preview"
-                  >
-                    <span className="absolute inset-[6px] rounded-full border border-zinc-900/10" />
-                    <Play className="relative ml-0.5 h-5 w-5 fill-zinc-900 text-zinc-900 sm:h-6 sm:w-6" />
-                  </button>
-                </div>
-
-                <div className="absolute inset-x-0 bottom-0 p-4">
-                  <div className="flex items-end justify-between gap-3 rounded-[20px] border border-white/12 bg-[linear-gradient(180deg,rgba(10,12,17,0.72),rgba(10,12,17,0.54))] px-4 py-3 backdrop-blur-md">
-                    <div className="min-w-0">
-                      <p className="text-[10px] uppercase tracking-[0.26em] text-white/42">
-                        Selected Flat
-                      </p>
-                      <p className="mt-1 truncate text-[1.8rem] font-semibold leading-none tracking-[-0.06em] text-white">
-                        {apartment.title}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-[10px] uppercase tracking-[0.26em] text-white/42">
-                        Floor
-                      </p>
-                      <p className="mt-1 text-lg font-medium text-white/88">
-                        {apartment.floorLabel || apartment.floor}
-                      </p>
-                    </div>
-                  </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-[10px] uppercase tracking-[0.26em] text-white/42">
+                    Floor
+                  </p>
+                  <p className="mt-1 text-lg font-medium text-white/88">
+                    {apartment.floorLabel || apartment.floor}
+                  </p>
                 </div>
               </div>
+
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/42">
+                    Walkthrough
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-white/78">
+                    Open the full apartment walkthrough from the button below.
+                  </p>
+                </div>
+
+                <span
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] ${statusStyles.badgeClassName}`}
+                >
+                  <span
+                    className={`inline-flex h-2 w-2 rounded-full ${statusStyles.dotClassName}`}
+                  />
+                  {apartment.status}
+                </span>
+              </div>
             </div>
+
+            {desktopEnhancedCompact ? (
+              <div
+                className="group mt-4 relative shrink-0 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] cursor-pointer"
+                onClick={handleOpenWalkthrough}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleOpenWalkthrough();
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="relative aspect-[16/10] w-full">
+                  <NextImage
+                    src={PANEL_PREVIEW_IMAGE}
+                    alt={`${apartment.title} preview`}
+                    fill
+                    sizes="420px"
+                    className="object-cover transition duration-700 group-hover:scale-[1.025]"
+                  />
+
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleOpenWalkthrough();
+                      }}
+                      className="flex h-[4.2rem] w-[4.2rem] items-center justify-center rounded-full border border-white/65 bg-white/82 shadow-[0_18px_34px_rgba(15,23,42,0.14)] backdrop-blur-md transition duration-300 hover:scale-105 hover:bg-white"
+                      aria-label="Play preview"
+                    >
+                      <Play className="ml-0.5 h-6 w-6 fill-zinc-900 text-zinc-900" />
+                    </button>
+                  </div>
+
+                  {/* <div className="absolute inset-x-0 bottom-0 p-4">
+                    <div className="flex items-end justify-between gap-3 rounded-[18px] border border-white/55 bg-white/70 p-3 backdrop-blur-md">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">
+                          Private View
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-zinc-900">
+                          Interior walkthrough preview
+                        </p>
+                      </div>
+
+                      <div className="rounded-full border border-white/60 bg-white/85 px-3 py-1.5 text-[11px] font-medium text-zinc-700">
+                        Video preview
+                      </div>
+                    </div>
+                  </div> */}
+                </div>
+              </div>
+            ) : null}
 
             <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-white/10 pb-4">
               {compactFacts.map((item) => {
@@ -280,7 +297,7 @@ const SelectedFlatDetailsPanel = forwardRef<
               })}
             </div>
 
-            <div className="mt-4 flex flex-col">
+            <div className="mt-4 flex min-h-0 flex-1 flex-col">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.26em] text-white/38">
@@ -333,13 +350,21 @@ const SelectedFlatDetailsPanel = forwardRef<
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={handleOpenWalkthrough}
-              className="mt-4 inline-flex w-full items-center justify-center rounded-full border border-[#dcc59b]/30 bg-[linear-gradient(135deg,#e4cfaa_0%,#c9a874_52%,#f1dfc1_100%)] px-4 py-3 text-sm font-semibold text-[#17120c] shadow-[0_18px_40px_rgba(0,0,0,0.22)] transition hover:brightness-105"
+            <div
+              className={`mt-4 border-t border-white/10 px-4 pt-3 sm:px-5 ${
+                desktopEnhancedCompact
+                  ? "pb-1"
+                  : "sticky bottom-0 z-10 -mx-4 bg-[linear-gradient(180deg,rgba(16,19,25,0.14),rgba(16,19,25,0.96)_24%)] pb-4 backdrop-blur-xl sm:-mx-5 sm:pb-5"
+              }`}
             >
-              Open walkthrough
-            </button>
+              <button
+                type="button"
+                onClick={handleOpenWalkthrough}
+                className="inline-flex w-full items-center justify-center rounded-full border border-[#dcc59b]/30 bg-[linear-gradient(135deg,#e4cfaa_0%,#c9a874_52%,#f1dfc1_100%)] px-4 py-3.5 text-sm font-semibold text-[#17120c] shadow-[0_18px_40px_rgba(0,0,0,0.22)] transition hover:brightness-105"
+              >
+                Open walkthrough
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>

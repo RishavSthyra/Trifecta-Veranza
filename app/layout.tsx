@@ -3,6 +3,7 @@ import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import RouteChrome from "@/components/RouteChrome";
+import { DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/metadata";
 
 const geist = Geist({
   subsets: ["latin"],
@@ -10,8 +11,28 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
-  title: "My App",
-  description: "Portfolio / walkthrough app",
+  title: {
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: DEFAULT_DESCRIPTION,
+  applicationName: SITE_NAME,
+  icons: {
+    icon: "/VeranzaFavicon.svg",
+    shortcut: "/VeranzaFavicon.svg",
+    apple: "/VeranzaFavicon.svg",
+  },
+  openGraph: {
+    title: SITE_NAME,
+    description: DEFAULT_DESCRIPTION,
+    siteName: SITE_NAME,
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: DEFAULT_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
