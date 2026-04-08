@@ -199,7 +199,7 @@ const BARE_SHELL_SOURCE_COORDINATE_BOUNDS: Bounds3 = {
 const LEGACY_REFERENCE_PANO_Z = 10894.549;
 
 const ROOM_LABELS: Record<string, string> = {
-  LS_BP_panoPath_Interior_F0000: "Living Room",
+  LS_BP_panoPath_Interior_F0000: "Entrance",
   LS_BP_panoPath_Interior_F0001: "Bedroom 1",
   LS_BP_panoPath_Interior_F0002: "Bedroom 2",
   LS_BP_panoPath_Interior_F0003: "Bathroom 1",

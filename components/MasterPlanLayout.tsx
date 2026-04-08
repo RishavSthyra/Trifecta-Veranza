@@ -787,27 +787,6 @@ export default function MasterPlanLayout({
     }
   }, [selectedTower]);
 
-  const handleCompactStagePointerDownCapture = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!shouldUseCompactLayout || !selectedApartment) {
-        return;
-      }
-
-      const target = event.target;
-
-      if (
-        target instanceof Element &&
-        target.closest("[data-master-plan-stage-controls]")
-      ) {
-        return;
-      }
-
-      event.stopPropagation();
-      clearSelectedApartment();
-    },
-    [clearSelectedApartment, selectedApartment, shouldUseCompactLayout],
-  );
-
   const handleOpenBareShellWalkthrough = useCallback(() => {
     router.push("/walkthrough?mode=bare-shell");
   }, [router]);
@@ -1410,10 +1389,7 @@ export default function MasterPlanLayout({
           isSpecialVideoOpen ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
-        <div
-          className="relative w-full shrink-0"
-          onPointerDownCapture={handleCompactStagePointerDownCapture}
-        >
+        <div className="relative w-full shrink-0">
           <div className={`relative overflow-hidden ${compactStageHeightClassName}`}>
             <div
               className={`absolute inset-0 ${
@@ -1440,6 +1416,15 @@ export default function MasterPlanLayout({
                 />
               )}
             </div>
+
+            {shouldUseCompactLayout && selectedApartment ? (
+              <button
+                type="button"
+                onClick={clearSelectedApartment}
+                className="absolute inset-0 z-10 cursor-default"
+                aria-label="Close flat details and return to filters"
+              />
+            ) : null}
 
             {!isTopViewMode && !isLeaving && !isSpecialVideoOpen ? (
               <div

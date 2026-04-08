@@ -700,25 +700,25 @@ function getPassiveVideoSyncIntervalMs(
 ) {
   if (isSafariLike) {
     if (tier === "low") {
-      return 120;
+      return 84;
     }
 
     if (tier === "constrained") {
-      return 96;
+      return 68;
     }
 
-    return 84;
+    return 56;
   }
 
   if (tier === "low") {
-    return 84;
-  }
-
-  if (tier === "constrained") {
     return 64;
   }
 
-  return 40;
+  if (tier === "constrained") {
+    return 48;
+  }
+
+  return 32;
 }
 
 function updateVisibilityWithHysteresis(
@@ -3362,7 +3362,6 @@ export default function MasterPlanFrameHoverStage({
       const shouldThrottlePassiveVideoSync =
         !dragStateRef.current &&
         (
-          isSettlingRef.current ||
           isStartupInteractionPending ||
           performanceProfile.isSafariLike ||
           performanceProfile.tier !== "standard"
@@ -3544,6 +3543,8 @@ export default function MasterPlanFrameHoverStage({
 
       isSettlingRef.current = true;
       setIsSettling(true);
+      lastPassiveVideoSyncFrameRef.current = null;
+      lastPassiveVideoSyncTimeRef.current = 0;
       syncSnapVisibility(progressToFrame(startProgress), "settling");
       let startTime = 0;
 
@@ -3564,6 +3565,9 @@ export default function MasterPlanFrameHoverStage({
           commitProgress(targetProgress);
           syncVideoTime(videoRef.current, targetProgress, { force: true });
           stopMotionAnimation();
+          lastPassiveVideoSyncFrameRef.current = progressToFrame(targetProgress);
+          lastPassiveVideoSyncTimeRef.current =
+            typeof performance !== "undefined" ? performance.now() : Date.now();
           syncDisplayedFrameState(progressToFrame(targetProgress), true);
           syncSnapVisibility(progressToFrame(targetProgress), "idle");
           invalidateCanvas();

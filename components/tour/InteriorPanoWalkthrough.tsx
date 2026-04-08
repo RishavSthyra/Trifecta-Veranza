@@ -63,7 +63,7 @@ const BARE_SHELL_PANO_BASE_URL =
   "https://cdn.sthyra.com/bareshell-pano-trifecta-new/";
 const FURNISHED_FLOOR_MAP_URL = "https://cdn.sthyra.com/images/Tower_A_01_2D.webp";
 const BARE_SHELL_FLOOR_MAP_URL = "https://cdn.sthyra.com/images/Tower_A_06_2D.webp";
-const DEFAULT_ZOOM = 0;
+const DEFAULT_ZOOM = 10;
 const MIN_PITCH = -Math.PI / 2 + 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.08;
 const INTERIOR_SPHERE_RESOLUTION = 128;
@@ -179,31 +179,31 @@ function ArrowButton({
 }
 
 const ROOM_LABELS: Record<string, string> = {
-  LS_BP_panoPath_Interior_F0000: "Living Room",
-  LS_BP_panoPath_Interior_F0001: "Bedroom 1",
-  LS_BP_panoPath_Interior_F0002: "Bedroom 2",
-  LS_BP_panoPath_Interior_F0003: "Bathroom 1",
-  LS_BP_panoPath_Interior_F0004: "Bathroom 2",
-  LS_BP_panoPath_Interior_F0005: "Bathroom 3",
-  LS_BP_panoPath_Interior_F0006: "Bathroom 4",
-  LS_BP_panoPath_Interior2_F0007: "Kitchen",
-  LS_BP_panoPath_Interior2_F0008: "Maid Room",
-  LS_BP_panoPath_Interior3_F0009: "Master Bedroom",
+  LS_BP_panoPath_Interior_F0000: "Entrance",
+  LS_BP_panoPath_Interior_F0001: "Drawing Room",
+  LS_BP_panoPath_Interior_F0002: "Drawing Room Passage",
+  LS_BP_panoPath_Interior_F0003: "Drawing Room Passage View 2",
+  LS_BP_panoPath_Interior_F0004: "Dining Room Passage",
+  LS_BP_panoPath_Interior_F0005: "Living Room 2",
+  LS_BP_panoPath_Interior_F0006: "Attached Washroom 2",
+  LS_BP_panoPath_Interior2_F0007: "Living Room 2",
+  LS_BP_panoPath_Interior2_F0008: "Living Room 2",
+  LS_BP_panoPath_Interior3_F0009: "Dining Room",
   LS_BP_panoPath_Interior3_F0010: "Dining Room",
-  LS_BP_panoPath_Interior3_F0011: "Hall 1",
-  LS_BP_panoPath_Interior4_F0012: "Hall 2",
-  LS_BP_panoPath_Interior4_F0013: "Hall 3",
-  LS_BP_panoPath_Interior5_F0014: "Passage 1",
-  LS_BP_panoPath_Interior5_F0015: "Passage 2",
-  LS_BP_panoPath_Interior5_F0016: "Passage 3",
-  LS_BP_panoPath_Interior6_F0017: "Passage 4",
-  LS_BP_panoPath_Interior6_F0018: "Passage 5",
-  LS_BP_panoPath_F0000: "Living Room",
-  LS_BP_panoPath_F0001: "Bedroom 1",
-  LS_BP_panoPath_F0002: "Bedroom 2",
-  LS_BP_panoPath_F0003: "Bathroom 1",
-  LS_BP_panoPath_F0004: "Bathroom 2",
-  LS_BP_panoPath_F0005: "Bathroom 3",
+  LS_BP_panoPath_Interior3_F0011: "Attached Washroom",
+  LS_BP_panoPath_Interior4_F0012: "Living Room",
+  LS_BP_panoPath_Interior4_F0013: "Living Room 1",
+  LS_BP_panoPath_Interior5_F0014: "Childrens Room View 2",
+  LS_BP_panoPath_Interior5_F0015: "Childrens Room",
+  LS_BP_panoPath_Interior5_F0016: "Bathroom",
+  LS_BP_panoPath_Interior6_F0017: "Drawing Room View 2",
+  LS_BP_panoPath_Interior6_F0018: "Kitchen",
+  LS_BP_panoPath_F0000: "Entrance",
+  LS_BP_panoPath_F0001: "Drawing Room",
+  LS_BP_panoPath_F0002: "Drawing Room Passage",
+  LS_BP_panoPath_F0003: "Hall Passage",
+  LS_BP_panoPath_F0004: "Living Room 1 Entrance",
+  LS_BP_panoPath_F0005: "Living Room 1",
   LS_BP_panoPath_F0006: "Bathroom 4",
   LS_BP_panoPath_F0007: "Kitchen",
   LS_BP_panoPath_F0008: "Maid Room",
@@ -211,6 +211,21 @@ const ROOM_LABELS: Record<string, string> = {
   LS_BP_panoPath_F0010: "Dining Room",
   LS_BP_panoPath_F0011: "Hall 1",
   LS_BP_panoPath_F0012: "Hall 2",
+  LS_BP_panoPath6_F0018: "Living Room 1 View 2",
+  LS_BP_panoPath6_F0019: "Living Room 1 Washroom",
+  LS_BP_panoPath7_F0022: "Kitchen",
+  LS_BP_panoPath7_F0021: "Kitchen Entrance",
+  LS_BP_panoPath7_F0020: "Dining Room View 2",
+  LS_BP_panoPath2_F0008: "Dining Room",
+  LS_BP_panoPath2_F0007: "Living Room View 2",
+  LS_BP_panoPath4_F0014: "Living Room 2 Entrance",
+  LS_BP_panoPath4_F0015: "Living Room 2",
+  LS_BP_panoPath3_F0013: "Bathroom",
+  LS_BP_panoPath2_F0009: "Living Room 3 Entrance",
+  LS_BP_panoPath2_F0010: "Living Room 3",
+  LS_BP_panoPath2_F0011: "Living Room 3",
+  LS_BP_panoPath5_F0017: "Living Room 3 Washroom",
+  LS_BP_panoPath5_F0016: "Living Room 3",
 };
 
 function getRoomLabel(imageFilename: string) {
