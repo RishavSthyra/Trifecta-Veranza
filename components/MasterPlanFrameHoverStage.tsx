@@ -12,18 +12,22 @@ import {
   useRef,
   useState,
 } from "react";
+
 import {
   computeBoundsTree,
   disposeBoundsTree,
   acceleratedRaycast,
 } from "three-mesh-bvh";
+
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
+
 import {
   AdaptiveDpr,
   Html,
   PerspectiveCamera,
   useGLTF,
 } from "@react-three/drei";
+
 import {
   Box3,
   BufferGeometry,
@@ -143,6 +147,14 @@ type MasterPlanNavigator = Navigator & {
   connection?: MasterPlanConnection;
   deviceMemory?: number;
 };
+type MasterPlanIdleWindow = Window &
+  typeof globalThis & {
+    cancelIdleCallback?: (handle: number) => void;
+    requestIdleCallback?: (
+      callback: IdleRequestCallback,
+      options?: IdleRequestOptions,
+    ) => number;
+  };
 type MasterPlanPerformanceTier = "standard" | "constrained" | "low";
 type MasterPlanPerformanceProfile = {
   canvasPerformance: {
@@ -557,10 +569,10 @@ function getMasterPlanPerformanceProfile(): MasterPlanPerformanceProfile {
     effectiveType === "3g";
   const hasVerySlowNetwork =
     effectiveType === "slow-2g" || effectiveType === "2g";
-  const hasConstrainedCpu = hardwareConcurrency <= 4;
-  const hasLowEndCpu = hardwareConcurrency <= 2;
-  const hasConstrainedMemory = deviceMemory <= 4;
-  const hasLowEndMemory = deviceMemory <= 2;
+  const hasConstrainedCpu = hardwareConcurrency <= 6;
+  const hasLowEndCpu = hardwareConcurrency <= 4;
+  const hasConstrainedMemory = deviceMemory <= 6;
+  const hasLowEndMemory = deviceMemory <= 4;
   const isConstrained =
     saveData ||
     hasSlowNetwork ||
@@ -586,6 +598,32 @@ function getMasterPlanPerformanceProfile(): MasterPlanPerformanceProfile {
     isSafariLike,
     scrubVideoPreload: "metadata",
     tier,
+  };
+}
+
+function runWhenBrowserIdle(
+  callback: () => void,
+  timeout = 1200,
+) {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const idleWindow = window as MasterPlanIdleWindow;
+
+  if (typeof idleWindow.requestIdleCallback === "function") {
+    const idleId = idleWindow.requestIdleCallback(() => callback(), {
+      timeout,
+    });
+
+    return () => {
+      idleWindow.cancelIdleCallback?.(idleId);
+    };
+  }
+
+  const timerId = window.setTimeout(callback, Math.min(timeout, 700));
+  return () => {
+    window.clearTimeout(timerId);
   };
 }
 
@@ -671,24 +709,24 @@ function updateVisibilityWithHysteresis(
 function getDragConfig(tier: MasterPlanPerformanceTier) {
   if (tier === "low") {
     return {
-      maxLeadFrames: 18,
-      maxPointerPixelsPerMs: 1.4,
-      pixelsPerFrame: 12,
+      maxLeadFrames: 26,
+      maxPointerPixelsPerMs: 1.95,
+      pixelsPerFrame: 9.5,
     };
   }
 
   if (tier === "constrained") {
     return {
-      maxLeadFrames: 24,
-      maxPointerPixelsPerMs: 1.8,
-      pixelsPerFrame: 10,
+      maxLeadFrames: 34,
+      maxPointerPixelsPerMs: 2.35,
+      pixelsPerFrame: 7.4,
     };
   }
 
   return {
-    maxLeadFrames: 32,
-    maxPointerPixelsPerMs: 2.2,
-    pixelsPerFrame: 8,
+    maxLeadFrames: 46,
+    maxPointerPixelsPerMs: 3,
+    pixelsPerFrame: 5.8,
   };
 }
 
@@ -1565,6 +1603,7 @@ function prepareTowerScene(
   showDebugModel: boolean,
   interactionSceneSource: Object3D = sourceScene,
   forcedTowerCode: TowerCode = "A",
+  enableBoundsTree = true,
 ) {
   const trackingScene = cloneSkeleton(sourceScene) as Group;
   const scene = cloneSkeleton(interactionSceneSource) as Group;
@@ -1576,11 +1615,13 @@ function prepareTowerScene(
   trackingScene.updateWorldMatrix(true, true);
 
   scene.traverse((object) => {
-    
     if (!(object instanceof Mesh)) {
       return;
     }
-          object.geometry.computeBoundsTree?.();
+
+    if (enableBoundsTree && !object.geometry.boundsTree) {
+      object.geometry.computeBoundsTree?.();
+    }
 
     object.visible = true;
     object.frustumCulled = true;
@@ -1678,12 +1719,14 @@ function getPreparedTowerScene(
   showDebugModel: boolean,
   interactionSceneSource: Object3D = sourceScene,
   forcedTowerCode: TowerCode = "A",
+  enableBoundsTree = true,
 ) {
   const cacheKey = [
     sourceScene.uuid,
     interactionSceneSource.uuid,
     forcedTowerCode,
     showDebugModel ? "debug" : "standard",
+    enableBoundsTree ? "bvh" : "fallback",
   ].join(":");
   const cachedPreparedTower = PREPARED_TOWER_CACHE.get(cacheKey);
 
@@ -1696,6 +1739,7 @@ function getPreparedTowerScene(
     showDebugModel,
     interactionSceneSource,
     forcedTowerCode,
+    enableBoundsTree,
   );
 
   PREPARED_TOWER_CACHE.set(cacheKey, preparedTower);
@@ -2140,6 +2184,7 @@ const HoverTracker = memo(function HoverTracker({
 
 const TowerScene = memo(function TowerScene({
   apartments,
+  enableBoundsTree,
   interactionMode,
   currentFrame,
   filteredApartments,
@@ -2158,6 +2203,7 @@ const TowerScene = memo(function TowerScene({
   trackingVideoAspect,
 }: {
   apartments: InventoryApartment[];
+  enableBoundsTree: boolean;
   interactionMode: InteractionMode;
   currentFrame: number;
   filteredApartments: InventoryApartment[];
@@ -2202,8 +2248,9 @@ const TowerScene = memo(function TowerScene({
         false,
         towerAInteractionGltf.scene,
         "A",
+        enableBoundsTree,
       ),
-    [towerAGltf.scene, towerAInteractionGltf.scene],
+    [enableBoundsTree, towerAGltf.scene, towerAInteractionGltf.scene],
   );
   const preparedTowerB = useMemo(
     () =>
@@ -2212,8 +2259,9 @@ const TowerScene = memo(function TowerScene({
         false,
         towerBInteractionGltf.scene,
         "B",
+        enableBoundsTree,
       ),
-    [towerBGltf.scene, towerBInteractionGltf.scene],
+    [enableBoundsTree, towerBGltf.scene, towerBInteractionGltf.scene],
   );
   const primaryPreparedModel =
     activeTowerCode === "B" ? preparedTowerB : preparedTowerA;
@@ -2841,6 +2889,7 @@ export default function MasterPlanFrameHoverStage({
   );
   const [supportsPreciseHover, setSupportsPreciseHover] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [isInteractiveSceneReady, setIsInteractiveSceneReady] = useState(false);
   const [sectionSize, setSectionSize] = useState(() => ({
     height: 0,
     width: 0,
@@ -2849,6 +2898,8 @@ export default function MasterPlanFrameHoverStage({
   const [viewportTransform, setViewportTransformState] =
     useState<StageViewportTransform>(DEFAULT_STAGE_VIEWPORT_TRANSFORM);
   const safeFrame = wrapFrame(currentFrame);
+  const showTowerMeshesRef = useRef(showTowerMeshes);
+  const showApartmentMeshesRef = useRef(showApartmentMeshes);
   const coverViewport = useMemo(
     () =>
       getCoverViewport(
@@ -2910,7 +2961,10 @@ export default function MasterPlanFrameHoverStage({
       : isHoverCoolingDown
         ? "cooldown"
         : "idle";
+  const isStartupInteractionPending = !isInteractiveSceneReady;
   const shouldRenderCanvas =
+    (performanceProfile.tier === "standard" || isInteractiveSceneReady) &&
+    isVideoReady &&
     !isDragging &&
     (!performanceProfile.isSafariLike || !isSettling);
   const mediaTransform = useMemo(() => {
@@ -2989,6 +3043,14 @@ export default function MasterPlanFrameHoverStage({
     setViewportTransformState(DEFAULT_STAGE_VIEWPORT_TRANSFORM);
   }, []);
 
+  useEffect(() => {
+    showTowerMeshesRef.current = showTowerMeshes;
+  }, [showTowerMeshes]);
+
+  useEffect(() => {
+    showApartmentMeshesRef.current = showApartmentMeshes;
+  }, [showApartmentMeshes]);
+
   const stopScheduledProgress = useCallback(() => {
     if (progressFrameRef.current !== null) {
       window.cancelAnimationFrame(progressFrameRef.current);
@@ -3014,26 +3076,34 @@ export default function MasterPlanFrameHoverStage({
     (frame: number, mode: InteractionMode) => {
       const distanceToSnap = getNearestSnapFrameInfo(frame).distance;
 
-      setShowTowerMeshes((current) =>
+      const nextShowTowerMeshes =
         mode !== "idle"
           ? false
           : updateVisibilityWithHysteresis(
-              current,
+              showTowerMeshesRef.current,
               distanceToSnap,
               TOWER_MESH_ENTER_WINDOW,
               TOWER_MESH_EXIT_WINDOW,
-            ),
-      );
-      setShowApartmentMeshes((current) =>
+            );
+      const nextShowApartmentMeshes =
         mode !== "idle"
           ? false
           : updateVisibilityWithHysteresis(
-              current,
+              showApartmentMeshesRef.current,
               distanceToSnap,
               APARTMENT_MESH_ENTER_WINDOW,
               APARTMENT_MESH_EXIT_WINDOW,
-            ),
-      );
+            );
+
+      if (showTowerMeshesRef.current !== nextShowTowerMeshes) {
+        showTowerMeshesRef.current = nextShowTowerMeshes;
+        setShowTowerMeshes(nextShowTowerMeshes);
+      }
+
+      if (showApartmentMeshesRef.current !== nextShowApartmentMeshes) {
+        showApartmentMeshesRef.current = nextShowApartmentMeshes;
+        setShowApartmentMeshes(nextShowApartmentMeshes);
+      }
     },
     [],
   );
@@ -3232,6 +3302,7 @@ export default function MasterPlanFrameHoverStage({
           syncDisplayedFrameState(nextDisplayedFrame);
         } else if (
           dragStateRef.current &&
+          !isStartupInteractionPending &&
           now - lastDisplayedFrameCommitTimeRef.current >=
             displayedFrameCommitIntervalMs
         ) {
@@ -3277,6 +3348,7 @@ export default function MasterPlanFrameHoverStage({
     },
     [
       displayedFrameCommitIntervalMs,
+      isStartupInteractionPending,
       isHoverCoolingDown,
       maybeInvalidateCanvas,
       syncSnapVisibility,
@@ -3491,6 +3563,35 @@ export default function MasterPlanFrameHoverStage({
   }, []);
 
   useEffect(() => {
+    if (!isVideoReady) {
+      return;
+    }
+
+    return runWhenBrowserIdle(() => {
+      useGLTF.preload(MODEL_PATH_A);
+      useGLTF.preload(MODEL_PATH_B);
+      useGLTF.preload(INTERACTION_MODEL_PATH_A);
+      useGLTF.preload(INTERACTION_MODEL_PATH_B);
+    }, performanceProfile.tier === "low" ? 2200 : 1400);
+  }, [isVideoReady, performanceProfile.tier]);
+
+  useEffect(() => {
+    if (!isVideoReady) {
+      return;
+    }
+
+    if (interactionMode !== "idle") {
+      return;
+    }
+
+    return runWhenBrowserIdle(() => {
+      startTransition(() => {
+        setIsInteractiveSceneReady(true);
+      });
+    }, performanceProfile.tier === "low" ? 2600 : performanceProfile.tier === "constrained" ? 1800 : 1200);
+  }, [interactionMode, isVideoReady, performanceProfile.tier]);
+
+  useEffect(() => {
     const section = sectionRef.current;
 
     if (!section || typeof ResizeObserver === "undefined") {
@@ -3671,8 +3772,13 @@ export default function MasterPlanFrameHoverStage({
         -maxDeltaX,
         Math.min(maxDeltaX, rawDeltaX),
       );
-
-      pendingPointerDeltaXRef.current += clampedIncrement;
+      const pendingDeltaLimit =
+        maxDeltaX * (isStartupInteractionPending ? 1.35 : 2.4);
+      pendingPointerDeltaXRef.current = clampNumber(
+        pendingPointerDeltaXRef.current + clampedIncrement,
+        -pendingDeltaLimit,
+        pendingDeltaLimit,
+      );
       dragState.lastClientX = event.clientX;
       dragState.lastTimestamp = event.timeStamp;
       startDragLoop();
@@ -3745,6 +3851,7 @@ export default function MasterPlanFrameHoverStage({
     clearHoveredApartment,
     dragConfig.maxPointerPixelsPerMs,
     dragEnabled,
+    isStartupInteractionPending,
     onSetFrame,
     startDragLoop,
     startHoverCooldown,
@@ -3782,6 +3889,8 @@ export default function MasterPlanFrameHoverStage({
     dragEnabled &&
     supportsPreciseHover &&
     !prefersReducedMotion &&
+    performanceProfile.tier !== "low" &&
+    isInteractiveSceneReady &&
     interactionMode === "idle" &&
     isSnapFrame(displayedFrame);
   const showTrackingDebug =
@@ -4376,6 +4485,7 @@ export default function MasterPlanFrameHoverStage({
                     {!performanceProfile.isSafariLike ? <AdaptiveDpr /> : null}
                     <TowerScene
                       apartments={apartments}
+                      enableBoundsTree={performanceProfile.tier === "standard"}
                       interactionMode={interactionMode}
                       currentFrame={trackingFrame}
                       filteredApartments={filteredApartments}
@@ -4430,7 +4540,3 @@ export default function MasterPlanFrameHoverStage({
   );
 }
 
-useGLTF.preload(MODEL_PATH_A);
-useGLTF.preload(MODEL_PATH_B);
-useGLTF.preload(INTERACTION_MODEL_PATH_A);
-useGLTF.preload(INTERACTION_MODEL_PATH_B);

@@ -25,6 +25,7 @@ export default function HeroSection() {
   const idleWarmVideoRef = useRef<HTMLVideoElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const scrollLockRef = useRef(false);
+  const startedEntryTransitionRef = useRef(false);
 
   const [videoReady, setVideoReady] = useState(false);
   const [entryVideoReady, setEntryVideoReady] = useState(false);
@@ -101,6 +102,7 @@ export default function HeroSection() {
 
     if (!entryVideo) return;
 
+    startedEntryTransitionRef.current = true;
     heroVideo?.pause();
     entryVideo.muted = true;
     entryVideo.playsInline = true;
@@ -272,8 +274,16 @@ export default function HeroSection() {
             void startEntryVideo();
           }
         }}
-        onError={() => router.push("/master-plan")}
-        onEnded={() => router.push("/master-plan")}
+        onError={() => {
+          if (startedEntryTransitionRef.current) {
+            router.push("/master-plan");
+          }
+        }}
+        onEnded={() => {
+          if (startedEntryTransitionRef.current) {
+            router.push("/master-plan");
+          }
+        }}
       >
         <source
           src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774906461/Tf_Fixed_Final_2.mp4"
