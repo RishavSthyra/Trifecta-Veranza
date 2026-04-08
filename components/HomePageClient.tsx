@@ -52,13 +52,29 @@ function getVideoLoadProgress(video: HTMLVideoElement) {
 
 export default function HomePageClient() {
   const loaderStartedAtRef = useRef(0);
+  const heroReadyRef = useRef(false);
+  const heroObjectUrlRef = useRef<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [loading, setLoading] = useState(true);
   const [heroReady, setHeroReady] = useState(false);
+  const [heroVideoSrc, setHeroVideoSrc] = useState<string | null>(null);
 
   useEffect(() => {
     loaderStartedAtRef.current =
       typeof window !== "undefined" ? window.performance.now() : Date.now();
+  }, []);
+
+  useEffect(() => {
+    heroReadyRef.current = heroReady;
+  }, [heroReady]);
+
+  useEffect(() => {
+    return () => {
+      if (heroObjectUrlRef.current) {
+        URL.revokeObjectURL(heroObjectUrlRef.current);
+        heroObjectUrlRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -90,6 +106,25 @@ export default function HomePageClient() {
     const abortController = new AbortController();
     let heroProgressAnimationFrame: number | null = null;
     let heroProgressInterval: number | null = null;
+    let disposed = false;
+
+    const updateLoaderProgress = (nextProgress: number) => {
+      setProgress((currentProgress) => {
+        if (heroReadyRef.current) {
+          return 100;
+        }
+
+        const targetValue = Math.round(
+          Math.max(currentProgress, Math.min(nextProgress, 96)),
+        );
+        const dampedStep = Math.max(
+          1,
+          Math.round((targetValue - currentProgress) * 0.45),
+        );
+
+        return Math.min(targetValue, currentProgress + dampedStep);
+      });
+    };
 
     const appendPreloadLink = (
       href: string,
@@ -139,73 +174,128 @@ export default function HomePageClient() {
     appendPreloadLink("/models/forglb.glb", "fetch");
     appendPreloadLink("/models/forglb%20-%20Copy.glb", "fetch");
 
-    const warmHeroVideo = warmVideoSource(HERO_VIDEO_URL);
     warmVideoSource(ENTRY_VIDEO_URL);
     warmVideoSource(MASTER_PLAN_SCRUB_HQ_VIDEO_PATH);
 
-    const reportHeroProgress = () => {
-      setProgress((currentProgress) => {
-        if (heroReady) {
-          return 100;
-        }
+    const warmHeroVideoFromMediaElement = warmVideoSource(HERO_VIDEO_URL);
 
-        const targetValue = Math.round(
-          Math.max(currentProgress, Math.min(getVideoLoadProgress(warmHeroVideo) * 100, 96)),
-        );
-        const dampedStep = Math.max(
-          1,
-          Math.round((targetValue - currentProgress) * 0.45),
-        );
-
-        return Math.min(targetValue, currentProgress + dampedStep);
-      });
+    const reportHeroProgressFromMediaElement = () => {
+      updateLoaderProgress(getVideoLoadProgress(warmHeroVideoFromMediaElement) * 100);
     };
 
-    const handleHeroWarmReady = () => {
-      if (heroProgressAnimationFrame !== null) {
-        window.cancelAnimationFrame(heroProgressAnimationFrame);
-      }
-
-      heroProgressAnimationFrame = window.requestAnimationFrame(() => {
-        heroProgressAnimationFrame = null;
-        setProgress((currentProgress) => Math.max(currentProgress, 100));
-        setHeroReady(true);
-      });
-    };
-
-    const handleHeroWarmProgress = () => {
+    const handleHeroWarmMediaProgress = () => {
       if (heroProgressAnimationFrame !== null) {
         return;
       }
 
       heroProgressAnimationFrame = window.requestAnimationFrame(() => {
         heroProgressAnimationFrame = null;
-        reportHeroProgress();
-
-        if (warmHeroVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-          handleHeroWarmReady();
-        }
+        reportHeroProgressFromMediaElement();
       });
     };
 
-    warmHeroVideo.addEventListener("loadedmetadata", handleHeroWarmProgress);
-    warmHeroVideo.addEventListener("loadeddata", handleHeroWarmProgress);
-    warmHeroVideo.addEventListener("progress", handleHeroWarmProgress);
-    warmHeroVideo.addEventListener("canplay", handleHeroWarmReady);
-    warmHeroVideo.addEventListener("canplaythrough", handleHeroWarmReady);
-    warmHeroVideo.addEventListener("stalled", handleHeroWarmProgress);
-    warmHeroVideo.addEventListener("suspend", handleHeroWarmProgress);
-    warmHeroVideo.addEventListener("error", handleHeroWarmReady);
+    warmHeroVideoFromMediaElement.addEventListener(
+      "loadedmetadata",
+      handleHeroWarmMediaProgress,
+    );
+    warmHeroVideoFromMediaElement.addEventListener(
+      "loadeddata",
+      handleHeroWarmMediaProgress,
+    );
+    warmHeroVideoFromMediaElement.addEventListener(
+      "progress",
+      handleHeroWarmMediaProgress,
+    );
+    warmHeroVideoFromMediaElement.addEventListener(
+      "stalled",
+      handleHeroWarmMediaProgress,
+    );
+    warmHeroVideoFromMediaElement.addEventListener(
+      "suspend",
+      handleHeroWarmMediaProgress,
+    );
 
     heroProgressInterval = window.setInterval(() => {
-      reportHeroProgress();
-
-      if (warmHeroVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
-        handleHeroWarmReady();
-      }
+      reportHeroProgressFromMediaElement();
     }, 250);
 
-    void warmHeroVideo.play().catch(() => undefined);
+    void warmHeroVideoFromMediaElement.play().catch(() => undefined);
+
+    const warmHeroVideoBytes = async () => {
+      try {
+        const response = await fetch(HERO_VIDEO_URL, {
+          cache: "force-cache",
+          mode: "cors",
+          signal: abortController.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Hero video request failed with ${response.status}`);
+        }
+
+        if (!response.body) {
+          setHeroVideoSrc(HERO_VIDEO_URL);
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const totalBytes = Number(response.headers.get("content-length")) || 0;
+        const chunks: ArrayBuffer[] = [];
+        let receivedBytes = 0;
+
+        while (!disposed) {
+          const { done, value } = await reader.read();
+
+          if (done) {
+            break;
+          }
+
+          if (!value) {
+            continue;
+          }
+
+          const chunkBuffer =
+            value.buffer instanceof ArrayBuffer
+              ? value.buffer.slice(
+                  value.byteOffset,
+                  value.byteOffset + value.byteLength,
+                )
+              : new Uint8Array(value).buffer;
+
+          chunks.push(chunkBuffer);
+          receivedBytes += value.byteLength;
+
+          if (totalBytes > 0) {
+            updateLoaderProgress((receivedBytes / totalBytes) * 98);
+          } else {
+            reportHeroProgressFromMediaElement();
+          }
+        }
+
+        if (disposed) {
+          return;
+        }
+
+        const heroBlob = new Blob(chunks, {
+          type: response.headers.get("content-type") || "video/mp4",
+        });
+        const heroObjectUrl = URL.createObjectURL(heroBlob);
+
+        if (heroObjectUrlRef.current) {
+          URL.revokeObjectURL(heroObjectUrlRef.current);
+        }
+
+        heroObjectUrlRef.current = heroObjectUrl;
+        setProgress((currentProgress) => Math.max(currentProgress, 98));
+        setHeroVideoSrc(heroObjectUrl);
+      } catch {
+        if (!disposed) {
+          setHeroVideoSrc(HERO_VIDEO_URL);
+        }
+      }
+    };
+
+    void warmHeroVideoBytes();
 
     const warmMasterPlanAssets = () => {
       const frameUrls = getMasterPlanFramePreloadSequence(1, 10).map((frame) =>
@@ -245,6 +335,7 @@ export default function HomePageClient() {
     }
 
     return () => {
+      disposed = true;
       abortController.abort();
       cleanupIdle?.();
       if (heroProgressAnimationFrame !== null) {
@@ -253,14 +344,26 @@ export default function HomePageClient() {
       if (heroProgressInterval !== null) {
         window.clearInterval(heroProgressInterval);
       }
-      warmHeroVideo.removeEventListener("loadedmetadata", handleHeroWarmProgress);
-      warmHeroVideo.removeEventListener("loadeddata", handleHeroWarmProgress);
-      warmHeroVideo.removeEventListener("progress", handleHeroWarmProgress);
-      warmHeroVideo.removeEventListener("canplay", handleHeroWarmReady);
-      warmHeroVideo.removeEventListener("canplaythrough", handleHeroWarmReady);
-      warmHeroVideo.removeEventListener("stalled", handleHeroWarmProgress);
-      warmHeroVideo.removeEventListener("suspend", handleHeroWarmProgress);
-      warmHeroVideo.removeEventListener("error", handleHeroWarmReady);
+      warmHeroVideoFromMediaElement.removeEventListener(
+        "loadedmetadata",
+        handleHeroWarmMediaProgress,
+      );
+      warmHeroVideoFromMediaElement.removeEventListener(
+        "loadeddata",
+        handleHeroWarmMediaProgress,
+      );
+      warmHeroVideoFromMediaElement.removeEventListener(
+        "progress",
+        handleHeroWarmMediaProgress,
+      );
+      warmHeroVideoFromMediaElement.removeEventListener(
+        "stalled",
+        handleHeroWarmMediaProgress,
+      );
+      warmHeroVideoFromMediaElement.removeEventListener(
+        "suspend",
+        handleHeroWarmMediaProgress,
+      );
       createdLinks.forEach((link) => link.remove());
       warmVideos.forEach((video) => {
         video.pause();
@@ -280,10 +383,11 @@ export default function HomePageClient() {
         }`}
       >
         <HeroSection
+          heroVideoSrc={heroVideoSrc}
           onHeroReadyChange={setHeroReady}
           onHeroVideoProgressChange={(nextProgress) => {
             setProgress((currentProgress) => {
-              if (heroReady) {
+              if (heroReadyRef.current) {
                 return 100;
               }
 

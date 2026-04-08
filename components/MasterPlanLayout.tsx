@@ -225,6 +225,7 @@ function MasterPlanHotspotControls({
 }) {
   return (
     <div
+      data-master-plan-stage-controls
       className={`pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/35 bg-[linear-gradient(135deg,rgba(255,255,255,0.42),rgba(255,255,255,0.14))] shadow-[0_18px_46px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(20,20,24,0.46),rgba(20,20,24,0.2))] ${
         compact ? "" : ""
       } ${compact ? "p-1.5" : "p-2"}`}
@@ -785,6 +786,28 @@ export default function MasterPlanLayout({
       setIsMobileSheetOpen(true);
     }
   }, [selectedTower]);
+
+  const handleCompactStagePointerDownCapture = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (!shouldUseCompactLayout || !selectedApartment) {
+        return;
+      }
+
+      const target = event.target;
+
+      if (
+        target instanceof Element &&
+        target.closest("[data-master-plan-stage-controls]")
+      ) {
+        return;
+      }
+
+      event.stopPropagation();
+      clearSelectedApartment();
+    },
+    [clearSelectedApartment, selectedApartment, shouldUseCompactLayout],
+  );
+
   const handleOpenBareShellWalkthrough = useCallback(() => {
     router.push("/walkthrough?mode=bare-shell");
   }, [router]);
@@ -904,7 +927,7 @@ export default function MasterPlanLayout({
   }, [activeHotspot, handleApartmentSelect]);
 
   useEffect(() => {
-    if (!selectedApartment) {
+    if (!selectedApartment || shouldUseCompactLayout) {
       return;
     }
 
@@ -916,7 +939,7 @@ export default function MasterPlanLayout({
     if (!isInventoryApartmentAllowedAtHotspot(selectedApartment, activeHotspot)) {
       clearSelectedApartment();
     }
-  }, [activeHotspot, clearSelectedApartment, selectedApartment]);
+  }, [activeHotspot, clearSelectedApartment, selectedApartment, shouldUseCompactLayout]);
 
   useEffect(() => {
     if (
@@ -979,7 +1002,7 @@ export default function MasterPlanLayout({
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown, true);
     };
-  }, [clearSelectedApartment, selectedApartment]);
+  }, [clearSelectedApartment, selectedApartment, shouldUseCompactLayout]);
 
   useEffect(() => {
     if (!isSpecialVideoOpen || !shouldAutoplaySpecialVideo) {
@@ -1387,7 +1410,10 @@ export default function MasterPlanLayout({
           isSpecialVideoOpen ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
-        <div className="relative w-full shrink-0">
+        <div
+          className="relative w-full shrink-0"
+          onPointerDownCapture={handleCompactStagePointerDownCapture}
+        >
           <div className={`relative overflow-hidden ${compactStageHeightClassName}`}>
             <div
               className={`absolute inset-0 ${

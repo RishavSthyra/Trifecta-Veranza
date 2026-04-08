@@ -596,7 +596,8 @@ function getMasterPlanPerformanceProfile(): MasterPlanPerformanceProfile {
     },
     isConstrained: true,
     isSafariLike,
-    scrubVideoPreload: "metadata",
+    scrubVideoPreload:
+      saveData || hasVerySlowNetwork ? "metadata" : "auto",
     tier,
   };
 }
@@ -691,6 +692,33 @@ function getDisplayedFrameCommitIntervalMs(tier: MasterPlanPerformanceTier) {
   }
 
   return DISPLAYED_FRAME_COMMIT_MS_STANDARD;
+}
+
+function getPassiveVideoSyncIntervalMs(
+  tier: MasterPlanPerformanceTier,
+  isSafariLike: boolean,
+) {
+  if (isSafariLike) {
+    if (tier === "low") {
+      return 120;
+    }
+
+    if (tier === "constrained") {
+      return 96;
+    }
+
+    return 84;
+  }
+
+  if (tier === "low") {
+    return 84;
+  }
+
+  if (tier === "constrained") {
+    return 64;
+  }
+
+  return 40;
 }
 
 function updateVisibilityWithHysteresis(
@@ -2841,6 +2869,8 @@ export default function MasterPlanFrameHoverStage({
   const lastSyncedVideoFrameRef = useRef<number | null>(null);
   const lastDragVideoSyncFrameRef = useRef<number | null>(null);
   const lastDragVideoSyncTimeRef = useRef(0);
+  const lastPassiveVideoSyncFrameRef = useRef<number | null>(null);
+  const lastPassiveVideoSyncTimeRef = useRef(0);
   const lastDisplayedFrameCommitTimeRef = useRef(0);
   const lastInvalidateSignatureRef = useRef("");
   const progressFrameRef = useRef<number | null>(null);
@@ -2941,6 +2971,14 @@ export default function MasterPlanFrameHoverStage({
     () => getDisplayedFrameCommitIntervalMs(performanceProfile.tier),
     [performanceProfile.tier],
   );
+  const passiveVideoSyncIntervalMs = useMemo(
+    () =>
+      getPassiveVideoSyncIntervalMs(
+        performanceProfile.tier,
+        performanceProfile.isSafariLike,
+      ),
+    [performanceProfile.isSafariLike, performanceProfile.tier],
+  );
   const scrubVideoPath = useMemo(
     () => {
       if (performanceProfile.isSafariLike) {
@@ -2967,7 +3005,14 @@ export default function MasterPlanFrameHoverStage({
     (performanceProfile.tier === "standard" || isInteractiveSceneReady) &&
     isVideoReady &&
     !isDragging &&
-    (!performanceProfile.isSafariLike || !isSettling);
+    !(
+      isSettling &&
+      (
+        performanceProfile.isSafariLike ||
+        performanceProfile.tier !== "standard" ||
+        isStartupInteractionPending
+      )
+    );
   const mediaTransform = useMemo(() => {
     if (
       performanceProfile.isSafariLike &&
@@ -3314,8 +3359,45 @@ export default function MasterPlanFrameHoverStage({
 
       syncSnapVisibility(nextDisplayedFrame, nextInteractionMode);
 
-      if (displayedFrameChanged || !dragStateRef.current) {
+      const shouldThrottlePassiveVideoSync =
+        !dragStateRef.current &&
+        (
+          isSettlingRef.current ||
+          isStartupInteractionPending ||
+          performanceProfile.isSafariLike ||
+          performanceProfile.tier !== "standard"
+        );
+
+      if (dragStateRef.current) {
+        if (displayedFrameChanged) {
+          syncVisibleVideoTime(wrappedProgress);
+        }
+      } else if (!shouldThrottlePassiveVideoSync) {
+        lastPassiveVideoSyncTimeRef.current = now;
+        lastPassiveVideoSyncFrameRef.current = nextDisplayedFrame;
         syncVisibleVideoTime(wrappedProgress);
+      } else if (displayedFrameChanged) {
+        const lastPassiveFrame = lastPassiveVideoSyncFrameRef.current;
+        const msSinceLastPassiveSync = now - lastPassiveVideoSyncTimeRef.current;
+        const progressedEnough =
+          lastPassiveFrame === null ||
+          Math.abs(
+            getShortestProgressDelta(
+              frameToProgress(lastPassiveFrame),
+              frameToProgress(nextDisplayedFrame),
+            ),
+          ) *
+            TOTAL_FRAMES >=
+            2;
+
+        if (
+          progressedEnough &&
+          msSinceLastPassiveSync >= passiveVideoSyncIntervalMs
+        ) {
+          lastPassiveVideoSyncTimeRef.current = now;
+          lastPassiveVideoSyncFrameRef.current = nextDisplayedFrame;
+          syncVisibleVideoTime(wrappedProgress);
+        }
       }
 
       if (dragStateRef.current) {
@@ -3352,6 +3434,9 @@ export default function MasterPlanFrameHoverStage({
       isStartupInteractionPending,
       isHoverCoolingDown,
       maybeInvalidateCanvas,
+      passiveVideoSyncIntervalMs,
+      performanceProfile.isSafariLike,
+      performanceProfile.tier,
       syncSnapVisibility,
       syncDisplayedFrameState,
       syncVisibleVideoTime,
@@ -3773,6 +3858,8 @@ export default function MasterPlanFrameHoverStage({
         lastDisplayedFrameCommitTimeRef.current = 0;
         lastDragVideoSyncFrameRef.current = null;
         lastDragVideoSyncTimeRef.current = 0;
+        lastPassiveVideoSyncFrameRef.current = null;
+        lastPassiveVideoSyncTimeRef.current = 0;
         stopDragLoop();
         stopMotionAnimation();
         clearHoveredApartment();

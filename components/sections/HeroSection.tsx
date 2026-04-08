@@ -19,6 +19,7 @@ type IdleCapableWindow = Window &
 type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
 
 type HeroSectionProps = {
+  heroVideoSrc?: string | null;
   onHeroReadyChange?: (ready: boolean) => void;
   onHeroVideoProgressChange?: (progress: number) => void;
 };
@@ -51,6 +52,7 @@ function getHeroVideoLoadProgress(video: HTMLVideoElement) {
 }
 
 export default function HeroSection({
+  heroVideoSrc,
   onHeroReadyChange,
   onHeroVideoProgressChange,
 }: HeroSectionProps) {
@@ -169,7 +171,10 @@ export default function HeroSection({
 
   useEffect(() => {
     const heroVideo = heroVideoRef.current;
-    if (!heroVideo) return;
+    if (!heroVideo || !heroVideoSrc) {
+      onHeroVideoProgressChange?.(0.08);
+      return;
+    }
 
     let readyFrameId: number | null = null;
     let rafId: number | null = null;
@@ -285,7 +290,7 @@ export default function HeroSection({
       heroVideo.removeEventListener("waiting", handleStateCheck);
       heroVideo.removeEventListener("error", handleFallbackReady);
     };
-  }, [onHeroVideoProgressChange, videoReady]);
+  }, [heroVideoSrc, onHeroVideoProgressChange, videoReady]);
 
   useEffect(() => {
     onHeroReadyChange?.(videoReady);
@@ -371,12 +376,8 @@ export default function HeroSection({
         loop
         playsInline
         preload="auto"
-      >
-        <source
-          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774905518/Tf_Fixed.mp4"
-          type="video/mp4"
-        />
-      </video>
+        src={heroVideoSrc ?? undefined}
+      />
 
       <video
         ref={entryVideoRef}
