@@ -42,6 +42,9 @@ function createSummary(nodeIds: string[]) {
   return `${nodeIds.length} pano ${nodeIds.length === 1 ? "stop" : "stops"}`;
 }
 
+const AMENITY_IMAGE_PLACEHOLDER_URL =
+  "https://cdn.sthyra.com/images/amenities-compressed/preview/Amphi%20Theatre.avif";
+
 const amenityDefinitions: ExteriorAmenityDefinition[] = [
   {
     id: "zen-garden",
@@ -393,6 +396,39 @@ const amenityDefinitions: ExteriorAmenityDefinition[] = [
   },
 ];
 
+export const EXTERIOR_AMENITY_IMAGE_LINKS = [
+  { id: "zen-garden", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Zen%20garden.avif" },
+  { id: "basketball-volleyball-court", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "futsal-tennis-court", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Tenis%20Court.avif" },
+  { id: "mini-cricket-stadium", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Mini%20Cricket%20Stadium.avif" },
+  { id: "hammock-garden", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Hamlock%20Garden.avif" },
+  { id: "skating-ring", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "outdoor-gym", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Outdoor%20Gym.avif" },
+  { id: "rock-garden", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "amphi-theatre", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Amphi%20Theatre.avif" },
+  { id: "calisthenics-sand-pit", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "wide-cycling-track", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Wide%20Cycling%20Track.avif" },
+  { id: "outdoor-party-lawn", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Outdoor%20Party%20Lawn.avif" },
+  { id: "childrens-play-area", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Children%20Play%20Area.avif" },
+  { id: "butterfly-garden", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "flower-garden", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "play-lawn", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Play%20Lawn.avif" },
+  { id: "traditional-play-zone", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "frisbee-lawn", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "camp-fire", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/CampFire.avif" },
+  { id: "clubhouse", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "g-plus-3-clubhouse", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "bird-path", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "miyawaki-forest", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "tennikoit-court", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "picnic-lawn", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Picnic%20Lawn.avif" },
+  { id: "pickle-ball-court", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+] as const;
+
+const amenityImageMap = new Map<string, string>(
+  EXTERIOR_AMENITY_IMAGE_LINKS.map((entry) => [entry.id, entry.image]),
+);
+
 export const EXTERIOR_MINIMAP_IMAGE_URL =
   "https://cdn.sthyra.com/images/Final_5.avif";
 
@@ -415,6 +451,7 @@ export const EXTERIOR_MINIMAP_IMAGE_LAYOUT = {
 export const exteriorAmenities: ExteriorAmenity[] = amenityDefinitions.map(
   (amenity) => ({
     ...amenity,
+    image: amenityImageMap.get(amenity.id) ?? amenity.image ?? AMENITY_IMAGE_PLACEHOLDER_URL,
     primaryNodeId: amenity.nodeIds[0],
     coordinate: getAmenityCoordinate(amenity.coordinateKey),
     summary: createSummary(amenity.nodeIds),

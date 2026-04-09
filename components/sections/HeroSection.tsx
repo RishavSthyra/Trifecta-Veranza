@@ -378,7 +378,6 @@ export default function HeroSection({
         }`}
         autoPlay
         muted
-        defaultMuted
         loop
         playsInline
         preload="auto"
@@ -396,7 +395,6 @@ export default function HeroSection({
         }`}
         crossOrigin="anonymous"
         muted
-        defaultMuted
         autoPlay
         playsInline
         preload="auto"

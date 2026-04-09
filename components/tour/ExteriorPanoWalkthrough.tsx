@@ -4,32 +4,14 @@ import { Cache, Viewer } from "@photo-sphere-viewer/core";
 import { EquirectangularTilesAdapter } from "@photo-sphere-viewer/equirectangular-tiles-adapter";
 import "@photo-sphere-viewer/core/index.css";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
+import Image from "next/image";
 import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
   ArrowUp,
-  Bike,
-  Building2,
-  CirclePlay,
-  Dumbbell,
-  FerrisWheel,
-  Flame,
-  Flower2,
-  Goal,
-  LandPlot,
-  Leaf,
   Menu,
-  PartyPopper,
-  TentTree,
-  Theater,
-  TreeDeciduous,
-  Trees,
-  Trophy,
-  Volleyball,
-  Waves,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import {
   startTransition,
@@ -260,56 +242,6 @@ function clampMinimapOffset(
   };
 }
 
-const amenityIcons: Record<string, LucideIcon> = {
-  "zen-garden": Flower2,
-  "basketball-volleyball-court": Volleyball,
-  "futsal-tennis-court": Goal,
-  "mini-cricket-stadium": Trophy,
-  "hammock-garden": TentTree,
-  "skating-ring": FerrisWheel,
-  "outdoor-gym": Dumbbell,
-  "rock-garden": LandPlot,
-  "amphi-theatre": Theater,
-  "calisthenics-sand-pit": CirclePlay,
-  "wide-cycling-track": Bike,
-  "outdoor-party-lawn": PartyPopper,
-  "childrens-play-area": CirclePlay,
-  "butterfly-garden": Flower2,
-  "flower-garden": Flower2,
-  "play-lawn": Leaf,
-  "frisbee-lawn": CirclePlay,
-  "camp-fire": Flame,
-  clubhouse: Building2,
-  "bird-path": Trees,
-  "miyawaki-forest": TreeDeciduous,
-  "tennikoit-court": CirclePlay,
-  "picnic-lawn": TentTree,
-  "pickleball-court": Goal,
-  general: Waves,
-};
-
-function AmenityIconBadge({
-  amenity,
-  isActive,
-}: {
-  amenity: ExteriorAmenity;
-  isActive: boolean;
-}) {
-  const Icon = amenityIcons[amenity.id] ?? LocateFixed;
-
-  return (
-    <div
-      className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-[1rem] border sm:h-[5rem] sm:w-[5rem] ${
-        isActive
-          ? "border-[#ffcf57]/55 bg-[linear-gradient(145deg,rgba(255,223,124,0.22),rgba(255,255,255,0.06))] text-[#ffe083]"
-          : "border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))] text-white/70"
-      }`}
-    >
-      <Icon className="h-7 w-7 sm:h-8 sm:w-8" />
-    </div>
-  );
-}
-
 function AmenityCard({
   amenity,
   isActive,
@@ -334,7 +266,22 @@ function AmenityCard({
       }`}
     >
       <div className="flex items-center gap-3 p-3">
-        <AmenityIconBadge amenity={amenity} isActive={isActive} />
+        <div
+          className={`relative h-16 w-[5.4rem] shrink-0 overflow-hidden rounded-[1rem] border sm:h-[5rem] sm:w-[7.1rem] ${
+            isActive
+              ? "border-[#ffcf57]/55 bg-[linear-gradient(145deg,rgba(255,223,124,0.22),rgba(255,255,255,0.06))]"
+              : "border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))]"
+          }`}
+        >
+          <Image
+            src={amenity.image}
+            alt={amenity.name}
+            fill
+            sizes={isCompact ? "96px" : "130px"}
+            className="object-cover transition duration-300 group-hover:scale-[1.03]"
+          />
+          {/* <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(8,10,14,0.08)_0%,rgba(8,10,14,0.16)_100%)]" /> */}
+        </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
