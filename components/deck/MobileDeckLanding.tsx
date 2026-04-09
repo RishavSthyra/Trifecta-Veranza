@@ -23,7 +23,6 @@ import {
   Trees,
 } from "lucide-react";
 import CoverHero from "@/assets/Aparttments_Clouds.png";
-import OverviewHero from "@/assets/veranza.webp";
 import { unitPlans } from "@/data/unitPlans";
 
 type ChartPoint = {
@@ -136,7 +135,7 @@ export default function MobileDeckLanding() {
   const featuredPlans = useMemo(() => unitPlans, []);
 
   return (
-    <div className="w-full px-1.5 sm:px-2.5 md:px-3 lg:px-4 xl:mx-auto xl:max-w-full  xl:px-0">
+    <div className="w-full px-1.5 pb-[max(env(safe-area-inset-bottom),5.5rem)] touch-pan-y sm:px-2.5 md:px-3 lg:px-4 xl:mx-auto xl:max-w-full xl:px-0">
       <article className="w-full overflow-hidden rounded-t-[34px] bg-[linear-gradient(180deg,#f8f2ea_0%,#f5ede1_26%,#f8f3ea_58%,#f6efe4_100%)] pt-20 shadow-[0_-8px_36px_rgba(95,62,22,0.08)] sm:rounded-t-[42px] sm:pt-24">
         {/* HERO */}
         <section className="relative flex flex-col justify-center items-center overflow-hidden  rounded-t-[34px] px-3 pb-0 pt-5 sm:rounded-t-[42px] sm:px-4 md:px-5 lg:px-6 sm:pt-7">

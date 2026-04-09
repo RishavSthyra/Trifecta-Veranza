@@ -328,6 +328,7 @@ export default function MasterPlanLayout({
   const specialVideoLoadedUrlRef = useRef<string | null>(null);
   const specialUnitVideoTimeoutRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
+  const lastApartmentSelectionAtRef = useRef(0);
   const touchStartYRef = useRef<number | null>(null);
   const inventorySignatureRef = useRef(getApartmentSignature(initialApartments));
   const currentFrameRef = useRef(1);
@@ -843,6 +844,9 @@ export default function MasterPlanLayout({
         return;
       }
 
+      lastApartmentSelectionAtRef.current =
+        typeof performance !== "undefined" ? performance.now() : Date.now();
+
       if (isSpecialVideoApartment(apartment)) {
         setSelectedApartment(null);
         setSelectedApartmentMeshId(null);
@@ -906,7 +910,7 @@ export default function MasterPlanLayout({
   }, [activeHotspot, handleApartmentSelect]);
 
   useEffect(() => {
-    if (!selectedApartment || shouldUseCompactLayout) {
+    if (!selectedApartment) {
       return;
     }
 
@@ -915,10 +919,10 @@ export default function MasterPlanLayout({
       return;
     }
 
-    if (!isInventoryApartmentAllowedAtHotspot(selectedApartment, activeHotspot)) {
+    if (selectedTower && selectedApartment.tower !== selectedTower) {
       clearSelectedApartment();
     }
-  }, [activeHotspot, clearSelectedApartment, selectedApartment, shouldUseCompactLayout]);
+  }, [clearSelectedApartment, selectedApartment, selectedTower]);
 
   useEffect(() => {
     if (
@@ -958,11 +962,19 @@ export default function MasterPlanLayout({
   }, [apartments, selectedApartment]);
 
   useEffect(() => {
-    if (!selectedApartment) {
+    if (!selectedApartment || shouldUseCompactLayout) {
       return;
     }
 
     const handlePointerDown = (event: PointerEvent) => {
+      const selectionAgeMs =
+        (typeof performance !== "undefined" ? performance.now() : Date.now()) -
+        lastApartmentSelectionAtRef.current;
+
+      if (selectionAgeMs < 450) {
+        return;
+      }
+
       const target = event.target;
 
       if (
@@ -1391,13 +1403,7 @@ export default function MasterPlanLayout({
       >
         <div className="relative w-full shrink-0">
           <div className={`relative overflow-hidden ${compactStageHeightClassName}`}>
-            <div
-              className={`absolute inset-0 ${
-                shouldUseCompactLayout
-                  ? "scale-[1.06] -translate-y-1 transform-gpu sm:scale-[1.05]"
-                  : ""
-              }`}
-            >
+            <div className="absolute inset-0">
               {isTopViewMode && !selectedTower ? (
                 <MasterPlanTopViewStage />
               ) : (
@@ -1416,15 +1422,6 @@ export default function MasterPlanLayout({
                 />
               )}
             </div>
-
-            {shouldUseCompactLayout && selectedApartment ? (
-              <button
-                type="button"
-                onClick={clearSelectedApartment}
-                className="absolute inset-0 z-10 cursor-default"
-                aria-label="Close flat details and return to filters"
-              />
-            ) : null}
 
             {!isTopViewMode && !isLeaving && !isSpecialVideoOpen ? (
               <div
@@ -1448,13 +1445,13 @@ export default function MasterPlanLayout({
           <div
             className={
               selectedApartment
-                ? "flex h-full min-h-0 flex-col"
+                ? "flex h-full min-h-0 flex-col overflow-hidden"
                 : "surface-contain flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_24px_64px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70"
             }
           >
             {selectedApartment ? (
               <div
-                className="custom-scrollbar flex min-h-0 flex-1 items-start justify-center overflow-y-auto overscroll-contain px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0 [-webkit-overflow-scrolling:touch] touch-pan-y"
+                className="custom-scrollbar flex min-h-0 flex-1 items-stretch justify-center overflow-y-auto overscroll-contain px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0 [-webkit-overflow-scrolling:touch] touch-pan-y"
                 data-scroll-area="compact-panel"
               >
                 <SelectedFlatDetailsPanel
@@ -1615,14 +1612,6 @@ export default function MasterPlanLayout({
                 transition={{ duration: 0.26, ease: smoothEase }}
                 className="pointer-events-none absolute right-6 top-1/2 z-40 w-full max-w-[26rem] -translate-y-1/2 overflow-visible 2xl:right-10"
               >
-                <button
-                  type="button"
-                  onClick={clearSelectedApartment}
-                  className="pointer-events-auto absolute left-0 top-10 z-30 hidden h-16 w-14 -translate-x-[88%] items-center justify-center rounded-l-[1.45rem] rounded-r-[0.5rem] border border-white/38 bg-[linear-gradient(145deg,rgba(255,255,255,0.58),rgba(255,255,255,0.18))] text-zinc-900 shadow-[0_22px_48px_rgba(15,23,42,0.18)] backdrop-blur-2xl transition hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.72),rgba(255,255,255,0.28))] xl:inline-flex"
-                  aria-label="Close flat details panel"
-                >
-                  <ArrowRight className="h-5 w-5" />
-                </button>
                 <SelectedFlatDetailsPanel
                   ref={selectedFlatPanelRef}
                   apartment={selectedApartment}

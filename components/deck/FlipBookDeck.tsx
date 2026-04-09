@@ -168,23 +168,23 @@ export default function FlipBookDeck() {
   };
 
   const compactDesktopPageWidth = Math.max(
-    500,
+    540,
     Math.min(
-      Math.floor((viewport.width - (isSafariLike ? 180 : 220)) / 2),
-      isSafariLike || isShortDesktopViewport ? 560 : 610,
+      Math.floor((viewport.width - (isSafariLike ? 150 : 170)) / 2),
+      isSafariLike || isShortDesktopViewport ? 600 : 680,
     ),
   );
   const compactDesktopPageHeight = Math.max(
-    660,
+    700,
     Math.min(
-      viewport.height - (isSafariLike ? 132 : 112),
-      isSafariLike || isShortDesktopViewport ? 750 : 810,
+      viewport.height - (isSafariLike ? 124 : 104),
+      isSafariLike || isShortDesktopViewport ? 780 : 840,
     ),
   );
-  const desktopPageHeight = Math.max(720, Math.min(viewport.height - 96, 920));
+  const desktopPageHeight = Math.max(740, Math.min(viewport.height - 88, 940));
   const desktopPageWidth = Math.max(
-    560,
-    Math.min(Math.floor((viewport.width - 260) / 2), 760),
+    620,
+    Math.min(Math.floor((viewport.width - 210) / 2), 860),
   );
 
   const bookConfig = (() => {
@@ -247,7 +247,7 @@ export default function FlipBookDeck() {
     <div
       className={`relative min-h-dvh justify-center bg-neutral-100 ${
         useStackedDeck
-          ? "overflow-y-auto overflow-x-hidden bg-[linear-gradient(180deg,#d5b785_0%,#c19b64_26%,#f5ede0_62%,#f7f1e7_100%)] px-0 pb-0 pt-16 sm:pt-18"
+          ? "h-dvh overflow-y-auto overflow-x-hidden overscroll-contain bg-[linear-gradient(180deg,#d5b785_0%,#c19b64_26%,#f5ede0_62%,#f7f1e7_100%)] px-0 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-16 [-webkit-overflow-scrolling:touch] touch-pan-y sm:pt-18"
           : "flex h-dvh items-center overflow-hidden px-1.5 pb-4 pt-6 sm:px-4 sm:py-4"
       }`}
     >
@@ -307,9 +307,15 @@ export default function FlipBookDeck() {
         />
       </motion.div>
 
-      <div className="relative z-10 mx-auto flex w-full max-w-full flex-col items-center justify-center">
+      <div
+        className={`relative z-10 mx-auto flex w-full max-w-full flex-col items-center ${
+          useStackedDeck ? "min-h-full justify-start" : "justify-center"
+        }`}
+      >
         {useStackedDeck ? (
-          <MobileDeckLanding />
+          <div className="w-full flex-none touch-pan-y">
+            <MobileDeckLanding />
+          </div>
         ) : (
           <div className="relative flex w-full items-center justify-center">
             <div className="flex w-full justify-center">

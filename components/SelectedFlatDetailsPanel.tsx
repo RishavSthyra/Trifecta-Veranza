@@ -119,10 +119,10 @@ const SelectedFlatDetailsPanel = forwardRef<
   if (compact) {
     const compactWrapperClassName = desktopEnhancedCompact
       ? "pointer-events-auto w-full self-start"
-      : "pointer-events-auto h-full w-full self-stretch";
+      : "pointer-events-auto h-full min-h-0 w-full self-stretch";
     const compactPanelClassName = desktopEnhancedCompact
       ? "custom-scrollbar relative flex max-h-[60vh] min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[28px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] [-webkit-overflow-scrolling:touch] touch-pan-y sm:rounded-[30px]"
-      : "relative flex min-h-full flex-col rounded-[28px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] sm:rounded-[30px]";
+      : "custom-scrollbar relative flex h-full max-h-full min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[28px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] [-webkit-overflow-scrolling:touch] touch-pan-y sm:rounded-[30px]";
 
     return (
       <motion.div
@@ -144,7 +144,7 @@ const SelectedFlatDetailsPanel = forwardRef<
         <div className={compactPanelClassName}>
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,228,196,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(171,135,86,0.10),transparent_28%)]" />
 
-          <div className="relative flex flex-col p-4 sm:p-5">
+          <div className="relative flex min-h-0 flex-col p-4 sm:p-5">
             <div className="flex items-center justify-between gap-3">
               <div className="h-10 w-10 shrink-0 opacity-0" aria-hidden="true" />
 
@@ -297,7 +297,7 @@ const SelectedFlatDetailsPanel = forwardRef<
               })}
             </div>
 
-            <div className="mt-4 flex min-h-0 flex-1 flex-col">
+            <div className="mt-4 flex flex-col">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.26em] text-white/38">
