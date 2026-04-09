@@ -391,8 +391,11 @@ export default function MasterPlanLayout({
   const shouldUseCompactLayout =
     isCompactViewport || isTouchTabletViewport;
   const shouldEnableCompactStageScrubbing = !isMobileViewport;
-  const shouldUseTouchOptimizedHighlights =
-    isMobileViewport || isTouchTabletViewport;
+  const compactTouchHighlightProfile = isMobileViewport
+    ? "mobile"
+    : isTouchTabletViewport
+      ? "tablet"
+      : "desktop";
   const compactStageHeightClassName = shouldUseCompactLayout
     ? "h-[clamp(18.75rem,45svh,27rem)] sm:h-[clamp(20.5rem,48svh,31rem)]"
     : "h-[clamp(20rem,50svh,32rem)]";
@@ -1340,7 +1343,7 @@ export default function MasterPlanLayout({
             onSetFrame={setWrappedFrame}
             selectedApartmentId={selectedApartmentMeshId}
             selectedTower={selectedTower}
-            touchOptimizedHighlights={false}
+            touchHighlightProfile="desktop"
           />
         )
       ) : null}
@@ -1428,7 +1431,7 @@ export default function MasterPlanLayout({
                   onSetFrame={setWrappedFrame}
                   selectedApartmentId={selectedApartmentMeshId}
                   selectedTower={selectedTower}
-                  touchOptimizedHighlights={shouldUseTouchOptimizedHighlights}
+                  touchHighlightProfile={compactTouchHighlightProfile}
                 />
               )}
             </div>

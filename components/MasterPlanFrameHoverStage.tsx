@@ -130,6 +130,7 @@ const BASE_MODEL_OFFSET: [number, number, number] = [1.8, 0, 0];
 type InventoryLoadState = "loading" | "ready" | "error";
 type InteractionMode = "idle" | "dragging" | "settling" | "cooldown";
 type HighlightRenderMode = "full" | "medium" | "light";
+type TouchHighlightProfile = "desktop" | "tablet" | "mobile";
 type PointerPosition = { x: number; y: number };
 type CoverViewport = {
   height: number;
@@ -1591,6 +1592,15 @@ function getApartmentHighlightPalette(
   status: InventoryStatus | null | undefined,
   mode: ApartmentHighlightMode,
 ): ApartmentHighlightPalette {
+  if (status === "Available") {
+    return {
+      fill: "#4ade80",
+      fillOpacity: mode === "hover" ? 0.18 : 0.22,
+      innerEdge: "#22c55e",
+      outerEdge: "#dcfce7",
+    };
+  }
+
   if (status === "Sold") {
     return {
       fill: "#fb7185",
@@ -1836,7 +1846,7 @@ const HighlightOverlay = memo(function HighlightOverlay({
   renderMode,
   selectedApartmentId,
   simplifyFilteredVisuals,
-  touchOptimized,
+  touchHighlightProfile,
 }: {
   filteredApartmentIds: Set<string>;
   getApartmentStatus: (
@@ -1847,17 +1857,29 @@ const HighlightOverlay = memo(function HighlightOverlay({
   renderMode: HighlightRenderMode;
   selectedApartmentId: string | null;
   simplifyFilteredVisuals: boolean;
-  touchOptimized: boolean;
+  touchHighlightProfile: TouchHighlightProfile;
 }) {
+  const isTabletHighlightProfile = touchHighlightProfile === "tablet";
+  const isMobileHighlightProfile = touchHighlightProfile === "mobile";
+  const isTouchHighlightProfile = touchHighlightProfile !== "desktop";
   const getEffectivePalette = useCallback(
     (palette: ApartmentHighlightPalette) =>
-      touchOptimized
+      isMobileHighlightProfile
         ? {
-            ...palette,
-            fillOpacity: Math.min(palette.fillOpacity * 0.42, 0.085),
+            fill: palette.fill,
+            fillOpacity: Math.max(palette.fillOpacity, 0.2),
+            innerEdge: palette.fill,
+            outerEdge: palette.fill,
           }
+        : isTabletHighlightProfile
+          ? {
+              fill: palette.fill,
+              fillOpacity: Math.max(palette.fillOpacity - 0.04, 0.14),
+              innerEdge: palette.outerEdge,
+              outerEdge: palette.outerEdge,
+            }
         : palette,
-    [touchOptimized],
+    [isMobileHighlightProfile, isTabletHighlightProfile],
   );
   const hoveredMeshes = useMemo(() => {
     if (!hoveredApartmentId || hoveredApartmentId === selectedApartmentId) {
@@ -1945,13 +1967,15 @@ const HighlightOverlay = memo(function HighlightOverlay({
     selectedApartmentId,
   ]);
   const renderFill = renderMode !== "light";
-  const renderOuterEdges = renderMode === "full" && !touchOptimized;
-  const edgeThickness = touchOptimized ? 1 : renderMode === "light" ? 1 : 2;
-  const filteredEdgeScaleMultiplier = touchOptimized ? 1.003 : 1.006;
-  const focusedEdgeScaleMultiplier = touchOptimized ? 1.004 : 1.008;
+  const renderInnerEdges = !isMobileHighlightProfile;
+  const renderOuterEdges = renderMode === "full" && !isTouchHighlightProfile;
+  const edgeThickness =
+    isTabletHighlightProfile ? 1 : renderMode === "light" ? 1 : 2;
+  const filteredEdgeScaleMultiplier = isTouchHighlightProfile ? 1.003 : 1.006;
+  const focusedEdgeScaleMultiplier = isTouchHighlightProfile ? 1.004 : 1.008;
   const shouldSimplifyFilteredEdges =
     renderMode !== "full" ||
-    touchOptimized ||
+    isTouchHighlightProfile ||
     simplifyFilteredVisuals ||
     filteredMeshes.length >= FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD;
 
@@ -1981,14 +2005,16 @@ const HighlightOverlay = memo(function HighlightOverlay({
               renderOrder={10}
             />
           ) : null}
-          <HighlightEdgeLines
-            color={meshData.palette.innerEdge}
-            geometry={meshData.meshData.geometry}
-            matrix={meshData.meshData.matrix}
-            renderOrder={11}
-            scaleMultiplier={filteredEdgeScaleMultiplier}
-            thickness={edgeThickness}
-          />
+          {renderInnerEdges ? (
+            <HighlightEdgeLines
+              color={meshData.palette.innerEdge}
+              geometry={meshData.meshData.geometry}
+              matrix={meshData.meshData.matrix}
+              renderOrder={11}
+              scaleMultiplier={filteredEdgeScaleMultiplier}
+              thickness={edgeThickness}
+            />
+          ) : null}
           {!shouldSimplifyFilteredEdges && renderOuterEdges ? (
             <HighlightEdgeLines
               color={meshData.palette.outerEdge}
@@ -2017,14 +2043,16 @@ const HighlightOverlay = memo(function HighlightOverlay({
               renderOrder={14}
             />
           ) : null}
-          <HighlightEdgeLines
-            color={meshData.palette.innerEdge}
-            geometry={meshData.meshData.geometry}
-            matrix={meshData.meshData.matrix}
-            renderOrder={15}
-            scaleMultiplier={focusedEdgeScaleMultiplier}
-            thickness={edgeThickness}
-          />
+          {renderInnerEdges ? (
+            <HighlightEdgeLines
+              color={meshData.palette.innerEdge}
+              geometry={meshData.meshData.geometry}
+              matrix={meshData.meshData.matrix}
+              renderOrder={15}
+              scaleMultiplier={focusedEdgeScaleMultiplier}
+              thickness={edgeThickness}
+            />
+          ) : null}
           {renderOuterEdges ? (
             <HighlightEdgeLines
               color={meshData.palette.outerEdge}
@@ -2053,14 +2081,16 @@ const HighlightOverlay = memo(function HighlightOverlay({
               renderOrder={12}
             />
           ) : null}
-          <HighlightEdgeLines
-            color={meshData.palette.innerEdge}
-            geometry={meshData.meshData.geometry}
-            matrix={meshData.meshData.matrix}
-            renderOrder={13}
-            scaleMultiplier={focusedEdgeScaleMultiplier}
-            thickness={edgeThickness}
-          />
+          {renderInnerEdges ? (
+            <HighlightEdgeLines
+              color={meshData.palette.innerEdge}
+              geometry={meshData.meshData.geometry}
+              matrix={meshData.meshData.matrix}
+              renderOrder={13}
+              scaleMultiplier={focusedEdgeScaleMultiplier}
+              thickness={edgeThickness}
+            />
+          ) : null}
           {renderOuterEdges ? (
             <HighlightEdgeLines
               color={meshData.palette.outerEdge}
@@ -2256,7 +2286,7 @@ const TowerScene = memo(function TowerScene({
   showApartmentMeshes,
   showTowerMeshes,
   showTrackingDebug,
-  touchOptimizedHighlights,
+  touchHighlightProfile,
   trackingVideoAspect,
 }: {
   apartments: InventoryApartment[];
@@ -2283,7 +2313,7 @@ const TowerScene = memo(function TowerScene({
   showApartmentMeshes: boolean;
   showTowerMeshes: boolean;
   showTrackingDebug: boolean;
-  touchOptimizedHighlights: boolean;
+  touchHighlightProfile: TouchHighlightProfile;
   trackingVideoAspect: number;
 }) {
   const { camera, gl, invalidate, raycaster } = useThree();
@@ -2681,7 +2711,7 @@ const TowerScene = memo(function TowerScene({
   const highlightRenderMode: HighlightRenderMode =
     interactionMode === "dragging" || interactionMode === "settling"
       ? "light"
-      : touchOptimizedHighlights
+      : touchHighlightProfile !== "desktop"
         ? "medium"
       : effectiveFilteredApartmentIds.size > 12 || simplifyFilteredVisuals
         ? "medium"
@@ -2786,7 +2816,7 @@ const TowerScene = memo(function TowerScene({
                   renderMode={highlightRenderMode}
                   selectedApartmentId={selectedApartmentId}
                   simplifyFilteredVisuals={simplifyFilteredVisuals}
-                  touchOptimized={touchOptimizedHighlights}
+                  touchHighlightProfile={touchHighlightProfile}
                 />
               ) : null}
             </group>
@@ -2811,7 +2841,7 @@ const TowerScene = memo(function TowerScene({
                   renderMode={highlightRenderMode}
                   selectedApartmentId={selectedApartmentId}
                   simplifyFilteredVisuals={simplifyFilteredVisuals}
-                  touchOptimized={touchOptimizedHighlights}
+                  touchHighlightProfile={touchHighlightProfile}
                 />
               ) : null}
             </group>
@@ -2835,7 +2865,7 @@ const TowerScene = memo(function TowerScene({
                 renderMode={highlightRenderMode}
                 selectedApartmentId={selectedApartmentId}
                 simplifyFilteredVisuals={simplifyFilteredVisuals}
-                touchOptimized={touchOptimizedHighlights}
+                touchHighlightProfile={touchHighlightProfile}
               />
             ) : null}
           </group>
@@ -2870,7 +2900,7 @@ type MasterPlanFrameHoverStageProps = {
   onSetFrame: (frame: number) => void;
   selectedApartmentId: string | null;
   selectedTower: TowerType | null;
-  touchOptimizedHighlights?: boolean;
+  touchHighlightProfile?: TouchHighlightProfile;
 };
 
 export default function MasterPlanFrameHoverStage({
@@ -2885,7 +2915,7 @@ export default function MasterPlanFrameHoverStage({
   onSetFrame,
   selectedApartmentId,
   selectedTower,
-  touchOptimizedHighlights = false,
+  touchHighlightProfile = "desktop",
 }: MasterPlanFrameHoverStageProps) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -4040,19 +4070,31 @@ export default function MasterPlanFrameHoverStage({
     interactionMode === "idle";
   const showVideo = isVideoReady;
   const canvasDpr: [number, number] = useMemo(
-    () =>
-      getCanvasDprRange(performanceProfile.tier, {
+    () => {
+      const baseRange = getCanvasDprRange(performanceProfile.tier, {
         isDragging,
         isSafariLike: performanceProfile.isSafariLike,
         isSettling,
         supportsPreciseHover,
-      }),
+      });
+
+      if (touchHighlightProfile === "mobile") {
+        return [Math.min(baseRange[0], 0.28), Math.min(baseRange[1], 0.46)];
+      }
+
+      if (touchHighlightProfile === "tablet") {
+        return [Math.min(baseRange[0], 0.34), Math.min(baseRange[1], 0.56)];
+      }
+
+      return baseRange;
+    },
     [
       isDragging,
       isSettling,
       performanceProfile.isSafariLike,
       performanceProfile.tier,
       supportsPreciseHover,
+      touchHighlightProfile,
     ],
   );
   const trackingFrame = snapInfo.frame;
@@ -4565,7 +4607,7 @@ export default function MasterPlanFrameHoverStage({
                   if (
                     event.pointerType === "touch" &&
                     window.performance.now() - lastTouchSelectionTimestampRef.current <
-                      400
+                      120
                   ) {
                     return;
                   }
@@ -4645,7 +4687,7 @@ export default function MasterPlanFrameHoverStage({
                       showApartmentMeshes={showApartmentMeshes}
                       showTowerMeshes={showTowerMeshes}
                       showTrackingDebug={showTrackingDebug}
-                      touchOptimizedHighlights={touchOptimizedHighlights}
+                      touchHighlightProfile={touchHighlightProfile}
                       trackingVideoAspect={trackingSceneAspect}
                     />
                   </Suspense>

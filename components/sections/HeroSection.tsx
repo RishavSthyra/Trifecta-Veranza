@@ -142,9 +142,12 @@ export default function HeroSection({
     startedEntryTransitionRef.current = true;
     heroVideo?.pause();
     entryVideo.muted = true;
+    entryVideo.defaultMuted = true;
     entryVideo.playsInline = true;
     entryVideo.setAttribute("playsinline", "true");
     entryVideo.setAttribute("webkit-playsinline", "true");
+    entryVideo.setAttribute("autoplay", "true");
+    entryVideo.setAttribute("x-webkit-airplay", "deny");
     entryVideo.pause();
     entryVideo.currentTime = 0;
     setIsEntryVideoVisible(true);
@@ -207,6 +210,8 @@ export default function HeroSection({
     heroVideo.playsInline = true;
     heroVideo.setAttribute("playsinline", "true");
     heroVideo.setAttribute("webkit-playsinline", "true");
+    heroVideo.setAttribute("autoplay", "true");
+    heroVideo.setAttribute("x-webkit-airplay", "deny");
     heroVideo.load();
     reportProgress();
     void heroVideo.play().catch(() => undefined);
@@ -373,9 +378,14 @@ export default function HeroSection({
         }`}
         autoPlay
         muted
+        defaultMuted
         loop
         playsInline
         preload="auto"
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
+        controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
         src={heroVideoSrc ?? undefined}
       />
 
@@ -386,8 +396,14 @@ export default function HeroSection({
         }`}
         crossOrigin="anonymous"
         muted
+        defaultMuted
+        autoPlay
         playsInline
         preload="auto"
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
+        controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
         onCanPlay={() => {
           setEntryVideoReady(true);
         }}

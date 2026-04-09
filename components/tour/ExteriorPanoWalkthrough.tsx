@@ -84,7 +84,7 @@ const uiFont = Manrope({
   weight: ["500", "600", "700"],
 });
 
-const DEFAULT_ZOOM = 46;
+const DEFAULT_ZOOM = 44;
 const MIN_PITCH = -Math.PI / 2 + 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.08;
 const EXTERIOR_SPHERE_RESOLUTION = 128;
@@ -1175,8 +1175,10 @@ export default function ExteriorPanoWalkthrough({
         />
 
         <div
-          className={`relative h-full w-[min(90vw,360px)] border-r border-white/10 bg-[linear-gradient(180deg,rgba(4,6,10,0.96)_0%,rgba(7,10,15,0.94)_100%)] p-4 shadow-[0_24px_64px_rgba(0,0,0,0.45)] backdrop-blur-2xl transition duration-300 lg:w-[420px] ${
-            isMobileAmenitiesOpen ? "translate-x-0" : "-translate-x-full"
+          className={`absolute left-2 top-2 bottom-2 flex w-[calc(100vw-1rem)] max-w-[22.5rem] flex-col rounded-[1.75rem] border border-white/14 bg-[linear-gradient(180deg,rgba(154,165,175,0.16)_0%,rgba(106,118,128,0.12)_100%)] p-4 text-white shadow-[0_24px_64px_rgba(0,0,0,0.22)] backdrop-blur-[24px] transition duration-300 sm:left-3 sm:top-3 sm:bottom-3 sm:w-[25rem] sm:max-w-none md:left-4 md:top-4 md:bottom-4 md:w-[26rem] xl:left-8 xl:top-28 xl:bottom-auto xl:h-[min(66dvh,42rem)] xl:w-[24rem] xl:rounded-[2rem] xl:border-white/18 xl:bg-[linear-gradient(180deg,rgba(170,180,188,0.18)_0%,rgba(122,136,146,0.12)_100%)] 2xl:left-10 2xl:top-32 2xl:w-[25rem] ${
+            isMobileAmenitiesOpen
+              ? "translate-x-0"
+              : "-translate-x-[calc(100%+0.5rem)] sm:-translate-x-[calc(100%+0.75rem)] md:-translate-x-[calc(100%+1rem)] xl:-translate-x-[calc(100%+2rem)] 2xl:-translate-x-[calc(100%+2.5rem)]"
           }`}
         >
           <div className="flex items-start justify-between gap-4">
@@ -1193,7 +1195,7 @@ export default function ExteriorPanoWalkthrough({
               type="button"
               aria-label="Close amenities menu"
               onClick={() => setIsMobileAmenitiesOpen(false)}
-              className="flex h-11 w-11 items-center justify-center rounded-[1rem] border border-white/10 bg-white/5 text-white transition hover:border-white/20 hover:bg-white/10"
+              className="flex h-11 w-11 items-center justify-center rounded-[1rem] border border-white/18 bg-white/10 text-white transition hover:border-white/28 hover:bg-white/14"
             >
               <X className="h-4.5 w-4.5" />
             </button>
@@ -1203,21 +1205,22 @@ export default function ExteriorPanoWalkthrough({
             Tap any amenity to jump into its exterior panorama.
           </div>
 
-          <div className="mt-5 max-h-[calc(100dvh-10rem)] space-y-3 overflow-y-auto pr-1">
-            {exteriorAmenities.map((amenity) => (
-              <AmenityCard
-                key={amenity.id}
-                amenity={amenity}
-                isActive={activeAmenityId === amenity.id}
-                compact
-                onClick={() => {
-                  setIsMobileAmenitiesOpen(false);
-                  void jumpToNode(amenity.primaryNodeId);
-                }}
-              />
-            ))}
+          <div className="custom-scrollbar mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
+            <div className="space-y-3 pb-6">
+              {exteriorAmenities.map((amenity) => (
+                <AmenityCard
+                  key={amenity.id}
+                  amenity={amenity}
+                  isActive={activeAmenityId === amenity.id}
+                  compact
+                  onClick={() => {
+                    setIsMobileAmenitiesOpen(false);
+                    void jumpToNode(amenity.primaryNodeId);
+                  }}
+                />
+              ))}
 
-            <div className="pt-4 lg:hidden">
+              <div className="pt-4 lg:hidden">
               <div className={`${uiFont.className} text-[10px] uppercase tracking-[0.32em] text-white/42`}>
                 Minimap
               </div>
@@ -1288,6 +1291,7 @@ export default function ExteriorPanoWalkthrough({
                   </div>
                 </div>
               </div>
+            </div>
             </div>
           </div>
         </div>
