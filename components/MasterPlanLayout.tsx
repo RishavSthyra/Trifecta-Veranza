@@ -350,6 +350,7 @@ export default function MasterPlanLayout({
   const [isLeaving, setIsLeaving] = useState(false);
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isDesktopCompactViewport, setIsDesktopCompactViewport] =
     useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
@@ -389,6 +390,9 @@ export default function MasterPlanLayout({
   );
   const shouldUseCompactLayout =
     isCompactViewport || isTouchTabletViewport;
+  const shouldEnableCompactStageScrubbing = !isMobileViewport;
+  const shouldUseTouchOptimizedHighlights =
+    isMobileViewport || isTouchTabletViewport;
   const compactStageHeightClassName = shouldUseCompactLayout
     ? "h-[clamp(18.75rem,45svh,27rem)] sm:h-[clamp(20.5rem,48svh,31rem)]"
     : "h-[clamp(20rem,50svh,32rem)]";
@@ -571,12 +575,14 @@ export default function MasterPlanLayout({
     }
 
     const compactViewportMedia = window.matchMedia("(max-width: 1279px)");
+    const mobileViewportMedia = window.matchMedia("(max-width: 767px)");
     const desktopCompactViewportMedia = window.matchMedia(
       "(min-width: 1280px) and (max-width: 1699px)",
     );
     const touchViewportMedia = window.matchMedia("(max-width: 1366px)");
     const syncCompactViewport = () => {
       setIsCompactViewport(compactViewportMedia.matches);
+      setIsMobileViewport(mobileViewportMedia.matches);
       setIsDesktopCompactViewport(desktopCompactViewportMedia.matches);
       setIsTouchTabletViewport(
         touchViewportMedia.matches && window.navigator.maxTouchPoints > 0,
@@ -585,11 +591,13 @@ export default function MasterPlanLayout({
 
     syncCompactViewport();
     compactViewportMedia.addEventListener("change", syncCompactViewport);
+    mobileViewportMedia.addEventListener("change", syncCompactViewport);
     desktopCompactViewportMedia.addEventListener("change", syncCompactViewport);
     touchViewportMedia.addEventListener("change", syncCompactViewport);
 
     return () => {
       compactViewportMedia.removeEventListener("change", syncCompactViewport);
+      mobileViewportMedia.removeEventListener("change", syncCompactViewport);
       desktopCompactViewportMedia.removeEventListener(
         "change",
         syncCompactViewport,
@@ -1332,6 +1340,7 @@ export default function MasterPlanLayout({
             onSetFrame={setWrappedFrame}
             selectedApartmentId={selectedApartmentMeshId}
             selectedTower={selectedTower}
+            touchOptimizedHighlights={false}
           />
         )
       ) : null}
@@ -1410,7 +1419,7 @@ export default function MasterPlanLayout({
                 <MasterPlanFrameHoverStage
                   apartments={apartments}
                   currentFrame={currentFrame}
-                  dragEnabled={false}
+                  dragEnabled={shouldEnableCompactStageScrubbing}
                   filteredApartments={hasActiveInventoryFilters ? filteredApartments : []}
                   inventoryError={inventoryError}
                   inventoryState={isInventoryLoading ? "loading" : inventoryError ? "error" : "ready"}
@@ -1419,6 +1428,7 @@ export default function MasterPlanLayout({
                   onSetFrame={setWrappedFrame}
                   selectedApartmentId={selectedApartmentMeshId}
                   selectedTower={selectedTower}
+                  touchOptimizedHighlights={shouldUseTouchOptimizedHighlights}
                 />
               )}
             </div>

@@ -1836,6 +1836,7 @@ const HighlightOverlay = memo(function HighlightOverlay({
   renderMode,
   selectedApartmentId,
   simplifyFilteredVisuals,
+  touchOptimized,
 }: {
   filteredApartmentIds: Set<string>;
   getApartmentStatus: (
@@ -1846,30 +1847,51 @@ const HighlightOverlay = memo(function HighlightOverlay({
   renderMode: HighlightRenderMode;
   selectedApartmentId: string | null;
   simplifyFilteredVisuals: boolean;
+  touchOptimized: boolean;
 }) {
+  const getEffectivePalette = useCallback(
+    (palette: ApartmentHighlightPalette) =>
+      touchOptimized
+        ? {
+            ...palette,
+            fillOpacity: Math.min(palette.fillOpacity * 0.42, 0.085),
+          }
+        : palette,
+    [touchOptimized],
+  );
   const hoveredMeshes = useMemo(() => {
     if (!hoveredApartmentId || hoveredApartmentId === selectedApartmentId) {
       return [];
     }
 
-    const palette = getApartmentHighlightPalette(
-      getApartmentStatus(hoveredApartmentId),
-      "hover",
+    const palette = getEffectivePalette(
+      getApartmentHighlightPalette(
+        getApartmentStatus(hoveredApartmentId),
+        "hover",
+      ),
     );
 
     return (apartments.get(hoveredApartmentId) ?? []).map((meshData) => ({
       meshData,
       palette,
     }));
-  }, [apartments, getApartmentStatus, hoveredApartmentId, selectedApartmentId]);
+  }, [
+    apartments,
+    getApartmentStatus,
+    getEffectivePalette,
+    hoveredApartmentId,
+    selectedApartmentId,
+  ]);
   const selectedMeshes = useMemo(() => {
     if (!selectedApartmentId) {
       return [];
     }
 
-    const palette = getApartmentHighlightPalette(
-      getApartmentStatus(selectedApartmentId),
-      "filter",
+    const palette = getEffectivePalette(
+      getApartmentHighlightPalette(
+        getApartmentStatus(selectedApartmentId),
+        "filter",
+      ),
     );
 
     return (apartments.get(selectedApartmentId) ?? []).map((meshData) => ({
@@ -1879,7 +1901,7 @@ const HighlightOverlay = memo(function HighlightOverlay({
         fillOpacity: Math.min(palette.fillOpacity + 0.08, 0.3),
       },
     }));
-  }, [apartments, getApartmentStatus, selectedApartmentId]);
+  }, [apartments, getApartmentStatus, getEffectivePalette, selectedApartmentId]);
   const filteredMeshes = useMemo(() => {
     const next: Array<{
       meshData: HoverMeshData;
@@ -1896,9 +1918,11 @@ const HighlightOverlay = memo(function HighlightOverlay({
       }
 
       const apartmentMeshes = apartments.get(apartmentId);
-      const palette = getApartmentHighlightPalette(
-        getApartmentStatus(apartmentId),
-        "filter",
+      const palette = getEffectivePalette(
+        getApartmentHighlightPalette(
+          getApartmentStatus(apartmentId),
+          "filter",
+        ),
       );
 
       if (apartmentMeshes?.length) {
@@ -1916,14 +1940,18 @@ const HighlightOverlay = memo(function HighlightOverlay({
     apartments,
     filteredApartmentIds,
     getApartmentStatus,
+    getEffectivePalette,
     hoveredApartmentId,
     selectedApartmentId,
   ]);
   const renderFill = renderMode !== "light";
-  const renderOuterEdges = renderMode === "full";
-  const edgeThickness = renderMode === "light" ? 1 : 2;
+  const renderOuterEdges = renderMode === "full" && !touchOptimized;
+  const edgeThickness = touchOptimized ? 1 : renderMode === "light" ? 1 : 2;
+  const filteredEdgeScaleMultiplier = touchOptimized ? 1.003 : 1.006;
+  const focusedEdgeScaleMultiplier = touchOptimized ? 1.004 : 1.008;
   const shouldSimplifyFilteredEdges =
     renderMode !== "full" ||
+    touchOptimized ||
     simplifyFilteredVisuals ||
     filteredMeshes.length >= FILTER_HIGHLIGHT_EDGE_SIMPLIFY_THRESHOLD;
 
@@ -1958,7 +1986,7 @@ const HighlightOverlay = memo(function HighlightOverlay({
             geometry={meshData.meshData.geometry}
             matrix={meshData.meshData.matrix}
             renderOrder={11}
-            scaleMultiplier={1.006}
+            scaleMultiplier={filteredEdgeScaleMultiplier}
             thickness={edgeThickness}
           />
           {!shouldSimplifyFilteredEdges && renderOuterEdges ? (
@@ -1994,7 +2022,7 @@ const HighlightOverlay = memo(function HighlightOverlay({
             geometry={meshData.meshData.geometry}
             matrix={meshData.meshData.matrix}
             renderOrder={15}
-            scaleMultiplier={1.008}
+            scaleMultiplier={focusedEdgeScaleMultiplier}
             thickness={edgeThickness}
           />
           {renderOuterEdges ? (
@@ -2030,7 +2058,7 @@ const HighlightOverlay = memo(function HighlightOverlay({
             geometry={meshData.meshData.geometry}
             matrix={meshData.meshData.matrix}
             renderOrder={13}
-            scaleMultiplier={1.008}
+            scaleMultiplier={focusedEdgeScaleMultiplier}
             thickness={edgeThickness}
           />
           {renderOuterEdges ? (
@@ -2228,6 +2256,7 @@ const TowerScene = memo(function TowerScene({
   showApartmentMeshes,
   showTowerMeshes,
   showTrackingDebug,
+  touchOptimizedHighlights,
   trackingVideoAspect,
 }: {
   apartments: InventoryApartment[];
@@ -2254,6 +2283,7 @@ const TowerScene = memo(function TowerScene({
   showApartmentMeshes: boolean;
   showTowerMeshes: boolean;
   showTrackingDebug: boolean;
+  touchOptimizedHighlights: boolean;
   trackingVideoAspect: number;
 }) {
   const { camera, gl, invalidate, raycaster } = useThree();
@@ -2651,6 +2681,8 @@ const TowerScene = memo(function TowerScene({
   const highlightRenderMode: HighlightRenderMode =
     interactionMode === "dragging" || interactionMode === "settling"
       ? "light"
+      : touchOptimizedHighlights
+        ? "medium"
       : effectiveFilteredApartmentIds.size > 12 || simplifyFilteredVisuals
         ? "medium"
         : "full";
@@ -2754,6 +2786,7 @@ const TowerScene = memo(function TowerScene({
                   renderMode={highlightRenderMode}
                   selectedApartmentId={selectedApartmentId}
                   simplifyFilteredVisuals={simplifyFilteredVisuals}
+                  touchOptimized={touchOptimizedHighlights}
                 />
               ) : null}
             </group>
@@ -2778,6 +2811,7 @@ const TowerScene = memo(function TowerScene({
                   renderMode={highlightRenderMode}
                   selectedApartmentId={selectedApartmentId}
                   simplifyFilteredVisuals={simplifyFilteredVisuals}
+                  touchOptimized={touchOptimizedHighlights}
                 />
               ) : null}
             </group>
@@ -2801,6 +2835,7 @@ const TowerScene = memo(function TowerScene({
                 renderMode={highlightRenderMode}
                 selectedApartmentId={selectedApartmentId}
                 simplifyFilteredVisuals={simplifyFilteredVisuals}
+                touchOptimized={touchOptimizedHighlights}
               />
             ) : null}
           </group>
@@ -2835,6 +2870,7 @@ type MasterPlanFrameHoverStageProps = {
   onSetFrame: (frame: number) => void;
   selectedApartmentId: string | null;
   selectedTower: TowerType | null;
+  touchOptimizedHighlights?: boolean;
 };
 
 export default function MasterPlanFrameHoverStage({
@@ -2849,6 +2885,7 @@ export default function MasterPlanFrameHoverStage({
   onSetFrame,
   selectedApartmentId,
   selectedTower,
+  touchOptimizedHighlights = false,
 }: MasterPlanFrameHoverStageProps) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
@@ -4608,6 +4645,7 @@ export default function MasterPlanFrameHoverStage({
                       showApartmentMeshes={showApartmentMeshes}
                       showTowerMeshes={showTowerMeshes}
                       showTrackingDebug={showTrackingDebug}
+                      touchOptimizedHighlights={touchOptimizedHighlights}
                       trackingVideoAspect={trackingSceneAspect}
                     />
                   </Suspense>

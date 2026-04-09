@@ -438,6 +438,7 @@ export default function InteriorPanoWalkthrough({
   const [availableNodeIds, setAvailableNodeIds] = useState<Set<string> | null>(null);
   const [preferredFrame, setPreferredFrame] = useState<string | null>(null);
   const [isSlowNetwork, setIsSlowNetwork] = useState(false);
+  const [isMobileTouchViewport, setIsMobileTouchViewport] = useState(false);
   const viewerHostRef = useRef<HTMLDivElement | null>(null);
   const bindingsRef = useRef<ViewerBindings | null>(null);
   const activeNodeIdRef = useRef(activeNodeId);
@@ -451,6 +452,9 @@ export default function InteriorPanoWalkthrough({
   const panoBaseUrl = isBareShellMode ? BARE_SHELL_PANO_BASE_URL : FURNISHED_PANO_BASE_URL;
   const floorMapUrl = isBareShellMode ? BARE_SHELL_FLOOR_MAP_URL : FURNISHED_FLOOR_MAP_URL;
   const assetStore = useMemo(() => new PanoAssetStore(panoBaseUrl), [panoBaseUrl]);
+  const interiorViewerMoveSpeed = isMobileTouchViewport ? 3.6 : 2;
+  const interiorViewerMoveInertia = isMobileTouchViewport ? 0.82 : 0.92;
+  const interiorNodeTransitionSpeed = isMobileTouchViewport ? 560 : 650;
 
   const nodes = useMemo(() => {
     if (!availableNodeIds) {
@@ -595,7 +599,7 @@ export default function InteriorPanoWalkthrough({
       const completed = await bindings.virtualTour.setCurrentNode(targetId, {
         effect: "fade",
         showLoader: false,
-        speed: 650,
+        speed: interiorNodeTransitionSpeed,
         rotation: true,
       });
 
@@ -607,7 +611,7 @@ export default function InteriorPanoWalkthrough({
       setViewerError(`Failed to load ${getRoomLabel(targetNode.imageFilename)}.`);
       setIsTransitioning(false);
     }
-  }, [buildTourNode, graph.byId, isTransitioning]);
+  }, [buildTourNode, graph.byId, interiorNodeTransitionSpeed, isTransitioning]);
 
   const navigateToDirection = useCallback(
     async (direction: NavigationDirection) => {
@@ -620,6 +624,37 @@ export default function InteriorPanoWalkthrough({
     },
     [goToNode, navigationTargets],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mobileViewportMedia = window.matchMedia("(max-width: 767px)");
+    const coarsePointerMedia = window.matchMedia("(pointer: coarse)");
+    const anyCoarsePointerMedia = window.matchMedia("(any-pointer: coarse)");
+
+    const syncMobileTouchViewport = () => {
+      setIsMobileTouchViewport(
+        mobileViewportMedia.matches &&
+          (coarsePointerMedia.matches || anyCoarsePointerMedia.matches),
+      );
+    };
+
+    syncMobileTouchViewport();
+    mobileViewportMedia.addEventListener("change", syncMobileTouchViewport);
+    coarsePointerMedia.addEventListener("change", syncMobileTouchViewport);
+    anyCoarsePointerMedia.addEventListener("change", syncMobileTouchViewport);
+
+    return () => {
+      mobileViewportMedia.removeEventListener("change", syncMobileTouchViewport);
+      coarsePointerMedia.removeEventListener("change", syncMobileTouchViewport);
+      anyCoarsePointerMedia.removeEventListener(
+        "change",
+        syncMobileTouchViewport,
+      );
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -830,8 +865,8 @@ export default function InteriorPanoWalkthrough({
         defaultZoomLvl: DEFAULT_ZOOM,
         minFov: INTERIOR_MIN_FOV,
         maxFov: INTERIOR_MAX_FOV,
-        moveSpeed: 2,
-        moveInertia: 0.92,
+        moveSpeed: interiorViewerMoveSpeed,
+        moveInertia: interiorViewerMoveInertia,
         rendererParameters: {
           antialias: true,
           powerPreference: "high-performance",
@@ -847,7 +882,7 @@ export default function InteriorPanoWalkthrough({
             transitionOptions: {
               effect: "fade",
               showLoader: false,
-              speed: 650,
+              speed: interiorNodeTransitionSpeed,
               rotation: true,
             },
             linksOnCompass: false,
@@ -915,7 +950,17 @@ export default function InteriorPanoWalkthrough({
         bindingsRef.current = null;
       }
     };
-  }, [assetStore, buildTourNode, graph.nodes, isSlowNetwork, panoBaseUrl, resolvePano]);
+  }, [
+    assetStore,
+    buildTourNode,
+    graph.nodes,
+    interiorNodeTransitionSpeed,
+    interiorViewerMoveInertia,
+    interiorViewerMoveSpeed,
+    isSlowNetwork,
+    panoBaseUrl,
+    resolvePano,
+  ]);
 
   if (availableNodeIds === null) {
     return (
