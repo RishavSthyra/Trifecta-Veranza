@@ -1501,51 +1501,105 @@ export default function MasterPlanLayout({
             }
           >
             {selectedApartment ? (
-              <div
-                className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0"
-                data-scroll-area="compact-panel"
-              >
-                <SelectedFlatDetailsPanel
-                  ref={selectedFlatPanelRef}
-                  apartment={selectedApartment}
-                  appleScrollCompatible={shouldUseAppleCompactScrollFix}
-                  compact
-                  onClose={clearSelectedApartment}
-                />
-              </div>
+              shouldUseAppleCompactScrollFix ? (
+                <div
+                  className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0 [-webkit-overflow-scrolling:touch] touch-pan-y"
+                  data-scroll-area="compact-panel"
+                >
+                  <div className="min-h-full">
+                    <SelectedFlatDetailsPanel
+                      ref={selectedFlatPanelRef}
+                      apartment={selectedApartment}
+                      appleScrollCompatible
+                      compact
+                      onClose={clearSelectedApartment}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0"
+                  data-scroll-area="compact-panel"
+                >
+                  <SelectedFlatDetailsPanel
+                    ref={selectedFlatPanelRef}
+                    apartment={selectedApartment}
+                    appleScrollCompatible={false}
+                    compact
+                    onClose={clearSelectedApartment}
+                  />
+                </div>
+              )
             ) : selectedTower ? (
-              <div
-                className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-2 pb-2.5 pt-2 sm:gap-3 sm:px-2.5"
-                data-scroll-area="compact-panel"
-              >
-                <MasterPlanFiltersCard
-                  search={search}
-                  onSearchChange={setSearch}
-                  selectedTower={selectedTower}
-                  bhk={bhk}
-                  onBhkChange={setBhk}
-                  facing={facing}
-                  onFacingChange={setFacing}
-                  status={status}
-                  onStatusChange={setStatus}
-                  minArea={minArea}
-                  onMinAreaChange={setMinArea}
-                  onReset={resetFilters}
-                  onBack={handleBackToTowerSelect}
-                  compact
-                />
+              shouldUseAppleCompactScrollFix ? (
+                <div
+                  className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2.5 pt-2 [-webkit-overflow-scrolling:touch] touch-pan-y sm:px-2.5"
+                  data-scroll-area="compact-panel"
+                >
+                  <div className="flex min-h-full flex-col gap-2.5 sm:gap-3">
+                    <MasterPlanFiltersCard
+                      search={search}
+                      onSearchChange={setSearch}
+                      selectedTower={selectedTower}
+                      bhk={bhk}
+                      onBhkChange={setBhk}
+                      facing={facing}
+                      onFacingChange={setFacing}
+                      status={status}
+                      onStatusChange={setStatus}
+                      minArea={minArea}
+                      onMinAreaChange={setMinArea}
+                      onReset={resetFilters}
+                      onBack={handleBackToTowerSelect}
+                      compact
+                    />
 
-                <MasterPlanResultsCard
-                  filteredApartments={filteredApartments}
-                  isInventoryLoading={isInventoryLoading}
-                  inventoryError={inventoryError}
-                  onApartmentSelect={handleApartmentListSelect}
-                  activeHotspot={activeHotspot}
-                  selectedApartmentId={selectedApartmentInventoryId}
-                  appleScrollCompatible={shouldUseAppleCompactScrollFix}
-                  compact
-                />
-              </div>
+                    <MasterPlanResultsCard
+                      filteredApartments={filteredApartments}
+                      isInventoryLoading={isInventoryLoading}
+                      inventoryError={inventoryError}
+                      onApartmentSelect={handleApartmentListSelect}
+                      activeHotspot={activeHotspot}
+                      selectedApartmentId={selectedApartmentInventoryId}
+                      appleScrollCompatible
+                      compact
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-2 pb-2.5 pt-2 sm:gap-3 sm:px-2.5"
+                  data-scroll-area="compact-panel"
+                >
+                  <MasterPlanFiltersCard
+                    search={search}
+                    onSearchChange={setSearch}
+                    selectedTower={selectedTower}
+                    bhk={bhk}
+                    onBhkChange={setBhk}
+                    facing={facing}
+                    onFacingChange={setFacing}
+                    status={status}
+                    onStatusChange={setStatus}
+                    minArea={minArea}
+                    onMinAreaChange={setMinArea}
+                    onReset={resetFilters}
+                    onBack={handleBackToTowerSelect}
+                    compact
+                  />
+
+                  <MasterPlanResultsCard
+                    filteredApartments={filteredApartments}
+                    isInventoryLoading={isInventoryLoading}
+                    inventoryError={inventoryError}
+                    onApartmentSelect={handleApartmentListSelect}
+                    activeHotspot={activeHotspot}
+                    selectedApartmentId={selectedApartmentInventoryId}
+                    appleScrollCompatible={false}
+                    compact
+                  />
+                </div>
+              )
             ) : (
               <div
                 className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-2 pb-2.5 pt-2 [-webkit-overflow-scrolling:touch] touch-pan-y sm:px-2.5"
@@ -2299,7 +2353,11 @@ function MasterPlanResultsCard({
   return (
     <motion.div
       className={`${appleScrollCompatible && compact ? "" : "surface-contain "}flex min-h-0 flex-col rounded-[24px] border border-white/30 bg-white/75 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] ${
-        compact ? "min-h-0 flex-1 p-3" : "flex-1 p-4"
+        compact
+          ? appleScrollCompatible
+            ? "shrink-0 p-3"
+            : "min-h-0 flex-1 p-3"
+          : "flex-1 p-4"
       }`}
     >
       <div className={`flex items-center justify-between ${compact ? "mb-3" : "mb-4"}`}>
@@ -2320,7 +2378,7 @@ function MasterPlanResultsCard({
         animate="visible"
         className={`custom-scrollbar ${
           appleScrollCompatible && compact
-            ? "h-0 flex-1 overflow-y-scroll"
+            ? "overflow-visible"
             : "min-h-0 flex-1 overflow-y-auto"
         } overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch] touch-pan-y ${
           compact ? "pr-1" : "pr-2"
