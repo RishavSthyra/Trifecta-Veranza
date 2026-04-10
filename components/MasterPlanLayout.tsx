@@ -122,6 +122,14 @@ function isSafariLikeUserAgent(userAgent: string) {
   );
 }
 
+function shouldUseAppleScrollFix(userAgent: string, maxTouchPoints: number) {
+  const isTouchAppleDevice =
+    /iPhone|iPad|iPod/i.test(userAgent) ||
+    (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
+
+  return isTouchAppleDevice || isSafariLikeUserAgent(userAgent);
+}
+
 function getApartmentMeshId(apartment: InventoryApartment) {
   const towerCode = apartment.tower === "Tower B" ? "B" : "A";
   const floorCode = String(apartment.floor)
@@ -354,6 +362,7 @@ export default function MasterPlanLayout({
   const [isDesktopCompactViewport, setIsDesktopCompactViewport] =
     useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
+  const [useAppleScrollFix, setUseAppleScrollFix] = useState(false);
   const [isSafariLike, setIsSafariLike] = useState(false);
   const [isTouchTabletViewport, setIsTouchTabletViewport] = useState(false);
   const [isTopViewMode, setIsTopViewMode] = useState(false);
@@ -390,7 +399,7 @@ export default function MasterPlanLayout({
   );
   const shouldUseCompactLayout =
     isCompactViewport || isTouchTabletViewport;
-  const shouldEnableCompactStageScrubbing = true;
+  const shouldEnableCompactStageScrubbing = !isMobileViewport;
   const compactTouchHighlightProfile = isMobileViewport
     ? "mobile"
     : isTouchTabletViewport
@@ -404,6 +413,8 @@ export default function MasterPlanLayout({
       ? "-mt-1 min-h-0 flex-1 px-0 pb-0"
       : "-mt-1 min-h-0 flex-1 px-0 pb-0"
     : "mt-2 min-h-0 flex-1 px-3 pb-3";
+  const shouldUseAppleCompactScrollFix =
+    useAppleScrollFix && shouldUseCompactLayout;
   const shouldUseTouchBackNavigation =
     shouldUseCompactLayout;
   const shouldShowDesktopSidebar =
@@ -438,7 +449,11 @@ export default function MasterPlanLayout({
       return;
     }
 
-    setIsSafariLike(isSafariLikeUserAgent(navigator.userAgent ?? ""));
+    const userAgent = navigator.userAgent ?? "";
+    const maxTouchPoints = navigator.maxTouchPoints ?? 0;
+
+    setIsSafariLike(isSafariLikeUserAgent(userAgent));
+    setUseAppleScrollFix(shouldUseAppleScrollFix(userAgent, maxTouchPoints));
   }, []);
 
   useEffect(() => {
@@ -1477,8 +1492,12 @@ export default function MasterPlanLayout({
           <div
             className={
               selectedApartment
-                ? "flex h-full min-h-0 flex-col overflow-hidden"
-                : "surface-contain flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_24px_64px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70"
+                ? shouldUseAppleCompactScrollFix
+                  ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                  : "flex h-full min-h-0 flex-col overflow-hidden"
+                : `${shouldUseAppleCompactScrollFix ? "" : "surface-contain "}flex ${
+                    shouldUseAppleCompactScrollFix ? "min-h-0 flex-1" : "h-full min-h-0"
+                  } flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_24px_64px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70`
             }
           >
             {selectedApartment ? (
@@ -1489,6 +1508,7 @@ export default function MasterPlanLayout({
                 <SelectedFlatDetailsPanel
                   ref={selectedFlatPanelRef}
                   apartment={selectedApartment}
+                  appleScrollCompatible={shouldUseAppleCompactScrollFix}
                   compact
                   onClose={clearSelectedApartment}
                 />
@@ -1522,6 +1542,7 @@ export default function MasterPlanLayout({
                   onApartmentSelect={handleApartmentListSelect}
                   activeHotspot={activeHotspot}
                   selectedApartmentId={selectedApartmentInventoryId}
+                  appleScrollCompatible={shouldUseAppleCompactScrollFix}
                   compact
                 />
               </div>
@@ -1802,7 +1823,7 @@ export default function MasterPlanLayout({
               }`}
             >
               <div
-                className={`surface-contain flex min-h-0 flex-col overflow-hidden rounded-t-[26px] border border-white/60 border-b-0 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:mx-1 sm:rounded-t-[28px] sm:rounded-b-none ${
+                className={`${shouldUseAppleCompactScrollFix ? "" : "surface-contain "}flex min-h-0 flex-col overflow-hidden rounded-t-[26px] border border-white/60 border-b-0 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:mx-1 sm:rounded-t-[28px] sm:rounded-b-none ${
                   selectedTower ? "h-[min(84dvh,48rem)]" : "h-auto"
                 }`}
                 data-scroll-area={selectedTower ? "mobile-sheet" : undefined}
@@ -2263,6 +2284,7 @@ function MasterPlanResultsCard({
   onApartmentSelect,
   activeHotspot,
   selectedApartmentId,
+  appleScrollCompatible = false,
   compact = false,
 }: {
   filteredApartments: InventoryApartment[];
@@ -2271,11 +2293,12 @@ function MasterPlanResultsCard({
   onApartmentSelect: (apartment: InventoryApartment) => void;
   activeHotspot: MasterPlanHotspotKey;
   selectedApartmentId: string | null;
+  appleScrollCompatible?: boolean;
   compact?: boolean;
 }) {
   return (
     <motion.div
-      className={`surface-contain flex min-h-0 flex-col rounded-[24px] border border-white/30 bg-white/75 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] ${
+      className={`${appleScrollCompatible && compact ? "" : "surface-contain "}flex min-h-0 flex-col rounded-[24px] border border-white/30 bg-white/75 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] ${
         compact ? "min-h-0 flex-1 p-3" : "flex-1 p-4"
       }`}
     >
@@ -2295,7 +2318,11 @@ function MasterPlanResultsCard({
         variants={staggerWrap}
         initial="hidden"
         animate="visible"
-        className={`custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch] touch-pan-y ${
+        className={`custom-scrollbar ${
+          appleScrollCompatible && compact
+            ? "h-0 flex-1 overflow-y-scroll"
+            : "min-h-0 flex-1 overflow-y-auto"
+        } overscroll-contain [overflow-anchor:none] [-webkit-overflow-scrolling:touch] touch-pan-y ${
           compact ? "pr-1" : "pr-2"
         }`}
         data-scroll-area="results"
