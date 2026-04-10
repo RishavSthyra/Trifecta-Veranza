@@ -7,6 +7,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { MASTER_PLAN_SCRUB_HQ_VIDEO_PATH } from "@/data/masterPlanFrameCdnUrls";
 
+const HERO_POSTER_URL = "https://cdn.sthyra.com/images/first_frame_again.png";
+const ENTRY_VIDEO_SRC =
+  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774906461/Tf_Fixed_Final_2.mp4";
+
 type IdleCapableWindow = Window &
   typeof globalThis & {
     requestIdleCallback?: (
@@ -65,7 +69,6 @@ export default function HeroSection({
   const startedEntryTransitionRef = useRef(false);
 
   const [videoReady, setVideoReady] = useState(false);
-  const [entryVideoReady, setEntryVideoReady] = useState(false);
   const [isTransitioningToMasterPlan, setIsTransitioningToMasterPlan] =
     useState(false);
   const [isEntryVideoVisible, setIsEntryVideoVisible] = useState(false);
@@ -141,18 +144,25 @@ export default function HeroSection({
 
     startedEntryTransitionRef.current = true;
     heroVideo?.pause();
+
     entryVideo.muted = true;
     entryVideo.defaultMuted = true;
     entryVideo.playsInline = true;
-    entryVideo.setAttribute("playsinline", "true");
-    entryVideo.setAttribute("webkit-playsinline", "true");
-    entryVideo.setAttribute("autoplay", "true");
-    entryVideo.setAttribute("x-webkit-airplay", "deny");
-    entryVideo.pause();
-    entryVideo.currentTime = 0;
+    entryVideo.setAttribute("playsinline", "");
+    entryVideo.setAttribute("webkit-playsinline", "");
+
+    if (entryVideo.src !== ENTRY_VIDEO_SRC) {
+      entryVideo.src = ENTRY_VIDEO_SRC;
+    }
+
     setIsEntryVideoVisible(true);
 
     try {
+      if (entryVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+        entryVideo.load();
+      }
+
+      entryVideo.currentTime = 0;
       await entryVideo.play();
     } catch {
       router.push("/master-plan");
@@ -165,12 +175,8 @@ export default function HeroSection({
     scrollLockRef.current = true;
     setIsTransitioningToMasterPlan(true);
     router.prefetch("/master-plan");
-    entryVideoRef.current?.load();
-    idleWarmVideoRef.current?.load();
-    if (entryVideoReady) {
-      void startEntryVideo();
-    }
-  }, [entryVideoReady, isTransitioningToMasterPlan, router, startEntryVideo]);
+    void startEntryVideo();
+  }, [isTransitioningToMasterPlan, router, startEntryVideo]);
 
   useEffect(() => {
     const heroVideo = heroVideoRef.current;
@@ -181,7 +187,6 @@ export default function HeroSection({
 
     let readyFrameId: number | null = null;
     let rafId: number | null = null;
-    let pollId: number | null = null;
 
     const markVideoReady = () => {
       setVideoReady(true);
@@ -208,11 +213,8 @@ export default function HeroSection({
     heroVideo.muted = true;
     heroVideo.defaultMuted = true;
     heroVideo.playsInline = true;
-    heroVideo.setAttribute("playsinline", "true");
-    heroVideo.setAttribute("webkit-playsinline", "true");
-    heroVideo.setAttribute("autoplay", "true");
-    heroVideo.setAttribute("x-webkit-airplay", "deny");
-    heroVideo.load();
+    heroVideo.setAttribute("playsinline", "");
+    heroVideo.setAttribute("webkit-playsinline", "");
     reportProgress();
     void heroVideo.play().catch(() => undefined);
 
@@ -263,14 +265,6 @@ export default function HeroSection({
     heroVideo.addEventListener("waiting", handleStateCheck);
     heroVideo.addEventListener("error", handleFallbackReady);
 
-    pollId = window.setInterval(() => {
-      handleStateCheck();
-
-      if (heroVideo.paused && !videoReady) {
-        void heroVideo.play().catch(() => undefined);
-      }
-    }, 250);
-
     return () => {
       if (readyFrameId !== null) {
         window.cancelAnimationFrame(readyFrameId);
@@ -278,10 +272,6 @@ export default function HeroSection({
 
       if (rafId !== null) {
         window.cancelAnimationFrame(rafId);
-      }
-
-      if (pollId !== null) {
-        window.clearInterval(pollId);
       }
 
       heroVideo.removeEventListener("loadedmetadata", handleProgress);
@@ -295,7 +285,7 @@ export default function HeroSection({
       heroVideo.removeEventListener("waiting", handleStateCheck);
       heroVideo.removeEventListener("error", handleFallbackReady);
     };
-  }, [heroVideoSrc, onHeroVideoProgressChange, videoReady]);
+  }, [heroVideoSrc, onHeroVideoProgressChange]);
 
   useEffect(() => {
     onHeroReadyChange?.(videoReady);
@@ -314,8 +304,6 @@ export default function HeroSection({
 
     const warmMasterPlan = () => {
       router.prefetch("/master-plan");
-      entryVideoRef.current?.load();
-      idleWarmVideoRef.current?.load();
     };
 
     if (typeof idleWindow.requestIdleCallback === "function") {
@@ -368,7 +356,7 @@ export default function HeroSection({
         className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${
           videoReady ? "opacity-0" : "opacity-100"
         }`}
-        style={{ backgroundImage: "url('https://cdn.sthyra.com/images/first_frame_again.png')" }}
+        style={{ backgroundImage: `url('${HERO_POSTER_URL}')` }}
       />
 
       <video
@@ -376,16 +364,17 @@ export default function HeroSection({
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
           videoReady && !isEntryVideoVisible ? "opacity-100" : "opacity-0"
         }`}
+        src={heroVideoSrc ?? undefined}
         autoPlay
         muted
         loop
         playsInline
         preload="auto"
+        poster={HERO_POSTER_URL}
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
         controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
-        src={heroVideoSrc ?? undefined}
       />
 
       <video
@@ -395,23 +384,13 @@ export default function HeroSection({
         }`}
         crossOrigin="anonymous"
         muted
-        autoPlay
         playsInline
-        preload="auto"
+        preload="metadata"
+        poster={HERO_POSTER_URL}
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
         controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
-        onCanPlay={() => {
-          setEntryVideoReady(true);
-        }}
-        onLoadedData={() => {
-          setEntryVideoReady(true);
-
-          if (scrollLockRef.current && !isEntryVideoVisible) {
-            void startEntryVideo();
-          }
-        }}
         onError={() => {
           if (startedEntryTransitionRef.current) {
             router.push("/master-plan");
@@ -422,12 +401,7 @@ export default function HeroSection({
             router.push("/master-plan");
           }
         }}
-      >
-        <source
-          src="https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774906461/Tf_Fixed_Final_2.mp4"
-          type="video/mp4"
-        />
-      </video>
+      />
 
       <video
         ref={idleWarmVideoRef}
@@ -435,6 +409,7 @@ export default function HeroSection({
         playsInline
         preload="metadata"
         aria-hidden="true"
+        tabIndex={-1}
         className="pointer-events-none absolute h-0 w-0 opacity-0"
       >
         <source src={MASTER_PLAN_SCRUB_HQ_VIDEO_PATH} type="video/mp4" />
