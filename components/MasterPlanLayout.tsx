@@ -332,6 +332,7 @@ export default function MasterPlanLayout({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const reverseVideoRef = useRef<HTMLVideoElement | null>(null);
   const selectedFlatPanelRef = useRef<HTMLDivElement | null>(null);
+  const compactAppleScrollAreaRef = useRef<HTMLDivElement | null>(null);
   const specialUnitVideoRef = useRef<HTMLVideoElement | null>(null);
   const specialVideoLoadedUrlRef = useRef<string | null>(null);
   const specialUnitVideoTimeoutRef = useRef<number | null>(null);
@@ -364,6 +365,8 @@ export default function MasterPlanLayout({
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [useAppleScrollFix, setUseAppleScrollFix] = useState(false);
   const [isSafariLike, setIsSafariLike] = useState(false);
+  const [showAppleCompactScrollHint, setShowAppleCompactScrollHint] =
+    useState(false);
   const [isTouchTabletViewport, setIsTouchTabletViewport] = useState(false);
   const [isTopViewMode, setIsTopViewMode] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(1);
@@ -455,6 +458,46 @@ export default function MasterPlanLayout({
     setIsSafariLike(isSafariLikeUserAgent(userAgent));
     setUseAppleScrollFix(shouldUseAppleScrollFix(userAgent, maxTouchPoints));
   }, []);
+
+  useEffect(() => {
+    if (!shouldUseAppleCompactScrollFix) {
+      setShowAppleCompactScrollHint(false);
+      return;
+    }
+
+    const scrollArea = compactAppleScrollAreaRef.current;
+
+    if (!scrollArea) {
+      setShowAppleCompactScrollHint(false);
+      return;
+    }
+
+    const syncHintVisibility = () => {
+      const canScroll = scrollArea.scrollHeight - scrollArea.clientHeight > 24;
+      setShowAppleCompactScrollHint(canScroll && scrollArea.scrollTop < 12);
+    };
+
+    const frameId = window.requestAnimationFrame(syncHintVisibility);
+
+    scrollArea.addEventListener("scroll", syncHintVisibility, { passive: true });
+    window.addEventListener("resize", syncHintVisibility);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      scrollArea.removeEventListener("scroll", syncHintVisibility);
+      window.removeEventListener("resize", syncHintVisibility);
+    };
+  }, [
+    apartments.length,
+    bhk,
+    facing,
+    minArea,
+    search,
+    selectedApartment?.id,
+    selectedTower,
+    shouldUseAppleCompactScrollFix,
+    status,
+  ]);
 
   useEffect(() => {
     const preloadLink = document.createElement("link");
@@ -1502,19 +1545,31 @@ export default function MasterPlanLayout({
           >
             {selectedApartment ? (
               shouldUseAppleCompactScrollFix ? (
-                <div
-                  className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0 [-webkit-overflow-scrolling:touch] touch-pan-y"
-                  data-scroll-area="compact-panel"
-                >
-                  <div className="min-h-full">
-                    <SelectedFlatDetailsPanel
-                      ref={selectedFlatPanelRef}
-                      apartment={selectedApartment}
-                      appleScrollCompatible
-                      compact
-                      onClose={clearSelectedApartment}
-                    />
+                <div className="relative min-h-0 flex-1">
+                  <div
+                    ref={compactAppleScrollAreaRef}
+                    className="custom-scrollbar min-h-0 h-full overflow-y-auto overscroll-contain px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0 [-webkit-overflow-scrolling:touch] touch-pan-y"
+                    data-scroll-area="compact-panel"
+                  >
+                    <div className="min-h-full">
+                      <SelectedFlatDetailsPanel
+                        ref={selectedFlatPanelRef}
+                        apartment={selectedApartment}
+                        appleScrollCompatible
+                        compact
+                        onClose={clearSelectedApartment}
+                      />
+                    </div>
                   </div>
+
+                  {showAppleCompactScrollHint ? (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+                      <div className="absolute inset-x-0 bottom-0 h-20 bg-[linear-gradient(180deg,rgba(15,23,42,0)_0%,rgba(15,23,42,0.18)_55%,rgba(15,23,42,0.42)_100%)]" />
+                      <div className="relative rounded-full border border-white/12 bg-black/55 px-3 py-1.5 text-[11px] font-medium text-white/80 shadow-[0_12px_26px_rgba(0,0,0,0.22)] backdrop-blur-md">
+                        Swipe up to see more
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div
@@ -1532,39 +1587,51 @@ export default function MasterPlanLayout({
               )
             ) : selectedTower ? (
               shouldUseAppleCompactScrollFix ? (
-                <div
-                  className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2.5 pt-2 [-webkit-overflow-scrolling:touch] touch-pan-y sm:px-2.5"
-                  data-scroll-area="compact-panel"
-                >
-                  <div className="flex min-h-full flex-col gap-2.5 sm:gap-3">
-                    <MasterPlanFiltersCard
-                      search={search}
-                      onSearchChange={setSearch}
-                      selectedTower={selectedTower}
-                      bhk={bhk}
-                      onBhkChange={setBhk}
-                      facing={facing}
-                      onFacingChange={setFacing}
-                      status={status}
-                      onStatusChange={setStatus}
-                      minArea={minArea}
-                      onMinAreaChange={setMinArea}
-                      onReset={resetFilters}
-                      onBack={handleBackToTowerSelect}
-                      compact
-                    />
+                <div className="relative min-h-0 flex-1">
+                  <div
+                    ref={compactAppleScrollAreaRef}
+                    className="custom-scrollbar min-h-0 h-full overflow-y-auto overscroll-contain px-2 pb-2.5 pt-2 [-webkit-overflow-scrolling:touch] touch-pan-y sm:px-2.5"
+                    data-scroll-area="compact-panel"
+                  >
+                    <div className="flex min-h-full flex-col gap-2.5 sm:gap-3">
+                      <MasterPlanFiltersCard
+                        search={search}
+                        onSearchChange={setSearch}
+                        selectedTower={selectedTower}
+                        bhk={bhk}
+                        onBhkChange={setBhk}
+                        facing={facing}
+                        onFacingChange={setFacing}
+                        status={status}
+                        onStatusChange={setStatus}
+                        minArea={minArea}
+                        onMinAreaChange={setMinArea}
+                        onReset={resetFilters}
+                        onBack={handleBackToTowerSelect}
+                        compact
+                      />
 
-                    <MasterPlanResultsCard
-                      filteredApartments={filteredApartments}
-                      isInventoryLoading={isInventoryLoading}
-                      inventoryError={inventoryError}
-                      onApartmentSelect={handleApartmentListSelect}
-                      activeHotspot={activeHotspot}
-                      selectedApartmentId={selectedApartmentInventoryId}
-                      appleScrollCompatible
-                      compact
-                    />
+                      <MasterPlanResultsCard
+                        filteredApartments={filteredApartments}
+                        isInventoryLoading={isInventoryLoading}
+                        inventoryError={inventoryError}
+                        onApartmentSelect={handleApartmentListSelect}
+                        activeHotspot={activeHotspot}
+                        selectedApartmentId={selectedApartmentInventoryId}
+                        appleScrollCompatible
+                        compact
+                      />
+                    </div>
                   </div>
+
+                  {showAppleCompactScrollHint ? (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center px-4 pb-[max(env(safe-area-inset-bottom),0.75rem)]">
+                      <div className="absolute inset-x-0 bottom-0 h-20 bg-[linear-gradient(180deg,rgba(255,255,255,0)_0%,rgba(255,255,255,0.74)_58%,rgba(255,255,255,0.96)_100%)] dark:bg-[linear-gradient(180deg,rgba(15,23,42,0)_0%,rgba(15,23,42,0.18)_55%,rgba(15,23,42,0.42)_100%)]" />
+                      <div className="relative rounded-full border border-zinc-200/70 bg-white/90 px-3 py-1.5 text-[11px] font-medium text-zinc-700 shadow-[0_12px_26px_rgba(15,23,42,0.12)] backdrop-blur-md dark:border-white/12 dark:bg-black/55 dark:text-white/80 dark:shadow-[0_12px_26px_rgba(0,0,0,0.22)]">
+                        Swipe up to see more flats
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <div
