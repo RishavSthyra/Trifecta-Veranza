@@ -390,7 +390,7 @@ export default function MasterPlanLayout({
   );
   const shouldUseCompactLayout =
     isCompactViewport || isTouchTabletViewport;
-  const shouldEnableCompactStageScrubbing = !isMobileViewport;
+  const shouldEnableCompactStageScrubbing = true;
   const compactTouchHighlightProfile = isMobileViewport
     ? "mobile"
     : isTouchTabletViewport
@@ -1168,7 +1168,26 @@ export default function MasterPlanLayout({
   }, [router]);
 
   useEffect(() => {
-    const getScrollAreaElement = (target: EventTarget | null) => {
+    const getScrollAreaElement = (
+      target: EventTarget | null,
+      event?: Event,
+    ) => {
+      const composedPath = event?.composedPath?.() ?? [];
+
+      for (const pathNode of composedPath) {
+        if (pathNode instanceof HTMLElement && pathNode.dataset.scrollArea) {
+          return pathNode;
+        }
+
+        if (pathNode instanceof Element) {
+          const scrollArea = pathNode.closest("[data-scroll-area]");
+
+          if (scrollArea instanceof HTMLElement) {
+            return scrollArea;
+          }
+        }
+      }
+
       if (target instanceof HTMLElement) {
         return target.closest("[data-scroll-area]");
       }
@@ -1180,8 +1199,8 @@ export default function MasterPlanLayout({
       return null;
     };
 
-    const isInsideScrollArea = (target: EventTarget | null) => {
-      return Boolean(getScrollAreaElement(target));
+    const isInsideScrollArea = (target: EventTarget | null, event?: Event) => {
+      return Boolean(getScrollAreaElement(target, event));
     };
 
     const blockAllScrollLikeActions = (e: Event) => {
@@ -1201,7 +1220,7 @@ export default function MasterPlanLayout({
         return;
       }
 
-      if (isInsideScrollArea(target)) return;
+      if (isInsideScrollArea(target, e)) return;
 
       if (shouldUseTouchBackNavigation) {
         return;
@@ -1256,7 +1275,7 @@ export default function MasterPlanLayout({
         return;
       }
 
-      if (isInsideScrollArea(e.target)) {
+      if (isInsideScrollArea(e.target, e)) {
         touchStartYRef.current = null;
         return;
       }
@@ -1277,7 +1296,7 @@ export default function MasterPlanLayout({
         return;
       }
 
-      if (isInsideScrollArea(e.target)) return;
+      if (isInsideScrollArea(e.target, e)) return;
 
       const startY = touchStartYRef.current;
       const currentY = e.touches[0]?.clientY;
@@ -1464,7 +1483,7 @@ export default function MasterPlanLayout({
           >
             {selectedApartment ? (
               <div
-                className="custom-scrollbar flex min-h-0 flex-1 items-stretch justify-center overflow-y-auto overscroll-contain px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0 [-webkit-overflow-scrolling:touch] touch-pan-y"
+                className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0"
                 data-scroll-area="compact-panel"
               >
                 <SelectedFlatDetailsPanel
@@ -1476,7 +1495,7 @@ export default function MasterPlanLayout({
               </div>
             ) : selectedTower ? (
               <div
-                className="custom-scrollbar flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto overscroll-contain px-2 pb-2.5 pt-2 [-webkit-overflow-scrolling:touch] touch-pan-y sm:gap-3 sm:px-2.5"
+                className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-2 pb-2.5 pt-2 sm:gap-3 sm:px-2.5"
                 data-scroll-area="compact-panel"
               >
                 <MasterPlanFiltersCard

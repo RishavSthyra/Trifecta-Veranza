@@ -50,6 +50,7 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import {
   MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
   MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH,
+  MASTER_PLAN_SCRUB_MOBILE_VIDEO_PATH,
   MASTER_PLAN_SCRUB_VIDEO_FPS,
   TOTAL_MASTER_PLAN_FRAMES,
 } from "@/data/masterPlanFrameCdnUrls";
@@ -3048,6 +3049,15 @@ export default function MasterPlanFrameHoverStage({
   );
   const scrubVideoPath = useMemo(
     () => {
+      const shouldUseMobileScrubVideo =
+        touchHighlightProfile === "mobile" ||
+        (touchHighlightProfile === "tablet" &&
+          performanceProfile.tier !== "standard");
+
+      if (shouldUseMobileScrubVideo) {
+        return MASTER_PLAN_SCRUB_MOBILE_VIDEO_PATH;
+      }
+
       if (performanceProfile.isSafariLike) {
         return MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH;
       }
@@ -3058,7 +3068,7 @@ export default function MasterPlanFrameHoverStage({
         medium: MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH,
       });
     },
-    [performanceProfile.isSafariLike, performanceProfile.tier],
+    [performanceProfile.isSafariLike, performanceProfile.tier, touchHighlightProfile],
   );
   const interactionMode: InteractionMode = isDragging
     ? "dragging"

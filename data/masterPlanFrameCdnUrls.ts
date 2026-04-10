@@ -2,6 +2,9 @@ export const TOTAL_MASTER_PLAN_FRAMES = 360;
 export const MASTER_PLAN_SCRUB_HQ_VIDEO_PATH = encodeURI(
   "https://cdn.sthyra.com/videos/360_scrub_optimized_g3.mp4",
 );
+export const MASTER_PLAN_SCRUB_MOBILE_VIDEO_PATH = encodeURI(
+  "https://cdn.sthyra.com/videos/360_scrub_g3_mobile.mp4",
+);
 export const MASTER_PLAN_SCRUB_HQ_HLS_PATH = "/master-plan-scrub/hq/index.m3u8";
 
 // The lighter interaction proxy is not currently deployed with this app build.

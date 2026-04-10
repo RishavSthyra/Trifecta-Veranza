@@ -42,7 +42,7 @@ function createSummary(nodeIds: string[]) {
   return `${nodeIds.length} pano ${nodeIds.length === 1 ? "stop" : "stops"}`;
 }
 
-const AMENITY_IMAGE_PLACEHOLDER_URL =
+export const AMENITY_IMAGE_PLACEHOLDER_URL =
   "https://cdn.sthyra.com/images/amenities-compressed/preview/Amphi%20Theatre.avif";
 
 const amenityDefinitions: ExteriorAmenityDefinition[] = [
@@ -406,7 +406,7 @@ export const EXTERIOR_AMENITY_IMAGE_LINKS = [
   { id: "outdoor-gym", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Outdoor%20Gym.avif" },
   { id: "rock-garden", image: AMENITY_IMAGE_PLACEHOLDER_URL },
   { id: "amphi-theatre", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Amphi%20Theatre.avif" },
-  { id: "calisthenics-sand-pit", image: AMENITY_IMAGE_PLACEHOLDER_URL },
+  { id: "calisthenics-sand-pit", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Calisthanics%20Sand%20Pit.avif" },
   { id: "wide-cycling-track", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Wide%20Cycling%20Track.avif" },
   { id: "outdoor-party-lawn", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Outdoor%20Party%20Lawn.avif" },
   { id: "childrens-play-area", image: "https://cdn.sthyra.com/images/amenities-compressed/preview/Children%20Play%20Area.avif" },
@@ -426,8 +426,24 @@ export const EXTERIOR_AMENITY_IMAGE_LINKS = [
 ] as const;
 
 const amenityImageMap = new Map<string, string>(
-  EXTERIOR_AMENITY_IMAGE_LINKS.map((entry) => [entry.id, entry.image]),
+  EXTERIOR_AMENITY_IMAGE_LINKS
+    .filter((entry) => entry.image && entry.image !== AMENITY_IMAGE_PLACEHOLDER_URL)
+    .map((entry) => [entry.id, entry.image]),
 );
+
+function resolveAmenityImage(amenity: ExteriorAmenityDefinition) {
+  const linkedImage = amenityImageMap.get(amenity.id);
+
+  if (linkedImage) {
+    return linkedImage;
+  }
+
+  if (amenity.image && amenity.image !== AMENITY_IMAGE_PLACEHOLDER_URL) {
+    return amenity.image;
+  }
+
+  return AMENITY_IMAGE_PLACEHOLDER_URL;
+}
 
 export const EXTERIOR_MINIMAP_IMAGE_URL =
   "https://cdn.sthyra.com/images/Final_5.avif";
@@ -451,7 +467,7 @@ export const EXTERIOR_MINIMAP_IMAGE_LAYOUT = {
 export const exteriorAmenities: ExteriorAmenity[] = amenityDefinitions.map(
   (amenity) => ({
     ...amenity,
-    image: amenityImageMap.get(amenity.id) ?? amenity.image ?? AMENITY_IMAGE_PLACEHOLDER_URL,
+    image: resolveAmenityImage(amenity),
     primaryNodeId: amenity.nodeIds[0],
     coordinate: getAmenityCoordinate(amenity.coordinateKey),
     summary: createSummary(amenity.nodeIds),
