@@ -38,6 +38,7 @@ import {
   getNearestMasterPlanHotspot,
   isInventoryApartmentAllowedAtHotspot,
 } from "@/lib/master-plan-hotspots";
+import { buildWalkthroughHref } from "@/lib/walkthrough";
 import type { MasterPlanHotspotKey } from "@/lib/master-plan-hotspots";
 import type { InventoryApartment, TowerType } from "@/types/inventory";
 
@@ -813,7 +814,7 @@ export default function MasterPlanLayout({
   }, [selectedTower]);
 
   const handleOpenBareShellWalkthrough = useCallback(() => {
-    router.push("/walkthrough?mode=bare-shell");
+    router.push(buildWalkthroughHref({ mode: "bare-shell" }));
   }, [router]);
 
   const closeSpecialUnitVideo = useCallback(() => {

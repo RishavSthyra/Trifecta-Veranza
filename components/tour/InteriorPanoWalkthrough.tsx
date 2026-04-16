@@ -13,6 +13,11 @@ import {
 import "@photo-sphere-viewer/virtual-tour-plugin/index.css";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import NextImage from "next/image";
+import {
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
@@ -46,6 +51,10 @@ import type {
   NavigationDirection,
   PanoMeta,
 } from "@/lib/exterior-tour/types";
+import {
+  getWalkthroughContext,
+  getWalkthroughMode,
+} from "@/lib/walkthrough";
 import Image from "next/image";
 
 const editorialFont = Cormorant_Garamond({
@@ -428,7 +437,15 @@ export default function InteriorPanoWalkthrough({
   initialNodeId,
   className,
 }: InteriorPanoWalkthroughProps) {
-  const [isBareShellMode, setIsBareShellMode] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedBareShellMode = getWalkthroughMode(searchParams) === "bare-shell";
+  const walkthroughContext = useMemo(
+    () => getWalkthroughContext(searchParams),
+    [searchParams],
+  );
+  const [isBareShellMode, setIsBareShellMode] = useState(requestedBareShellMode);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
@@ -506,14 +523,42 @@ export default function InteriorPanoWalkthrough({
     [availablePanoFolders, graph.nodes, isBareShellMode, panoBaseUrl],
   );
 
-  const handleModeToggle = useCallback(() => {
+  const updateModeInUrl = useCallback(
+    (nextMode: boolean) => {
+      const nextParams = new URLSearchParams(searchParams.toString());
+
+      if (nextMode) {
+        nextParams.set("mode", "bare-shell");
+      } else {
+        nextParams.delete("mode");
+      }
+
+      const query = nextParams.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      });
+    },
+    [pathname, router, searchParams],
+  );
+
+  const applyModeChange = useCallback((nextMode: boolean) => {
+    if (nextMode === isBareShellMode) {
+      return;
+    }
+
     setPreferredFrame(activeNode ? getFrameId(activeNode.imageFilename) : null);
     setIsMenuOpen(false);
     setIsTransitioning(true);
     setAvailablePanoFolders({});
     setAvailableNodeIds(null);
-    setIsBareShellMode((current) => !current);
-  }, [activeNode]);
+    setIsBareShellMode(nextMode);
+  }, [activeNode, isBareShellMode]);
+
+  const handleModeToggle = useCallback(() => {
+    const nextMode = !isBareShellMode;
+    applyModeChange(nextMode);
+    updateModeInUrl(nextMode);
+  }, [applyModeChange, isBareShellMode, updateModeInUrl]);
 
   const resolvePano = useCallback(
     async (nodeId: string) => {
@@ -624,6 +669,18 @@ export default function InteriorPanoWalkthrough({
     },
     [goToNode, navigationTargets],
   );
+
+  useEffect(() => {
+    if (requestedBareShellMode !== isBareShellMode) {
+      const timer = globalThis.setTimeout(() => {
+        applyModeChange(requestedBareShellMode);
+      }, 0);
+
+      return () => {
+        globalThis.clearTimeout(timer);
+      };
+    }
+  }, [applyModeChange, isBareShellMode, requestedBareShellMode]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -982,6 +1039,27 @@ export default function InteriorPanoWalkthrough({
     <section
       className={`relative isolate h-full w-full overflow-hidden rounded-[2.25rem] border border-white/10 bg-black text-white  ${className ?? ""}`}
     >
+      {walkthroughContext.flatNumber ? (
+        <div className="pointer-events-none absolute inset-x-4 top-4 z-30 flex justify-center sm:top-5">
+          <div className={`${uiFont.className} rounded-[1.35rem] border border-white/16 bg-[rgba(14,20,27,0.58)] px-4 py-3 text-center text-white shadow-[0_18px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl`}>
+            <div className="text-[10px] uppercase tracking-[0.26em] text-white/56">
+              Requested Residence
+            </div>
+            <div className="mt-1 text-sm font-semibold tracking-[0.04em] text-white">
+              Flat {walkthroughContext.flatNumber}
+              {walkthroughContext.tower ? ` • ${walkthroughContext.tower}` : ""}
+              {walkthroughContext.floorLabel
+                ? ` • Floor ${walkthroughContext.floorLabel}`
+                : ""}
+              {walkthroughContext.bhk ? ` • ${walkthroughContext.bhk} BHK` : ""}
+            </div>
+            <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-white/45">
+              Representative walkthrough
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="absolute inset-0">
         <div ref={viewerHostRef} className="h-full w-full" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(11,18,24,0.18)_0%,rgba(11,18,24,0.03)_22%,rgba(11,18,24,0.05)_68%,rgba(11,18,24,0.22)_100%)]" />

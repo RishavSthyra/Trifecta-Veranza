@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useRef, useState } from "react";
 import { EquirectangularAdapter, Viewer } from "@photo-sphere-viewer/core";

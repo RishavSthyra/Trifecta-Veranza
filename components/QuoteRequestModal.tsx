@@ -108,7 +108,9 @@ export default function QuoteRequestModal({
   useCursorGlow(modalRef, { radius: 180, enabled: isOpen });
 
   const minVisitDate = useMemo(() => {
-    return new Date().toISOString().split("T")[0];
+    const now = new Date();
+    const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    return localDate.toISOString().split("T")[0];
   }, []);
 
   const isFormComplete = quoteRequestSchema.safeParse(form).success;
@@ -388,7 +390,9 @@ export default function QuoteRequestModal({
       }
 
       setSubmitState("success");
-      setFeedbackMessage("Our sales team has your request and will contact you shortly.");
+      setFeedbackMessage(
+        result.message || "Our sales team has your request and will contact you shortly.",
+      );
       setForm(initialFormState);
       setCurrentStep(0);
       submitIntentRef.current = false;

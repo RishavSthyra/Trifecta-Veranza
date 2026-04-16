@@ -31,7 +31,6 @@ import {
   type ExteriorAmenity,
 } from "@/data/exteriorAmenities";
 import { clamp } from "@/lib/exterior-tour/math";
-import { LocateFixed } from 'lucide-react';
 import {
   buildExteriorTourGraph,
   getDirectionalCandidates,

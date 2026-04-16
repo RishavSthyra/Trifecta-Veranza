@@ -3,8 +3,7 @@ import { Types } from "mongoose";
 import { isAdminAuthenticated } from "@/lib/admin-auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import Inventory from "@/models/Inventory";
-import { normalizeStatus } from "@/lib/inventory";
-import type { InventoryStatus } from "@/types/inventory";
+import { parseInventoryStatusInput } from "@/lib/inventory";
 
 export const runtime = "nodejs";
 
@@ -23,8 +22,15 @@ export async function PATCH(
   }
 
   try {
-    const body = (await request.json()) as { status?: InventoryStatus | string };
-    const status = normalizeStatus(body.status);
+    const body = (await request.json()) as { status?: unknown };
+    const status = parseInventoryStatusInput(body.status);
+
+    if (!status) {
+      return NextResponse.json(
+        { message: "Invalid inventory status." },
+        { status: 400 },
+      );
+    }
 
     await connectToDatabase();
 
@@ -46,11 +52,17 @@ export async function PATCH(
       status,
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to update inventory status.";
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { message: "Invalid JSON payload." },
+        { status: 400 },
+      );
+    }
 
-    return NextResponse.json({ message }, { status: 500 });
+    console.error(`Failed to update inventory status for ${id}:`, error);
+    return NextResponse.json(
+      { message: "Failed to update inventory status." },
+      { status: 500 },
+    );
   }
 }

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { forwardRef } from "react";
+import { forwardRef } from "react";
 import { motion } from "framer-motion";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
+import Image from "next/image";
 
 type Props = {
   number?: number;
@@ -165,9 +166,11 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
 
           {/* <div className="absolute bottom-[18%] left-1/2 h-[42%] w-[58%] -translate-x-1/2 rounded-[999px] bg-[radial-gradient(circle,rgba(255,255,255,0.38)_0%,rgba(255,255,255,0.12)_38%,transparent_72%)] blur-2xl" /> */}
 
-          <img
+          <Image
             src="https://cdn.sthyra.com/images/bros.webp"
             alt="Project cover"
+            width={1280}
+            height={1600}
             className="relative z-10 h-[75%] w-auto max-w-none object-contain object-bottom xl:h-[66%] min-[1700px]:xl:h-[72%] 2xl:h-[75%]"
           />
         </div>

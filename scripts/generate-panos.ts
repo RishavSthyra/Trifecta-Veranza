@@ -5,7 +5,7 @@ import sharp from "sharp"
 
 const INPUT = "./raw-panos"
 const RESIZED = "./resized-panos"
-const OUTPUT = "./public/bareshell-pano-trifecta-new"
+const OUTPUT = "./public/interior-panos-aadhya-serene"
 
 const PREVIEW_WIDTH = 2000
 
@@ -32,6 +32,15 @@ const SHARP_INPUT_OPTIONS = {
   limitInputPixels: false,
   sequentialRead: true,
 } as const
+
+type TileJob = {
+  row: number
+  col: number
+  left: number
+  top: number
+  width: number
+  height: number
+}
 
 function getPanoId(file: string): string {
   return path.parse(file).name.replace(/^NewLS_/i, "LS_")
@@ -162,7 +171,7 @@ async function processImage(file: string): Promise<void> {
   //
   // tiles
   //
-  const tileJobs: any[] = []
+  const tileJobs: TileJob[] = []
 
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {

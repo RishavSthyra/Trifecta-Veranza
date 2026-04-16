@@ -9,9 +9,10 @@ export async function GET() {
     const apartments = await getInventoryApartments();
     return NextResponse.json({ apartments });
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Failed to load inventory.";
-
-    return NextResponse.json({ message }, { status: 500 });
+    console.error("Failed to load inventory:", error);
+    return NextResponse.json(
+      { message: "Failed to load inventory." },
+      { status: 500 },
+    );
   }
 }

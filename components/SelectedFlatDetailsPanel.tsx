@@ -6,6 +6,7 @@ import { forwardRef, useCallback, useMemo } from "react";
 import { motion } from "framer-motion";
 import { BedDouble, Building2, Expand, MapPin, Play, Ruler, X } from "lucide-react";
 import type { InventoryApartment } from "@/types/inventory";
+import { buildWalkthroughHref } from "@/lib/walkthrough";
 
 type SelectedFlatDetailsPanelProps = {
   apartment: InventoryApartment;
@@ -87,8 +88,18 @@ const SelectedFlatDetailsPanel = forwardRef<
   );
   const statusStyles = getStatusStyles(apartment.status);
   const handleOpenWalkthrough = useCallback(() => {
-    router.push("/walkthrough");
-  }, [router]);
+    router.push(
+      buildWalkthroughHref({
+        apartment: {
+          id: apartment.id,
+          flatNumber: apartment.flatNumber,
+          tower: apartment.tower,
+          floorLabel: apartment.floorLabel,
+          bhk: apartment.bhk,
+        },
+      }),
+    );
+  }, [apartment.bhk, apartment.flatNumber, apartment.floorLabel, apartment.id, apartment.tower, router]);
   const compactFacts = [
     {
       key: "tower",

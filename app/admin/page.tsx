@@ -1,4 +1,5 @@
 import AdminDashboard from "@/components/admin/AdminDashboard";
+import { listAdminUsers, type AdminUserSummary } from "@/lib/admin-users";
 import { getInventoryAdminRows } from "@/lib/inventory";
 import { buildPageMetadata } from "@/lib/metadata";
 import type { InventoryAdminRow } from "@/types/inventory";
@@ -16,6 +17,7 @@ export const metadata = buildPageMetadata({
 
 export default async function AdminPage() {
   let inventory: InventoryAdminRow[] = [];
+  let users: AdminUserSummary[] = [];
 
   try {
     inventory = await getInventoryAdminRows();
@@ -23,5 +25,11 @@ export default async function AdminPage() {
     inventory = [];
   }
 
-  return <AdminDashboard initialInventory={inventory} />;
+  try {
+    users = await listAdminUsers();
+  } catch {
+    users = [];
+  }
+
+  return <AdminDashboard initialInventory={inventory} initialUsers={users} />;
 }

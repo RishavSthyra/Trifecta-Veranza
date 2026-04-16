@@ -28,7 +28,22 @@ const contactSubmissionSchema = new Schema(
       required: true,
       trim: true,
     },
+    purchaseGoal: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     moveInTimeline: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    preferredContactTime: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    siteVisitDate: {
       type: String,
       default: "",
       trim: true,
@@ -46,6 +61,17 @@ const contactSubmissionSchema = new Schema(
     source: {
       type: String,
       default: "quote-request-modal",
+      trim: true,
+    },
+    emailStatus: {
+      type: String,
+      enum: ["pending", "sent", "failed"],
+      default: "pending",
+      trim: true,
+    },
+    emailError: {
+      type: String,
+      default: "",
       trim: true,
     },
   },

@@ -31,11 +31,12 @@ export async function POST(request: Request) {
     const missingEnvVars = getMissingEnvVars();
 
     if (missingEnvVars.length > 0) {
+      console.error(
+        `Contact form unavailable due to missing env vars: ${missingEnvVars.join(", ")}`,
+      );
       return NextResponse.json(
-        {
-          message: `Missing SMTP env values: ${missingEnvVars.join(", ")}`,
-        },
-        { status: 500 },
+        { message: "Quote requests are temporarily unavailable." },
+        { status: 503 },
       );
     }
 
@@ -89,18 +90,24 @@ export async function POST(request: Request) {
 
     await connectToDatabase();
 
-    await Promise.all([
-      ContactSubmission.create({
-        fullName: payload.fullName!.trim(),
-        email: payload.email!.trim(),
-        phone: payload.phone!.trim(),
-        apartmentType: payload.apartmentType!.trim(),
-        budget: payload.budget!.trim(),
-        moveInTimeline: payload.moveInTimeline?.trim() || "",
-        message: payload.message?.trim() || "",
-        consent: payload.consent,
-      }),
-      transporter.sendMail({
+    const submission = await ContactSubmission.create({
+      fullName: payload.fullName!.trim(),
+      email: payload.email!.trim(),
+      phone: payload.phone!.trim(),
+      apartmentType: payload.apartmentType!.trim(),
+      budget: payload.budget!.trim(),
+      purchaseGoal: payload.purchaseGoal?.trim() || "",
+      moveInTimeline: payload.moveInTimeline?.trim() || "",
+      preferredContactTime: payload.preferredContactTime?.trim() || "",
+      siteVisitDate: payload.siteVisitDate?.trim() || "",
+      message: payload.message?.trim() || "",
+      consent: payload.consent,
+      emailStatus: "pending",
+      emailError: "",
+    });
+
+    try {
+      await transporter.sendMail({
         from: fromAddress,
         to: toAddress,
         replyTo: payload.email!.trim(),
@@ -146,18 +153,56 @@ export async function POST(request: Request) {
             </div>
           </div>
         `,
-      }),
-    ]);
+      });
+
+      await submission.updateOne({
+        $set: {
+          emailStatus: "sent",
+          emailError: "",
+        },
+      });
+    } catch (error) {
+      console.error("Quote request email delivery failed:", error);
+
+      await submission
+        .updateOne({
+          $set: {
+            emailStatus: "failed",
+            emailError:
+              error instanceof Error ? error.message.slice(0, 500) : "Unknown email error",
+          },
+        })
+        .catch((updateError) => {
+          console.error(
+            "Failed to persist quote request email status:",
+            updateError,
+          );
+        });
+
+      return NextResponse.json(
+        {
+          message:
+            "Your quote request was saved, but the team notification is delayed. We will follow up shortly without needing a resubmission.",
+        },
+        { status: 202 },
+      );
+    }
 
     return NextResponse.json({
       message: "Quote request saved and sent successfully.",
     });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to send the quote request.";
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        { message: "Invalid JSON payload." },
+        { status: 400 },
+      );
+    }
 
-    return NextResponse.json({ message }, { status: 500 });
+    console.error("Failed to process quote request:", error);
+    return NextResponse.json(
+      { message: "Failed to send the quote request." },
+      { status: 500 },
+    );
   }
 }

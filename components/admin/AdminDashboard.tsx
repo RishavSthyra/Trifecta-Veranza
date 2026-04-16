@@ -22,18 +22,22 @@ import {
   Sparkles,
   TowerControl,
   UserCircle2,
+  Users,
 } from "lucide-react";
 import { Bar, Doughnut } from "react-chartjs-2";
 import { useRouter } from "next/navigation";
 import {
   type CSSProperties,
+  type FormEvent,
   type HTMLAttributes,
   type ReactNode,
+  useEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
 } from "react";
+import type { AdminUserSummary } from "@/lib/admin-users";
 import { useCursorGlow } from "@/lib/useCursorGlow";
 import { cn } from "@/lib/utils";
 import type {
@@ -53,6 +57,7 @@ ChartJS.register(
 
 type AdminDashboardProps = {
   initialInventory: InventoryAdminRow[];
+  initialUsers: AdminUserSummary[];
 };
 
 type InventorySummary = {
@@ -61,6 +66,8 @@ type InventorySummary = {
   reserved: number;
   sold: number;
 };
+
+type AdminView = "inventory" | "admins";
 
 const statusOptions: InventoryStatus[] = ["Available", "Reserved", "Sold"];
 const towerFilters: Array<"All" | TowerType> = ["All", "Tower A", "Tower B"];
@@ -212,15 +219,71 @@ function formatFloorLabel(value: string) {
 
 export default function AdminDashboard({
   initialInventory,
+  initialUsers,
 }: AdminDashboardProps) {
   const router = useRouter();
   const glowRootRef = useRef<HTMLDivElement | null>(null);
   const [inventory, setInventory] = useState(initialInventory);
+  const [users, setUsers] = useState(initialUsers);
+  const [activeView, setActiveView] = useState<AdminView>("inventory");
   const [selectedTower, setSelectedTower] = useState<"All" | TowerType>("All");
   const [searchValue, setSearchValue] = useState("");
   const [isPending, startTransition] = useTransition();
   const [savingId, setSavingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userForm, setUserForm] = useState({
+    displayName: "",
+    username: "",
+    password: "",
+  });
+  const [userMessage, setUserMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const main = document.querySelector("main");
+
+    const previousHtmlHeight = html.style.height;
+    const previousHtmlOverflowY = html.style.overflowY;
+    const previousBodyHeight = body.style.height;
+    const previousBodyMinHeight = body.style.minHeight;
+    const previousBodyOverflowY = body.style.overflowY;
+    const previousMainHeight = main instanceof HTMLElement ? main.style.height : "";
+    const previousMainMinHeight =
+      main instanceof HTMLElement ? main.style.minHeight : "";
+    const previousMainOverflow =
+      main instanceof HTMLElement ? main.style.overflow : "";
+
+    html.style.height = "auto";
+    html.style.overflowY = "auto";
+    body.style.height = "auto";
+    body.style.minHeight = "100%";
+    body.style.overflowY = "auto";
+
+    if (main instanceof HTMLElement) {
+      main.style.height = "auto";
+      main.style.minHeight = "auto";
+      main.style.overflow = "visible";
+    }
+
+    return () => {
+      html.style.height = previousHtmlHeight;
+      html.style.overflowY = previousHtmlOverflowY;
+      body.style.height = previousBodyHeight;
+      body.style.minHeight = previousBodyMinHeight;
+      body.style.overflowY = previousBodyOverflowY;
+
+      if (main instanceof HTMLElement) {
+        main.style.height = previousMainHeight;
+        main.style.minHeight = previousMainMinHeight;
+        main.style.overflow = previousMainOverflow;
+      }
+    };
+  }, []);
 
   useCursorGlow(glowRootRef, { radius: 200 });
 
@@ -324,6 +387,17 @@ export default function AdminDashboard({
     selectedTower === "All"
       ? "All towers in scope"
       : `${selectedTower} in scope`;
+  const activeAdminCount = users.filter((user) => user.isActive).length;
+
+  const handleUserFormChange = (
+    field: "displayName" | "username" | "password",
+    value: string,
+  ) => {
+    setUserForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  };
 
   const handleStatusChange = async (id: string, status: InventoryStatus) => {
     const previousInventory = inventory;
@@ -360,6 +434,52 @@ export default function AdminDashboard({
     }
   };
 
+  const handleCreateUser = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setUserMessage(null);
+    setIsCreatingUser(true);
+
+    try {
+      const response = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(userForm),
+      });
+
+      const result = (await response.json()) as {
+        message?: string;
+        user?: AdminUserSummary;
+      };
+
+      if (!response.ok || !result.user) {
+        throw new Error(result.message || "Unable to create admin user.");
+      }
+
+      setUsers((current) => [result.user!, ...current]);
+      setUserForm({
+        displayName: "",
+        username: "",
+        password: "",
+      });
+      setUserMessage({
+        type: "success",
+        text: result.message || "Admin user created.",
+      });
+    } catch (createError) {
+      setUserMessage({
+        type: "error",
+        text:
+          createError instanceof Error
+            ? createError.message
+            : "Unable to create admin user.",
+      });
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
   const handleLogout = async () => {
     await fetch("/api/admin/logout", { method: "POST" });
     startTransition(() => {
@@ -371,7 +491,7 @@ export default function AdminDashboard({
   return (
     <div
       ref={glowRootRef}
-      className="min-h-dvh overflow-hidden bg-[#08090c] text-white"
+      className="relative bg-[#08090c] text-white"
     >
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute left-[-140px] top-[-110px] h-[360px] w-[360px] rounded-full bg-[#c9a96b]/12 blur-3xl" />
@@ -379,9 +499,9 @@ export default function AdminDashboard({
         <div className="absolute bottom-[-130px] left-[42%] h-[320px] w-[320px] rounded-full bg-white/5 blur-3xl" />
       </div>
 
-      <div className="relative flex min-h-dvh flex-col xl:flex-row">
-        <aside className="w-full shrink-0 xl:sticky xl:top-0 xl:h-auto xl:w-[290px]">
-          <GlowPanel className="relative flex h-full flex-col overflow-hidden border border-white/10 bg-[#0b0c10]/94 px-5 py-5 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl xl:rounded-l-none xl:rounded-r-[34px] xl:border-l-0 sm:px-6 sm:py-6">
+      <div className="relative flex flex-col gap-4 xl:grid xl:grid-cols-[290px_minmax(0,1fr)] xl:items-start">
+        <aside className="w-full shrink-0 xl:self-start">
+          <GlowPanel className="relative flex flex-col border border-white/10 bg-[#0b0c10]/94 px-5 py-5 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl xl:rounded-l-none xl:rounded-r-[34px] xl:border-l-0 sm:px-6 sm:py-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(214,188,136,0.12),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_38%,rgba(255,255,255,0.02))]" />
 
             <div className="relative z-10 flex h-full flex-col">
@@ -401,12 +521,32 @@ export default function AdminDashboard({
 
               <div className="mt-7">
                 <h1 className="font-[var(--font-sora)] text-[1.7rem] font-semibold tracking-[-0.05em] text-white">
-                  Full-view control, lighter left rail.
+                  {activeView === "inventory"
+                    ? "Inventory control with a cleaner workspace."
+                    : "Admin access stays private and controlled."}
                 </h1>
                 <p className="mt-3 text-[14px] leading-7 text-white/56">
-                  Quick stats stay on the edge. The main workspace is now for
-                  filters, charts, and flat status management.
+                  {activeView === "inventory"
+                    ? "Use the inventory view for tower filters, charts, and live status updates."
+                    : "Use the admin access view to create the next login without exposing a public signup page."}
                 </p>
+              </div>
+
+              <div className="mt-6 space-y-3">
+                <RailTab
+                  icon={<LayoutDashboard className="h-4 w-4" />}
+                  title="Inventory"
+                  description="Charts, filters, and unit status control."
+                  isActive={activeView === "inventory"}
+                  onClick={() => setActiveView("inventory")}
+                />
+                <RailTab
+                  icon={<Users className="h-4 w-4" />}
+                  title="Admin Access"
+                  description="Create admin logins and track active admins."
+                  isActive={activeView === "admins"}
+                  onClick={() => setActiveView("admins")}
+                />
               </div>
 
               <div className="mt-6 space-y-3">
@@ -422,46 +562,85 @@ export default function AdminDashboard({
                 />
               </div>
 
-              <GlowSurface className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.03] p-4">
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] uppercase tracking-[0.26em] text-white/40">
-                        Tower Mix
-                      </p>
-                      <p className="mt-1 text-sm text-white/60">
-                        Clean read across both towers
-                      </p>
-                    </div>
-                    <div className="rounded-full border border-[#d6bc88]/20 bg-[#d6bc88]/10 p-2 text-[#ecd7ae]">
-                      <Building2 className="h-4 w-4" />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 space-y-3">
-                    {towerBreakdown.map(({ tower, summary: towerSummary }) => (
-                      <div
-                        key={tower}
-                        className="rounded-[20px] border border-white/8 bg-black/10 px-3 py-3"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium text-white">
-                            {tower}
-                          </p>
-                          <p className="text-xs text-white/42">
-                            {towerSummary.total} units
-                          </p>
-                        </div>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <MiniPill label="A" value={towerSummary.available} />
-                          <MiniPill label="R" value={towerSummary.reserved} />
-                          <MiniPill label="S" value={towerSummary.sold} />
-                        </div>
+              {activeView === "inventory" ? (
+                <GlowSurface className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.03] p-4">
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.26em] text-white/40">
+                          Tower Mix
+                        </p>
+                        <p className="mt-1 text-sm text-white/60">
+                          Clean read across both towers
+                        </p>
                       </div>
-                    ))}
+                      <div className="rounded-full border border-[#d6bc88]/20 bg-[#d6bc88]/10 p-2 text-[#ecd7ae]">
+                        <Building2 className="h-4 w-4" />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {towerBreakdown.map(({ tower, summary: towerSummary }) => (
+                        <div
+                          key={tower}
+                          className="rounded-[20px] border border-white/8 bg-black/10 px-3 py-3"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-medium text-white">
+                              {tower}
+                            </p>
+                            <p className="text-xs text-white/42">
+                              {towerSummary.total} units
+                            </p>
+                          </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <MiniPill label="A" value={towerSummary.available} />
+                            <MiniPill label="R" value={towerSummary.reserved} />
+                            <MiniPill label="S" value={towerSummary.sold} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </GlowSurface>
+                </GlowSurface>
+              ) : (
+                <GlowSurface className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.03] p-4">
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.26em] text-white/40">
+                          Admin Summary
+                        </p>
+                        <p className="mt-1 text-sm text-white/60">
+                          Active and total admin accounts
+                        </p>
+                      </div>
+                      <div className="rounded-full border border-[#d6bc88]/20 bg-[#d6bc88]/10 p-2 text-[#ecd7ae]">
+                        <Users className="h-4 w-4" />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <div className="rounded-[20px] border border-white/8 bg-black/10 px-3 py-4">
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-white/36">
+                          Active
+                        </p>
+                        <p className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white">
+                          {activeAdminCount}
+                        </p>
+                      </div>
+                      <div className="rounded-[20px] border border-white/8 bg-black/10 px-3 py-4">
+                        <p className="text-[11px] uppercase tracking-[0.22em] text-white/36">
+                          Total
+                        </p>
+                        <p className="mt-3 text-3xl font-semibold tracking-[-0.05em] text-white">
+                          {users.length}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </GlowSurface>
+              )}
 
               <GlowSurface className="group mt-4 rounded-full border border-white/10 bg-white/[0.03] p-2">
                 <div className="relative z-10 flex items-center gap-3">
@@ -493,9 +672,14 @@ export default function AdminDashboard({
           </GlowPanel>
         </aside>
 
-        <main className="min-w-0 flex-1 px-4 py-4 sm:px-5 lg:px-6">
-          <div className="flex h-full flex-col gap-4">
-            <GlowPanel className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+        <main className="min-w-0 px-4 py-4 sm:px-5 lg:px-6">
+          <div className="space-y-4 pb-6">
+            <GlowPanel
+              className={cn(
+                "relative overflow-hidden rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl",
+                activeView === "inventory" ? "" : "hidden",
+              )}
+            >
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(214,188,136,0.1),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_34%)]" />
 
               <div className="relative z-10 flex flex-col gap-5 px-5 py-5 sm:px-6 sm:py-6 lg:px-8">
@@ -554,13 +738,183 @@ export default function AdminDashboard({
               </div>
             </GlowPanel>
 
-            {error ? (
+            {error && activeView === "inventory" ? (
               <div className="rounded-[20px] border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                 {error}
               </div>
             ) : null}
 
-            <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-4">
+            <div
+              className={cn(
+                "grid gap-4 md:grid-cols-2 xl:grid-cols-4",
+                activeView === "admins" ? "" : "hidden",
+              )}
+            >
+              <MetricCard
+                label="Active Admins"
+                value={activeAdminCount}
+                detail="Accounts currently allowed to log in"
+              />
+              <MetricCard
+                label="Total Admins"
+                value={users.length}
+                detail="All admin logins in the database"
+              />
+              <MetricCard
+                label="Recent Logins"
+                value={users.filter((user) => Boolean(user.lastLoginAt)).length}
+                detail="Accounts used at least once"
+              />
+              <MetricCard
+                label="Pending First Login"
+                value={users.filter((user) => !user.lastLoginAt).length}
+                detail="New logins not yet used"
+              />
+            </div>
+
+            <GlowPanel
+              className={cn(
+                "rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl sm:p-6",
+                activeView === "admins" ? "" : "hidden",
+              )}
+            >
+              <div className="flex flex-col gap-6">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[0.28em] text-white/34">
+                    Admin Access
+                  </p>
+                  <h3 className="mt-3 font-[var(--font-sora)] text-[1.45rem] font-semibold tracking-[-0.04em] text-white">
+                    Add the next admin login from this private tab.
+                  </h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-7 text-white/52">
+                    This screen stays inside the protected dashboard. There is
+                    no public signup page.
+                  </p>
+
+                  <form
+                    onSubmit={handleCreateUser}
+                    className="mt-5 grid gap-3 md:grid-cols-3"
+                  >
+                    <GlowSurface className="rounded-[20px] border border-white/10 bg-white/[0.03]">
+                      <input
+                        value={userForm.displayName}
+                        onChange={(event) =>
+                          handleUserFormChange("displayName", event.target.value)
+                        }
+                        placeholder="Display name"
+                        className="relative z-10 h-12 w-full bg-transparent px-4 text-sm text-white outline-none placeholder:text-white/30"
+                      />
+                    </GlowSurface>
+
+                    <GlowSurface className="rounded-[20px] border border-white/10 bg-white/[0.03]">
+                      <input
+                        value={userForm.username}
+                        onChange={(event) =>
+                          handleUserFormChange("username", event.target.value)
+                        }
+                        placeholder="Username"
+                        className="relative z-10 h-12 w-full bg-transparent px-4 text-sm text-white outline-none placeholder:text-white/30"
+                      />
+                    </GlowSurface>
+
+                    <GlowSurface className="rounded-[20px] border border-white/10 bg-white/[0.03]">
+                      <input
+                        type="password"
+                        value={userForm.password}
+                        onChange={(event) =>
+                          handleUserFormChange("password", event.target.value)
+                        }
+                        placeholder="Password"
+                        className="relative z-10 h-12 w-full bg-transparent px-4 text-sm text-white outline-none placeholder:text-white/30"
+                      />
+                    </GlowSurface>
+
+                    <div className="md:col-span-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs leading-6 text-white/42">
+                        Usernames are lowercase login IDs. Passwords must be at
+                        least 8 characters.
+                      </p>
+                      <button
+                        type="submit"
+                        disabled={isCreatingUser}
+                        className="inline-flex h-12 items-center justify-center rounded-full border border-[#d6bc88]/30 bg-[#d6bc88]/12 px-5 text-sm font-medium text-[#f1ddb6] transition hover:bg-[#d6bc88]/16 disabled:opacity-60"
+                      >
+                        {isCreatingUser ? "Creating user..." : "Create admin login"}
+                      </button>
+                    </div>
+                  </form>
+
+                  {userMessage ? (
+                    <div
+                      className={cn(
+                        "mt-4 rounded-[18px] border px-4 py-3 text-sm",
+                        userMessage.type === "success"
+                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
+                          : "border-rose-500/20 bg-rose-500/10 text-rose-200",
+                      )}
+                    >
+                      {userMessage.text}
+                    </div>
+                  ) : null}
+                </div>
+
+                <GlowSurface className="rounded-[26px] border border-white/10 bg-white/[0.03] p-4">
+                  <div className="relative z-10">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.26em] text-white/34">
+                          Current Admins
+                        </p>
+                        <p className="mt-1 text-sm text-white/56">
+                          {users.length} login{users.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <div className="rounded-full border border-[#d6bc88]/20 bg-[#d6bc88]/10 p-2 text-[#ecd7ae]">
+                        <UserCircle2 className="h-4 w-4" />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-3">
+                      {users.map((user) => (
+                        <div
+                          key={user.id}
+                          className="rounded-[20px] border border-white/8 bg-black/10 px-3 py-3"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium text-white">
+                                {user.displayName || user.username}
+                              </p>
+                              <p className="mt-1 truncate text-xs text-white/42">
+                                @{user.username}
+                              </p>
+                            </div>
+                            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] text-emerald-200">
+                              {user.isActive ? "Active" : "Disabled"}
+                            </span>
+                          </div>
+                          <div className="mt-3 flex flex-col gap-1 text-xs text-white/42">
+                            <span>
+                              Added {formatAdminDate(user.createdAt)}
+                            </span>
+                            <span>
+                              Last login {formatAdminDate(user.lastLoginAt)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </GlowSurface>
+              </div>
+            </GlowPanel>
+
+            <div
+              className={cn(
+                "grid gap-4 md:grid-cols-2 2xl:grid-cols-4",
+                activeView === "inventory" ? "" : "hidden",
+              )}
+            >
               <MetricCard
                 label="Units In Scope"
                 value={activeSummary.total}
@@ -583,7 +937,12 @@ export default function AdminDashboard({
               />
             </div>
 
-            <div className="grid gap-4 2xl:grid-cols-[360px_minmax(0,1fr)]">
+            <div
+              className={cn(
+                "grid gap-4 2xl:grid-cols-[360px_minmax(0,1fr)]",
+                activeView === "inventory" ? "" : "hidden",
+              )}
+            >
               <GlowPanel className="rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.4)] backdrop-blur-2xl sm:p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -656,7 +1015,12 @@ export default function AdminDashboard({
               </GlowPanel>
             </div>
 
-            <GlowPanel className="relative flex flex-1 flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
+            <GlowPanel
+              className={cn(
+                "relative overflow-visible rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl",
+                activeView === "inventory" ? "" : "hidden",
+              )}
+            >
               <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent_28%)]" />
 
               <div className="relative z-10 border-b border-white/10 px-5 py-5 sm:px-6 lg:px-8">
@@ -684,8 +1048,8 @@ export default function AdminDashboard({
 
               {filteredInventory.length ? (
                 <div className="relative z-10 px-5 py-5 sm:px-6 sm:py-6 lg:px-8">
-                  <GlowSurface className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.02]">
-                    <div className="custom-scrollbar max-h-[48dvh] overflow-auto xl:max-h-[calc(100dvh-29rem)]">
+                  <GlowSurface className="overflow-visible rounded-[28px] border border-white/10 bg-white/[0.02]">
+                    <div className="custom-scrollbar overflow-x-auto overflow-y-visible">
                       <table className="min-w-full border-collapse text-sm">
                         <thead className="sticky top-0 z-10 bg-[#111317]/96 backdrop-blur-xl">
                           <tr className="border-b border-white/10">
@@ -764,6 +1128,25 @@ export default function AdminDashboard({
   );
 }
 
+function formatAdminDate(value: string | null) {
+  if (!value) {
+    return "not yet";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "unknown";
+  }
+
+  return parsed.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 function GlowPanel({
   children,
   className,
@@ -787,7 +1170,7 @@ function GlowSurface({
       data-cursor-glow
       {...props}
       style={{ ...cursorGlowDefaults, ...style }}
-      className={cn("surface-contain relative overflow-hidden", className)}
+      className={cn("relative", className)}
     >
       <GlowBorder />
       {children}
@@ -836,6 +1219,52 @@ function RailStrip({
         </div>
       </div>
     </GlowSurface>
+  );
+}
+
+function RailTab({
+  icon,
+  title,
+  description,
+  isActive,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  description: string;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "w-full rounded-[22px] border p-4 text-left transition",
+        isActive
+          ? "border-[#d6bc88]/30 bg-[#d6bc88]/10 shadow-[0_18px_36px_rgba(0,0,0,0.16)]"
+          : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "rounded-full p-2",
+            isActive
+              ? "border border-[#d6bc88]/20 bg-[#d6bc88]/12 text-[#ecd7ae]"
+              : "border border-white/10 bg-black/10 text-white/72",
+          )}
+        >
+          {icon}
+        </div>
+        <div>
+          <p className="text-sm font-medium text-white">{title}</p>
+          <p className="mt-1 text-[13px] leading-6 text-white/52">
+            {description}
+          </p>
+        </div>
+      </div>
+    </button>
   );
 }
 

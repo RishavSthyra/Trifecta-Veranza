@@ -281,9 +281,11 @@ export default function FlipBookDeck() {
               : "sm:block sm:w-[16%] lg:w-[32%]"
         } w-[18%]`}
       >
-        <img
-          src={"https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855828/still-life-with-indoor-plants_1.png"}
+        <Image
+          src="https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855828/still-life-with-indoor-plants_1.png"
           alt="Plant Image Vector Trifecta"
+          width={720}
+          height={960}
           className="h-auto w-full"
         />
       </motion.div>
@@ -300,9 +302,11 @@ export default function FlipBookDeck() {
               : "sm:block sm:w-[16%] lg:w-[20%]"
         } w-[18%]`}
       >
-        <img
-          src={"https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855684/hanging-golden-pothos-marble-pot-lush-indoor-greenery_1.png"}
+        <Image
+          src="https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774855684/hanging-golden-pothos-marble-pot-lush-indoor-greenery_1.png"
           alt="Hanging Plant Image Vector Trifecta"
+          width={720}
+          height={960}
           className="h-auto w-full"
         />
       </motion.div>

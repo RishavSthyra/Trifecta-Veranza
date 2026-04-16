@@ -14,11 +14,10 @@ export async function GET() {
     const inventory = await getInventoryAdminRows();
     return NextResponse.json({ inventory });
   } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Failed to load admin inventory.";
-
-    return NextResponse.json({ message }, { status: 500 });
+    console.error("Failed to load admin inventory:", error);
+    return NextResponse.json(
+      { message: "Failed to load admin inventory." },
+      { status: 500 },
+    );
   }
 }

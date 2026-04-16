@@ -1,9 +1,8 @@
 "use client";
 
-import React, { forwardRef } from "react";
+import { forwardRef } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import OverviewHero from "@/assets/veranza.webp";
 
 type Props = {
   number?: number;
