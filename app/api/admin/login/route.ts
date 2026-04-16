@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import {
+  getAdminAuthConfigurationError,
   getAdminSessionCookie,
   isAdminAuthConfigured,
 } from "@/lib/admin-auth";
@@ -14,8 +15,17 @@ export const runtime = "nodejs";
 
 export async function POST(request: Request) {
   if (!isAdminAuthConfigured()) {
+    const authConfigurationError = getAdminAuthConfigurationError();
+
+    if (authConfigurationError) {
+      console.error("Admin login unavailable:", authConfigurationError);
+    }
+
     return NextResponse.json(
-      { message: "Admin login is currently unavailable." },
+      {
+        message:
+          authConfigurationError || "Admin login is currently unavailable.",
+      },
       { status: 503 },
     );
   }

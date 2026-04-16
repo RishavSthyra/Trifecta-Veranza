@@ -3,14 +3,37 @@ import { cookies } from "next/headers";
 export const ADMIN_COOKIE_NAME = "sthyra_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
 const DEV_ADMIN_SESSION_SECRET = "sthyra-local-admin-session-secret";
+const ADMIN_SESSION_SECRET_ENV_KEYS = [
+  "ADMIN_SESSION_SECRET",
+  "AUTH_SECRET",
+  "NEXTAUTH_SECRET",
+] as const;
 const encoder = new TextEncoder();
 
+function resolveConfiguredAdminSessionSecret() {
+  for (const envKey of ADMIN_SESSION_SECRET_ENV_KEYS) {
+    const value = process.env[envKey]?.trim();
+
+    if (value) {
+      return {
+        envKey,
+        value,
+      };
+    }
+  }
+
+  return null;
+}
+
 function getAdminAuthConfig() {
+  const configuredSecret = resolveConfiguredAdminSessionSecret();
+  const isProduction = process.env.NODE_ENV === "production";
   const sessionSecret =
-    process.env.ADMIN_SESSION_SECRET?.trim() ||
-    (process.env.NODE_ENV !== "production" ? DEV_ADMIN_SESSION_SECRET : "");
+    configuredSecret?.value ||
+    (!isProduction ? DEV_ADMIN_SESSION_SECRET : "");
 
   return {
+    configuredEnvKey: configuredSecret?.envKey ?? null,
     sessionSecret,
     isConfigured: Boolean(sessionSecret),
   };
@@ -55,6 +78,16 @@ async function signSessionPayload(payload: string, sessionSecret: string) {
 
 export function isAdminAuthConfigured() {
   return getAdminAuthConfig().isConfigured;
+}
+
+export function getAdminAuthConfigurationError() {
+  const config = getAdminAuthConfig();
+
+  if (config.isConfigured) {
+    return null;
+  }
+
+  return `Missing session secret. Configure one of: ${ADMIN_SESSION_SECRET_ENV_KEYS.join(", ")}.`;
 }
 
 export async function createAdminSessionValue(userId: string) {
