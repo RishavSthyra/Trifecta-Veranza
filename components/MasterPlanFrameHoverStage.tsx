@@ -50,7 +50,6 @@ import { clone as cloneSkeleton } from "three/examples/jsm/utils/SkeletonUtils.j
 import {
   MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
   MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH,
-  MASTER_PLAN_SCRUB_MOBILE_VIDEO_PATH,
   MASTER_PLAN_SCRUB_VIDEO_FPS,
   TOTAL_MASTER_PLAN_FRAMES,
 } from "@/data/masterPlanFrameCdnUrls";
@@ -3022,7 +3021,6 @@ export default function MasterPlanFrameHoverStage({
     height: 0,
     width: 0,
   }));
-  const [videoAspect, setVideoAspect] = useState(TRACKING_VIDEO_ASPECT);
   const [viewportTransform, setViewportTransformState] =
     useState<StageViewportTransform>(DEFAULT_STAGE_VIEWPORT_TRANSFORM);
   const safeFrame = wrapFrame(currentFrame);
@@ -3033,16 +3031,13 @@ export default function MasterPlanFrameHoverStage({
       getCoverViewport(
         sectionSize.width,
         sectionSize.height,
-        videoAspect,
+        TRACKING_VIDEO_ASPECT,
       ),
-    [sectionSize.height, sectionSize.width, videoAspect],
+    [sectionSize.height, sectionSize.width],
   );
   const trackingSceneAspect = useMemo(
-    () =>
-      normalizeAspect(
-        performanceProfile.isSafariLike ? TRACKING_VIDEO_ASPECT : videoAspect,
-      ),
-    [performanceProfile.isSafariLike, videoAspect],
+    () => normalizeAspect(TRACKING_VIDEO_ASPECT),
+    [],
   );
   const dragConfig = useMemo(
     () => getDragConfig(performanceProfile.tier),
@@ -3078,15 +3073,6 @@ export default function MasterPlanFrameHoverStage({
   );
   const scrubVideoPath = useMemo(
     () => {
-      const shouldUseMobileScrubVideo =
-        touchHighlightProfile === "mobile" ||
-        (touchHighlightProfile === "tablet" &&
-          performanceProfile.tier !== "standard");
-
-      if (shouldUseMobileScrubVideo) {
-        return MASTER_PLAN_SCRUB_MOBILE_VIDEO_PATH;
-      }
-
       if (performanceProfile.isSafariLike) {
         return MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH;
       }
@@ -3097,7 +3083,7 @@ export default function MasterPlanFrameHoverStage({
         medium: MASTER_PLAN_SCRUB_INTERACTION_VIDEO_PATH,
       });
     },
-    [performanceProfile.isSafariLike, performanceProfile.tier, touchHighlightProfile],
+    [performanceProfile.isSafariLike, performanceProfile.tier],
   );
   const interactionMode: InteractionMode = isDragging
     ? "dragging"
@@ -4591,15 +4577,6 @@ export default function MasterPlanFrameHoverStage({
               className={`pointer-events-none absolute inset-0 h-full w-full transition-opacity duration-200 ${
                 showVideo ? "opacity-100" : "opacity-0"
               }`}
-              onLoadedMetadata={(event) => {
-                const nextAspect =
-                  event.currentTarget.videoWidth > 0 &&
-                  event.currentTarget.videoHeight > 0
-                    ? event.currentTarget.videoWidth / event.currentTarget.videoHeight
-                    : TRACKING_VIDEO_ASPECT;
-
-                setVideoAspect(nextAspect);
-              }}
               muted
               playsInline
               preload={performanceProfile.scrubVideoPreload}

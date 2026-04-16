@@ -197,8 +197,19 @@ const SelectedFlatDetailsPanel = forwardRef<
                 </span>
               )}
             </div> */}
+            
+              {!hideCloseButton && (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/78 transition hover:bg-white/12 hover:text-white sm:h-10 sm:w-10"
+                  aria-label="Close flat details"
+                >
+                  <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                </button>
+              )}
 
-            <div className="mt-0 rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:mt-0 sm:rounded-[24px] sm:p-4">
+            <div className="mt-0 rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:mt-4 sm:rounded-[24px] sm:p-4">
               <div className="flex items-end justify-between gap-2 sm:gap-3">
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-[0.26em] text-white/42 sm:text-[10px]">

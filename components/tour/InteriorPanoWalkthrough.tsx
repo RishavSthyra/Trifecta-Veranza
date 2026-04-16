@@ -52,7 +52,6 @@ import type {
   PanoMeta,
 } from "@/lib/exterior-tour/types";
 import {
-  getWalkthroughContext,
   getWalkthroughMode,
 } from "@/lib/walkthrough";
 import Image from "next/image";
@@ -83,6 +82,7 @@ const FURNISHED_MAP_FLIP_X = false;
 const FURNISHED_MAP_FLIP_Y = false;
 const BARE_SHELL_MAP_FLIP_X = false;
 const BARE_SHELL_MAP_FLIP_Y = false;
+const ENTRANCE_FRAME_ID = "F0000";
 
 const LEGACY_SOURCE_BOTTOM_LEFT = {
   x: 1899.143896,
@@ -135,6 +135,11 @@ type RoomTab = {
   id: string;
   label: string;
   image: string;
+};
+
+type MenuRoomItem = RoomTab & {
+  point: MapPoint;
+  isActive: boolean;
 };
 
 type ViewerBindings = {
@@ -242,6 +247,63 @@ function getRoomLabel(imageFilename: string) {
   return ROOM_LABELS[panoId] ?? panoId.match(/F(\d{4})$/i)?.[0] ?? panoId;
 }
 
+function getImportantRoomLabel(label: string) {
+  const normalizedLabel = label.trim().toLowerCase();
+
+  if (!normalizedLabel) {
+    return null;
+  }
+
+  if (normalizedLabel === "entrance") {
+    return "Entrance";
+  }
+
+  if (normalizedLabel.includes("passage") || /^hall\b/.test(normalizedLabel)) {
+    return null;
+  }
+
+  if (normalizedLabel.endsWith("entrance")) {
+    return null;
+  }
+
+  if (normalizedLabel.includes("kitchen")) {
+    return "Kitchen";
+  }
+
+  if (normalizedLabel.includes("master bedroom")) {
+    return "Master Bedroom";
+  }
+
+  if (normalizedLabel.includes("childrens room")) {
+    return "Childrens Room";
+  }
+
+  if (normalizedLabel.includes("maid room")) {
+    return "Maid Room";
+  }
+
+  if (normalizedLabel.includes("drawing room")) {
+    return "Drawing Room";
+  }
+
+  if (normalizedLabel.includes("dining room")) {
+    return "Dining Room";
+  }
+
+  if (normalizedLabel.includes("living room")) {
+    return "Living Room";
+  }
+
+  if (
+    normalizedLabel.includes("bathroom") ||
+    normalizedLabel.includes("washroom")
+  ) {
+    return "Bathroom";
+  }
+
+  return null;
+}
+
 function getModeAwarePanoFolderCandidates(panoId: string, isBareShellMode: boolean) {
   const explicitOverride = isBareShellMode
     ? BARE_SHELL_PANO_FOLDER_OVERRIDES[panoId]
@@ -293,10 +355,6 @@ function getResolvedPanoFolderId(
 
 function getDefaultPreviewFile() {
   return "preview.jpg";
-}
-
-function getFrameId(imageFilename: string) {
-  return imageFilenameToPanoId(imageFilename).match(/F\d{4}$/i)?.[0] ?? null;
 }
 
 function buildNodeModeLabel(isBareShellMode: boolean) {
@@ -441,10 +499,6 @@ export default function InteriorPanoWalkthrough({
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedBareShellMode = getWalkthroughMode(searchParams) === "bare-shell";
-  const walkthroughContext = useMemo(
-    () => getWalkthroughContext(searchParams),
-    [searchParams],
-  );
   const [isBareShellMode, setIsBareShellMode] = useState(requestedBareShellMode);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -494,33 +548,52 @@ export default function InteriorPanoWalkthrough({
     [activeNode, graph, viewYaw],
   );
   const mapBounds = useMemo(() => getMapBounds(isBareShellMode), [isBareShellMode]);
+  const menuRooms = useMemo<MenuRoomItem[]>(() => {
+    const seenLabels = new Set<string>();
+
+    return graph.nodes.reduce<MenuRoomItem[]>((items, node) => {
+      const importantLabel = getImportantRoomLabel(getRoomLabel(node.imageFilename));
+
+      if (!importantLabel || seenLabels.has(importantLabel)) {
+        return items;
+      }
+
+      seenLabels.add(importantLabel);
+
+      const panoId = getResolvedPanoFolderId(
+        node.id,
+        node.imageFilename,
+        availablePanoFolders,
+        isBareShellMode,
+      );
+
+      items.push({
+        id: node.id,
+        image: `${panoBaseUrl}${panoId}/${getDefaultPreviewFile()}`,
+        isActive: node.id === currentNodeId,
+        label: importantLabel,
+        point: getMapPointForNode(node, mapBounds),
+      });
+
+      return items;
+    }, []);
+  }, [
+    availablePanoFolders,
+    currentNodeId,
+    graph.nodes,
+    isBareShellMode,
+    mapBounds,
+    panoBaseUrl,
+  ]);
   const mapPoints = useMemo(
     () =>
-      graph.nodes.map((node) => ({
-        id: node.id,
-        label: getRoomLabel(node.imageFilename),
-        point: getMapPointForNode(node, mapBounds),
-        isActive: node.id === currentNodeId,
+      menuRooms.map((item) => ({
+        id: item.id,
+        isActive: item.isActive,
+        label: item.label,
+        point: item.point,
       })),
-    [currentNodeId, graph.nodes, mapBounds],
-  );
-  const tabs = useMemo<RoomTab[]>(
-    () =>
-      graph.nodes.map((node) => {
-        const panoId = getResolvedPanoFolderId(
-          node.id,
-          node.imageFilename,
-          availablePanoFolders,
-          isBareShellMode,
-        );
-
-        return {
-          id: node.id,
-          label: getRoomLabel(node.imageFilename),
-          image: `${panoBaseUrl}${panoId}/${getDefaultPreviewFile()}`,
-        };
-      }),
-    [availablePanoFolders, graph.nodes, isBareShellMode, panoBaseUrl],
+    [menuRooms],
   );
 
   const updateModeInUrl = useCallback(
@@ -546,13 +619,15 @@ export default function InteriorPanoWalkthrough({
       return;
     }
 
-    setPreferredFrame(activeNode ? getFrameId(activeNode.imageFilename) : null);
+    setPreferredFrame(ENTRANCE_FRAME_ID);
+    setActiveNodeId("");
+    setViewYaw(0);
     setIsMenuOpen(false);
     setIsTransitioning(true);
     setAvailablePanoFolders({});
     setAvailableNodeIds(null);
     setIsBareShellMode(nextMode);
-  }, [activeNode, isBareShellMode]);
+  }, [isBareShellMode]);
 
   const handleModeToggle = useCallback(() => {
     const nextMode = !isBareShellMode;
@@ -1022,7 +1097,7 @@ export default function InteriorPanoWalkthrough({
   if (availableNodeIds === null) {
     return (
       <div className="flex h-full items-center justify-center rounded-[2rem] border border-white/10 bg-black/30 text-white/70">
-        Loading interior panoramas...
+        Loading Walkthrough. Please Wait
       </div>
     );
   }
@@ -1039,7 +1114,7 @@ export default function InteriorPanoWalkthrough({
     <section
       className={`relative isolate h-full w-full overflow-hidden rounded-[2.25rem] border border-white/10 bg-black text-white  ${className ?? ""}`}
     >
-      {walkthroughContext.flatNumber ? (
+      {/* {walkthroughContext.flatNumber ? (
         <div className="pointer-events-none absolute inset-x-4 top-4 z-30 flex justify-center sm:top-5">
           <div className={`${uiFont.className} rounded-[1.35rem] border border-white/16 bg-[rgba(14,20,27,0.58)] px-4 py-3 text-center text-white shadow-[0_18px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl`}>
             <div className="text-[10px] uppercase tracking-[0.26em] text-white/56">
@@ -1058,7 +1133,7 @@ export default function InteriorPanoWalkthrough({
             </div>
           </div>
         </div>
-      ) : null}
+      ) : null} */}
 
       <div className="absolute inset-0">
         <div ref={viewerHostRef} className="h-full w-full" />
@@ -1203,16 +1278,16 @@ export default function InteriorPanoWalkthrough({
             </div>
 
             <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
-              {tabs.map((tab) => {
-                const isActive = tab.id === currentNodeId;
+              {menuRooms.map((room) => {
+                const isActive = room.id === currentNodeId;
                 return (
                   <button
-                    key={tab.id}
+                    key={room.id}
                     type="button"
                     onClick={() => {
                       setIsMenuOpen(false);
                       setPreferredFrame(null);
-                      void goToNode(tab.id);
+                      void goToNode(room.id);
                     }}
                     className={`group flex w-full items-center gap-3 rounded-[1.4rem] border p-2.5 text-left shadow-[0_12px_30px_rgba(0,0,0,0.1)] transition ${
                       isActive
@@ -1222,15 +1297,15 @@ export default function InteriorPanoWalkthrough({
                   >
                     <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-[1rem] border border-white/18 bg-white/8">
                       <NextImage
-                        src={tab.image}
-                        alt={tab.label}
+                        src={room.image}
+                        alt={room.label}
                         fill
                         sizes="96px"
                         className="object-cover object-center transition duration-300 group-hover:scale-[1.03]"
                       />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[15px] font-semibold text-white">{tab.label}</div>
+                      <div className="text-[15px] font-semibold text-white">{room.label}</div>
                       <div className="mt-1 text-sm leading-5 text-white/72">
                         {isActive
                           ? "You are currently inside this room."
