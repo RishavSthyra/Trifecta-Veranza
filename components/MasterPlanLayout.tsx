@@ -57,6 +57,8 @@ const SPECIAL_UNIT_VIDEO_REVERSE_URL =
   "https://cdn.sthyra.com/videos/Unit%20View%203S%20Reversed%20New_Compressed.mp4";
 const MASTER_PLAN_EXIT_REVERSE_VIDEO_URL =
   "https://cdn.sthyra.com/videos/Tf%20Reversed(1).mp4";
+const MASTER_PLAN_STAGE_FALLBACK_IMAGE =
+  "https://cdn.sthyra.com/images/first_frame_again.png";
 const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
 const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
 const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;
@@ -395,11 +397,19 @@ export default function MasterPlanLayout({
     isSpecialVideoLaunching || isSpecialVideoOpen;
   const isSpecialVideoOverlayMounted =
     Boolean(specialVideoApartment) || isSpecialVideoLaunching || isSpecialVideoOpen;
-  const isFlatPanelOpen = Boolean(
-    selectedApartment || (isSpecialVideoCompleted && specialVideoApartment),
-  );
   const shouldUseCompactLayout =
     isCompactViewport || isTouchTabletViewport;
+  const shouldRenderCompactSpecialVideoStage =
+    shouldUseCompactLayout && Boolean(specialVideoApartment);
+  const shouldShowCompactSpecialVideoPanel =
+    shouldUseCompactLayout &&
+    Boolean(specialVideoApartment) &&
+    !isSpecialVideoReversing;
+  const isFlatPanelOpen = Boolean(
+    selectedApartment ||
+      shouldShowCompactSpecialVideoPanel ||
+      (isSpecialVideoCompleted && specialVideoApartment),
+  );
   const shouldEnableCompactStageScrubbing = !isMobileViewport;
   const compactTouchHighlightProfile = isMobileViewport
     ? "mobile"
@@ -423,6 +433,7 @@ export default function MasterPlanLayout({
     !selectedTower &&
     !selectedApartment &&
     !isSpecialVideoExperienceActive;
+  const shouldHideInlineCompactShell = !shouldUseCompactLayout && isSpecialVideoOpen;
   const activeSpecialVideoUrl = isSpecialVideoReversing
     ? SPECIAL_UNIT_VIDEO_REVERSE_URL
     : SPECIAL_UNIT_VIDEO_URL;
@@ -1466,13 +1477,49 @@ export default function MasterPlanLayout({
         className={`relative z-10 h-full flex-col transition-opacity duration-300 ${
           shouldUseCompactLayout ? "flex" : "flex xl:hidden"
         } ${
-          isSpecialVideoOpen ? "pointer-events-none opacity-0" : "opacity-100"
+          shouldHideInlineCompactShell
+            ? "pointer-events-none opacity-0"
+            : "opacity-100"
         }`}
       >
         <div className="relative w-full shrink-0">
           <div className={`relative overflow-hidden ${compactStageHeightClassName}`}>
             <div className="absolute inset-0">
-              {isTopViewMode && !selectedTower ? (
+              {shouldRenderCompactSpecialVideoStage ? (
+                <div className="absolute inset-0 bg-black">
+                  <div
+                    className={`absolute inset-0 bg-cover bg-center transition-opacity duration-300 ${
+                      isSpecialVideoReady ? "opacity-0" : "opacity-100"
+                    }`}
+                    style={{
+                      backgroundImage: `url('${MASTER_PLAN_STAGE_FALLBACK_IMAGE}')`,
+                    }}
+                  />
+
+                  <video
+                    ref={specialUnitVideoRef}
+                    muted
+                    playsInline
+                    preload="auto"
+                    poster={MASTER_PLAN_STAGE_FALLBACK_IMAGE}
+                    crossOrigin="anonymous"
+                    disablePictureInPicture
+                    className={`h-full w-full object-cover transition-opacity duration-300 ${
+                      isSpecialVideoReady ? "opacity-100" : "opacity-0"
+                    }`}
+                    onEnded={() => {
+                      if (isSpecialVideoReversing) {
+                        closeSpecialUnitVideo();
+                        return;
+                      }
+
+                      setIsSpecialVideoCompleted(true);
+                    }}
+                  />
+
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.02)_48%,rgba(0,0,0,0.26)_100%)]" />
+                </div>
+              ) : isTopViewMode && !selectedTower ? (
                 <MasterPlanTopViewStage />
               ) : (
                 <MasterPlanFrameHoverStage
@@ -1492,7 +1539,7 @@ export default function MasterPlanLayout({
               )}
             </div>
 
-            {!isTopViewMode && !isLeaving && !isSpecialVideoOpen ? (
+            {!isTopViewMode && !isLeaving && !shouldRenderCompactSpecialVideoStage ? (
               <div
                 className={`pointer-events-none absolute inset-x-0 z-30 flex justify-center px-4 ${
                   shouldUseCompactLayout
@@ -1513,7 +1560,7 @@ export default function MasterPlanLayout({
         <div className={compactLowerContentClassName}>
           <div
             className={
-              selectedApartment
+              selectedApartment || shouldShowCompactSpecialVideoPanel
                 ? "flex h-full min-h-0 flex-col overflow-hidden"
                 : "surface-contain flex h-full min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/60 bg-white/92 shadow-[0_24px_64px_rgba(15,23,42,0.16)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70"
             }
@@ -1528,6 +1575,18 @@ export default function MasterPlanLayout({
                     apartment={selectedApartment}
                     compact
                     onClose={clearSelectedApartment}
+                  />
+                </div>
+            ) : shouldShowCompactSpecialVideoPanel && specialVideoApartment ? (
+                <div
+                  className="flex min-h-0 flex-1 items-stretch justify-center overflow-hidden px-0 pb-[max(env(safe-area-inset-bottom),0rem)] pt-0"
+                  data-scroll-area="compact-panel"
+                >
+                  <SelectedFlatDetailsPanel
+                    ref={selectedFlatPanelRef}
+                    apartment={specialVideoApartment}
+                    compact
+                    onClose={handleSpecialVideoBack}
                   />
                 </div>
             ) : selectedTower ? (
@@ -1679,7 +1738,7 @@ export default function MasterPlanLayout({
                 animate={{ opacity: 1, x: 0, y: 0 }}
                 exit={{ opacity: 0, x: 24, y: 12 }}
                 transition={{ duration: 0.26, ease: smoothEase }}
-                className="pointer-events-none absolute right-6 top-1/2 z-40 w-full max-w-[26rem] -translate-y-1/2 overflow-visible 2xl:right-10"
+                className="pointer-events-none absolute right-6 top-1/2 z-40 w-full max-w-[23rem] -translate-y-1/2 overflow-visible xl:origin-right xl:scale-[0.92] 2xl:right-10 2xl:max-w-[26rem] 2xl:scale-100"
               >
                 <SelectedFlatDetailsPanel
                   ref={selectedFlatPanelRef}
@@ -1919,7 +1978,7 @@ export default function MasterPlanLayout({
       ) : null}
 
       <AnimatePresence>
-        {isSpecialVideoOverlayMounted ? (
+        {!shouldUseCompactLayout && isSpecialVideoOverlayMounted ? (
           <motion.div
             initial={false}
             animate={{
@@ -1973,11 +2032,11 @@ export default function MasterPlanLayout({
                   animate={{ opacity: 1, x: 0, y: 0 }}
                   exit={{ opacity: 0, x: 24, y: 12 }}
                   transition={{ duration: 0.28, ease: smoothEase }}
-                  className="pointer-events-none absolute inset-x-3 bottom-3 z-20 sm:inset-x-auto sm:right-5 sm:top-1/2 sm:bottom-auto sm:w-full sm:max-w-[27rem] sm:-translate-y-1/2 lg:right-8"
+                  className="pointer-events-none absolute right-5 top-1/2 bottom-auto z-20 w-full max-w-[23rem] -translate-y-1/2 xl:origin-right xl:scale-[0.92] 2xl:max-w-[27rem] 2xl:scale-100"
                 >
                   <SelectedFlatDetailsPanel
                     apartment={specialVideoApartment}
-                    compact={shouldUseCompactLayout}
+                    compact={false}
                     hideCloseButton={false}
                     onClose={handleSpecialVideoBack}
                   />

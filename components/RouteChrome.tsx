@@ -143,14 +143,14 @@ export default function RouteChrome() {
         href: "/master-plan",
       },
       {
-        title: "Map",
-        icon: <IoMapOutline className="h-full w-full text-neutral-100" />,
-        href: "/area-map",
-      },
-      {
         title: "Walkthrough",
         icon: <Footprints className="h-full w-full text-neutral-100" />,
         href: "/exterior-walkthrough",
+      },
+      {
+        title: "Map",
+        icon: <IoMapOutline className="h-full w-full text-neutral-100" />,
+        href: "/area-map",
       },
     ];
 

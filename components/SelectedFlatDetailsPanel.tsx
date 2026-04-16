@@ -132,8 +132,17 @@ const SelectedFlatDetailsPanel = forwardRef<
       ? "pointer-events-auto w-full self-start"
       : "pointer-events-auto h-full min-h-0 w-full self-stretch";
     const compactPanelClassName = desktopEnhancedCompact
-      ? "custom-scrollbar relative flex max-h-[60vh] min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[28px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] [-webkit-overflow-scrolling:touch] touch-pan-y sm:rounded-[30px]"
-      : "custom-scrollbar relative flex h-full max-h-full min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[28px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] [-webkit-overflow-scrolling:touch] touch-pan-y sm:rounded-[30px]";
+      ? "custom-scrollbar relative flex max-h-[52vh] min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[20px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] [-webkit-overflow-scrolling:touch] touch-pan-y xl:rounded-[24px] 2xl:max-h-[60vh] 2xl:rounded-[30px]"
+      : "custom-scrollbar relative flex h-full max-h-full min-h-0 flex-col overflow-y-auto overscroll-contain rounded-[20px] border border-white/14 bg-[linear-gradient(180deg,rgba(16,19,25,0.96),rgba(22,26,34,0.94))] text-white shadow-[0_24px_70px_rgba(0,0,0,0.34)] backdrop-blur-[24px] [-webkit-overflow-scrolling:touch] touch-pan-y sm:rounded-[28px] md:rounded-[30px]";
+    const compactContentClassName = desktopEnhancedCompact
+      ? "relative flex min-h-0 flex-col p-3 xl:p-3.5 2xl:p-5"
+      : "relative flex min-h-0 flex-col p-3 sm:p-4 md:p-5";
+    const compactTitleClassName = desktopEnhancedCompact
+      ? "mt-1 truncate text-[1rem] font-semibold leading-none tracking-[-0.04em] text-white xl:text-[1.05rem] 2xl:text-[1.45rem]"
+      : "mt-1 truncate text-[1.1rem] font-semibold leading-none tracking-[-0.04em] text-white sm:text-[1.25rem] md:text-[1.45rem]";
+    const compactHeroTitleClassName = desktopEnhancedCompact
+      ? "mt-0.5 truncate text-[1.2rem] font-semibold leading-none tracking-[-0.06em] text-white xl:text-[1.4rem] 2xl:text-[1.9rem]"
+      : "mt-0.5 truncate text-[1.4rem] font-semibold leading-none tracking-[-0.06em] text-white sm:mt-1 sm:text-[1.9rem]";
 
     return (
       <motion.div
@@ -155,15 +164,15 @@ const SelectedFlatDetailsPanel = forwardRef<
         <div className={compactPanelClassName}>
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,228,196,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(171,135,86,0.10),transparent_28%)]" />
 
-          <div className="relative flex min-h-0 flex-col p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="h-10 w-10 shrink-0 opacity-0" aria-hidden="true" />
+          <div className={compactContentClassName}>
+            <div className="flex items-center justify-between gap-2 sm:gap-3">
+              <div className="h-9 w-9 shrink-0 opacity-0 sm:h-10 sm:w-10" aria-hidden="true" />
 
               <div className="min-w-0 flex-1 text-center">
-                <p className="text-[10px] uppercase tracking-[0.28em] text-white/38">
+                <p className="text-[9px] uppercase tracking-[0.28em] text-white/38 sm:text-[10px]">
                   Selected Flat
                 </p>
-                <p className="mt-1 truncate text-[1.25rem] font-semibold leading-none tracking-[-0.04em] text-white sm:text-[1.45rem]">
+                <p className={compactTitleClassName}>
                   {apartment.title}
                 </p>
               </div>
@@ -172,58 +181,58 @@ const SelectedFlatDetailsPanel = forwardRef<
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/78 transition hover:bg-white/12 hover:text-white"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white/78 transition hover:bg-white/12 hover:text-white sm:h-10 sm:w-10"
                   aria-label="Close flat details"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                 </button>
               ) : (
                 <span
-                  className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] ${statusStyles.badgeClassName}`}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.22em] sm:px-3 sm:py-2 sm:text-[10px] ${statusStyles.badgeClassName}`}
                 >
                   <span
-                    className={`inline-flex h-2 w-2 rounded-full ${statusStyles.dotClassName}`}
+                    className={`inline-flex h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2 ${statusStyles.dotClassName}`}
                   />
                   {apartment.status}
                 </span>
               )}
             </div>
 
-            <div className="mt-4 rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-              <div className="flex items-end justify-between gap-3">
+            <div className="mt-3 rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:mt-4 sm:rounded-[24px] sm:p-4">
+              <div className="flex items-end justify-between gap-2 sm:gap-3">
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase tracking-[0.26em] text-white/42">
+                  <p className="text-[9px] uppercase tracking-[0.26em] text-white/42 sm:text-[10px]">
                     Selected Flat
                   </p>
-                  <p className="mt-1 truncate text-[1.9rem] font-semibold leading-none tracking-[-0.06em] text-white">
+                  <p className={compactHeroTitleClassName}>
                     {apartment.title}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="text-[10px] uppercase tracking-[0.26em] text-white/42">
+                  <p className="text-[9px] uppercase tracking-[0.26em] text-white/42 sm:text-[10px]">
                     Floor
                   </p>
-                  <p className="mt-1 text-lg font-medium text-white/88">
+                  <p className="mt-0.5 text-sm font-medium text-white/88 sm:mt-1 sm:text-lg">
                     {apartment.floorLabel || apartment.floor}
                   </p>
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="mt-2.5 flex items-center justify-between gap-2 sm:mt-3 sm:gap-3">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-white/42">
+                  <p className="text-[9px] uppercase tracking-[0.24em] text-white/42 sm:text-[10px]">
                     Walkthrough
                   </p>
-                  <p className="mt-1 text-sm font-medium text-white/78">
+                  <p className="mt-0.5 text-xs font-medium text-white/78 sm:text-sm">
                     Open the full apartment walkthrough from the button below.
                   </p>
                 </div>
 
                 <span
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] ${statusStyles.badgeClassName}`}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.22em] sm:px-3 sm:py-1.5 sm:text-[10px] ${statusStyles.badgeClassName}`}
                 >
                   <span
-                    className={`inline-flex h-2 w-2 rounded-full ${statusStyles.dotClassName}`}
+                    className={`inline-flex h-1.5 w-1.5 rounded-full sm:h-2 sm:w-2 ${statusStyles.dotClassName}`}
                   />
                   {apartment.status}
                 </span>
@@ -232,7 +241,7 @@ const SelectedFlatDetailsPanel = forwardRef<
 
             {desktopEnhancedCompact ? (
               <div
-                className="group mt-4 relative shrink-0 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] cursor-pointer"
+                className="group mt-3 relative shrink-0 overflow-hidden rounded-[18px] border border-white/10 bg-white/[0.03] cursor-pointer sm:mt-4 sm:rounded-[24px]"
                 onClick={handleOpenWalkthrough}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
@@ -259,47 +268,30 @@ const SelectedFlatDetailsPanel = forwardRef<
                         event.stopPropagation();
                         handleOpenWalkthrough();
                       }}
-                      className="flex h-[4.2rem] w-[4.2rem] items-center justify-center rounded-full border border-white/65 bg-white/82 shadow-[0_18px_34px_rgba(15,23,42,0.14)] backdrop-blur-md transition duration-300 hover:scale-105 hover:bg-white"
+                      className="flex h-[3rem] w-[3rem] items-center justify-center rounded-full border border-white/65 bg-white/82 shadow-[0_18px_34px_rgba(15,23,42,0.14)] backdrop-blur-md transition duration-300 hover:scale-105 hover:bg-white sm:h-[3.5rem] sm:w-[3.5rem] md:h-[4.2rem] md:w-[4.2rem]"
                       aria-label="Play preview"
                     >
-                      <Play className="ml-0.5 h-6 w-6 fill-zinc-900 text-zinc-900" />
+                      <Play className="ml-0.5 h-5 w-5 fill-zinc-900 text-zinc-900 sm:h-5 sm:w-5 md:h-6 md:w-6" />
                     </button>
                   </div>
-
-                  {/* <div className="absolute inset-x-0 bottom-0 p-4">
-                    <div className="flex items-end justify-between gap-3 rounded-[18px] border border-white/55 bg-white/70 p-3 backdrop-blur-md">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.24em] text-zinc-500">
-                          Private View
-                        </p>
-                        <p className="mt-1 text-sm font-medium text-zinc-900">
-                          Interior walkthrough preview
-                        </p>
-                      </div>
-
-                      <div className="rounded-full border border-white/60 bg-white/85 px-3 py-1.5 text-[11px] font-medium text-zinc-700">
-                        Video preview
-                      </div>
-                    </div>
-                  </div> */}
                 </div>
               </div>
             ) : null}
 
-            <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-white/10 pb-4">
+            <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5 border-b border-white/10 pb-3 sm:gap-x-4 sm:gap-y-3 sm:pb-4">
               {compactFacts.map((item) => {
                 const Icon = item.icon;
 
                 return (
-                  <div key={item.key} className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5">
-                      <Icon className="h-4 w-4 text-[#d9c29c]" />
+                  <div key={item.key} className="flex min-w-0 items-center gap-2 sm:gap-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 sm:h-9 sm:w-9">
+                      <Icon className="h-3.5 w-3.5 text-[#d9c29c] sm:h-4 sm:w-4" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] uppercase tracking-[0.24em] text-white/38">
+                      <p className="text-[9px] uppercase tracking-[0.24em] text-white/38 sm:text-[10px]">
                         {item.label}
                       </p>
-                      <p className="mt-1 truncate text-sm font-medium text-white/92">
+                      <p className="mt-0.5 truncate text-xs font-medium text-white/92 sm:text-sm">
                         {item.value}
                       </p>
                     </div>
@@ -308,52 +300,52 @@ const SelectedFlatDetailsPanel = forwardRef<
               })}
             </div>
 
-            <div className="mt-4 flex flex-col">
-              <div className="flex items-center justify-between gap-3">
+            <div className="mt-3 flex flex-col sm:mt-4">
+              <div className="flex items-center justify-between gap-2 sm:gap-3">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.26em] text-white/38">
+                  <p className="text-[9px] uppercase tracking-[0.26em] text-white/38 sm:text-[10px]">
                     Dimensions
                   </p>
-                  <p className="mt-1 text-base font-semibold tracking-[-0.03em] text-white">
+                  <p className="mt-0.5 text-sm font-semibold tracking-[-0.03em] text-white sm:text-base">
                     Room dimensions
                   </p>
                 </div>
 
-                <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-medium text-white/54">
+                <div className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-medium text-white/54 sm:px-3 sm:py-1.5 sm:text-[11px]">
                   {dimensionItems.length} rooms
                 </div>
               </div>
 
-              <div className="mt-4 pr-1">
-                <div className="space-y-3 pb-1">
+              <div className="mt-3 pr-1 sm:mt-4">
+                <div className="space-y-2.5 pb-1 sm:space-y-3 sm:pb-1">
                   {dimensionItems.length > 0 ? (
                     dimensionItems.map((item, index) => (
                       <div
                         key={item.key}
-                        className="flex items-start justify-between gap-3 border-b border-white/8 pb-3 last:border-b-0 last:pb-0"
+                        className="flex items-start justify-between gap-2 border-b border-white/8 pb-2.5 last:border-b-0 last:pb-0 sm:gap-3 sm:pb-3"
                       >
-                        <div className="flex min-w-0 items-start gap-3">
-                          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5">
-                            <Ruler className="h-4 w-4 text-[#d6c29d]" />
+                        <div className="flex min-w-0 items-start gap-2 sm:gap-3">
+                          <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 sm:h-9 sm:w-9">
+                            <Ruler className="h-3.5 w-3.5 text-[#d6c29d] sm:h-4 sm:w-4" />
                           </div>
 
                           <div className="min-w-0">
-                            <p className="text-[10px] uppercase tracking-[0.24em] text-white/32">
+                            <p className="text-[9px] uppercase tracking-[0.24em] text-white/32 sm:text-[10px]">
                               {String(index + 1).padStart(2, "0")}
                             </p>
-                            <p className="mt-1 truncate text-sm font-medium text-white/88">
+                            <p className="mt-0.5 truncate text-xs font-medium text-white/88 sm:text-sm">
                               {item.label}
                             </p>
                           </div>
                         </div>
 
-                        <p className="shrink-0 text-right text-sm font-semibold tracking-[0.01em] text-[#f2e6cc]">
+                        <p className="shrink-0 text-right text-xs font-semibold tracking-[0.01em] text-[#f2e6cc] sm:text-sm">
                           {item.value}
                         </p>
                       </div>
                     ))
                   ) : (
-                    <div className="py-6 text-sm text-white/52">
+                    <div className="py-4 text-xs text-white/52 sm:py-6 sm:text-sm">
                       Room dimensions are not available for this apartment yet.
                     </div>
                   )}
@@ -362,16 +354,16 @@ const SelectedFlatDetailsPanel = forwardRef<
             </div>
 
             <div
-              className={`mt-4 border-t border-white/10 px-4 pt-3 sm:px-5 ${
+              className={`mt-3 border-t border-white/10 px-3 pt-2.5 sm:mt-4 sm:px-4 sm:pt-3 md:px-5 ${
                 desktopEnhancedCompact
-                  ? "pb-1"
-                  : "sticky bottom-0 z-10 -mx-4 bg-[linear-gradient(180deg,rgba(16,19,25,0.14),rgba(16,19,25,0.96)_24%)] pb-4 backdrop-blur-xl sm:-mx-5 sm:pb-5"
+                  ? "pb-0.5"
+                  : "sticky bottom-0 z-10 -mx-3 bg-[linear-gradient(180deg,rgba(16,19,25,0.14),rgba(16,19,25,0.96)_24%)] pb-3 backdrop-blur-xl sm:-mx-4 sm:pb-4 md:-mx-5 md:pb-5"
               }`}
             >
               <button
                 type="button"
                 onClick={handleOpenWalkthrough}
-                className="inline-flex w-full items-center justify-center rounded-full border border-[#dcc59b]/30 bg-[linear-gradient(135deg,#e4cfaa_0%,#c9a874_52%,#f1dfc1_100%)] px-4 py-3.5 text-sm font-semibold text-[#17120c] shadow-[0_18px_40px_rgba(0,0,0,0.22)] transition hover:brightness-105"
+                className="inline-flex w-full items-center justify-center rounded-full border border-[#dcc59b]/30 bg-[linear-gradient(135deg,#e4cfaa_0%,#c9a874_52%,#f1dfc1_100%)] px-3 py-2.5 text-xs font-semibold text-[#17120c] shadow-[0_18px_40px_rgba(0,0,0,0.22)] transition hover:brightness-105 sm:px-4 sm:py-3 sm:text-sm md:py-3.5"
               >
                 Open walkthrough
               </button>

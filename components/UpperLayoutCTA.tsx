@@ -160,20 +160,26 @@ export default function UpperLayoutCTA({
       link: "tel:+91-808 800 4411",
       action: "link",
       isHighlight: true,
-      icon: <FiPhone className="h-4 w-4" />,
+      icon: (
+        <FiPhone className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+      ),
     },
     {
       name: "Brochure",
       link: "/Veranza Floorplan_ E-Brochure_V3_02-03-26 (2).pdf",
       action: "link",
       isHighlight: false,
-      icon: <FiDownload className="h-4 w-4" />,
+      icon: (
+        <FiDownload className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+      ),
     },
     {
       name: "Get A Quote",
       action: "quote-modal",
       isHighlight: false,
-      icon: <FiDollarSign className="h-4 w-4" />,
+      icon: (
+        <FiDollarSign className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+      ),
     },
     {
       name: isMasterPlanRoute ? "Home" : "Floor Plan",
@@ -181,9 +187,9 @@ export default function UpperLayoutCTA({
       action: "link",
       isHighlight: false,
       icon: isMasterPlanRoute ? (
-        <FiHome className="h-4 w-4" />
+        <FiHome className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
       ) : (
-        <FiGrid className="h-4 w-4" />
+        <FiGrid className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
       ),
     },
   ];
@@ -199,35 +205,45 @@ export default function UpperLayoutCTA({
         link: "/",
         action: "link",
         isHighlight: false,
-        icon: <BiHome className="h-4 w-4" />,
+        icon: (
+          <BiHome className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+        ),
       },
       {
         name: "Project Overview",
         link: "/project-overview",
         action: "link",
         isHighlight: false,
-        icon: <User className="h-4 w-4" />,
+        icon: (
+          <User className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+        ),
       },
       {
         name: "Master Plan",
         link: "/master-plan",
         action: "link",
         isHighlight: false,
-        icon: <PiMapPinAreaFill className="h-4 w-4" />,
+        icon: (
+          <PiMapPinAreaFill className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+        ),
       },
       {
         name: "Map",
         link: "/area-map",
         action: "link",
         isHighlight: false,
-        icon: <IoMapOutline className="h-4 w-4" />,
+        icon: (
+          <IoMapOutline className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+        ),
       },
       {
         name: "Walkthrough",
         link: "/exterior-walkthrough",
         action: "link",
         isHighlight: false,
-        icon: <Footprints className="h-4 w-4" />,
+        icon: (
+          <Footprints className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+        ),
       },
     ].filter((button) => !(isMasterPlanRoute && button.name === "Home"));
   }, [isMasterPlanRoute, mergeRouteLinks]);
@@ -247,10 +263,10 @@ export default function UpperLayoutCTA({
           <button
             type="button"
             onClick={() => setIsMobileMenuOpen((value) => !value)}
-            className="pointer-events-auto inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-white/18 bg-black/92 text-white shadow-[0_18px_48px_rgba(0,0,0,0.58)] backdrop-blur-xl transition active:scale-[0.98]"
+            className="pointer-events-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/18 bg-black/92 text-white shadow-[0_18px_48px_rgba(0,0,0,0.58)] backdrop-blur-xl transition active:scale-[0.98] sm:h-12 sm:w-12"
             aria-label={isMobileMenuOpen ? "Close quick actions" : "Open quick actions"}
           >
-            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            {isMobileMenuOpen ? <X className="h-4 w-4 sm:h-5 sm:w-5" /> : <Menu className="h-4 w-4 sm:h-5 sm:w-5" />}
           </button>
 
           <AnimatePresence initial={false}>
@@ -268,13 +284,13 @@ export default function UpperLayoutCTA({
                       key={button.name}
                       href={button.link}
                       onClick={() => setIsMobileMenuOpen(false)}
-                      className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-medium ${
+                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-medium sm:gap-2 sm:px-3.5 sm:py-2 sm:text-[11px] ${
                         button.isHighlight
                           ? "border-white/60 bg-white text-zinc-900"
                           : "border-white/10 bg-white/10 text-white"
                       }`}
                     >
-                      <span className="flex h-4 w-4 items-center justify-center">
+                      <span className="flex h-3.5 w-3.5 items-center justify-center sm:h-4 sm:w-4">
                         {button.icon}
                       </span>
                       <span className="whitespace-nowrap">{button.name}</span>
@@ -287,13 +303,13 @@ export default function UpperLayoutCTA({
                         setIsMobileMenuOpen(false);
                         onQuoteClick();
                       }}
-                      className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-2 text-[11px] font-medium ${
+                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-medium sm:gap-2 sm:px-3.5 sm:py-2 sm:text-[11px] ${
                         button.isHighlight
                           ? "border-white/60 bg-white text-zinc-900"
                           : "border-white/10 bg-white/10 text-white"
                       }`}
                     >
-                      <span className="flex h-4 w-4 items-center justify-center">
+                      <span className="flex h-3.5 w-3.5 items-center justify-center sm:h-4 sm:w-4">
                         {button.icon}
                       </span>
                       <span className="whitespace-nowrap">{button.name}</span>
@@ -373,10 +389,10 @@ export default function UpperLayoutCTA({
         <motion.div
           layout
           transition={spring}
-          className={`relative max-w-full overflow-visible rounded-full border border-white/20 bg-black px-3 py-3 shadow-[0_20px_90px_rgba(0,0,0,0.8)] backdrop-blur-xl ${
+          className={`relative max-w-full overflow-visible rounded-full border border-white/20 bg-black px-2 py-2 shadow-[0_20px_90px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:px-2.5 sm:py-2.5 ${
             shouldDockAtBottom
               ? "md:px-5 md:py-3"
-              : "md:rounded-t-[75px] md:px-16 md:py-4"
+              : "sm:rounded-t-[56px] sm:px-7 sm:py-2.5 xl:rounded-t-[64px] xl:px-10 xl:py-3 2xl:rounded-t-[75px] 2xl:px-16 2xl:py-4"
           }`}
         >
           {/* Right Wave */}
@@ -384,8 +400,8 @@ export default function UpperLayoutCTA({
             width="130"
             height="58"
             viewBox="0 0 130 58"
-            className={`absolute -right-[113px] -top-1 hidden ${
-              shouldDockAtBottom ? "" : "md:block"
+            className={`absolute -right-[84px] top-0 hidden h-11 w-24 xl:-right-[92px] xl:h-12 xl:w-[104px] 2xl:-right-[113px] 2xl:-top-1 2xl:h-[58px] 2xl:w-[130px] ${
+              shouldDockAtBottom ? "" : "lg:block"
             }`}
           >
             <path
@@ -394,13 +410,13 @@ export default function UpperLayoutCTA({
             />
           </svg>
 
-  
+
           <svg
             width="130"
             height="58"
             viewBox="0 0 130 58"
-            className={`absolute -left-[113px] -top-1 hidden ${
-              shouldDockAtBottom ? "" : "md:block"
+            className={`absolute -left-[84px] top-0 hidden h-11 w-24 xl:-left-[92px] xl:h-12 xl:w-[104px] 2xl:-left-[113px] 2xl:-top-1 2xl:h-[58px] 2xl:w-[130px] ${
+              shouldDockAtBottom ? "" : "lg:block"
             }`}
           >
             <path
@@ -417,7 +433,7 @@ export default function UpperLayoutCTA({
             onPointerMove={handleScrollerPointerMove}
             onPointerUp={handleScrollerPointerUp}
             onPointerCancel={handleScrollerPointerUp}
-            className={`flex max-w-[calc(100vw-2rem)] items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+            className={`flex max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-1.5 2xl:gap-2 ${
               shouldEnableRailDrag
                 ? "cursor-grab touch-pan-x active:cursor-grabbing"
                 : ""
@@ -439,18 +455,18 @@ export default function UpperLayoutCTA({
                       <motion.div
                         layout
                         transition={spring}
-                        className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border text-xs font-medium md:text-xs ${
+                        className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[0.95rem] border text-[9px] font-medium xl:text-[10px] 2xl:rounded-xl 2xl:text-xs ${
                           button.isHighlight
                             ? "bg-white text-zinc-900 shadow-md"
                             : "border-white/10 bg-white/10 text-white"
                         }`}
                         animate={{
-                          paddingLeft: isHovered ? 16 : mergeRouteLinks ? 9 : 10,
-                          paddingRight: isHovered ? 16 : mergeRouteLinks ? 9 : 10,
+                          paddingLeft: isHovered ? 14 : mergeRouteLinks ? 8 : 9,
+                          paddingRight: isHovered ? 14 : mergeRouteLinks ? 8 : 9,
                         }}
                       >
                         <motion.span
-                          className="flex h-8 w-4 items-center justify-center md:h-10"
+                          className="flex h-6 w-4 items-center justify-center sm:h-7 sm:w-[1.05rem] xl:h-8 xl:w-5 2xl:h-10 2xl:w-6"
                           animate={{ scale: isHovered ? 1.08 : 1 }}
                           transition={spring}
                         >
@@ -478,18 +494,18 @@ export default function UpperLayoutCTA({
                       layout
                       transition={spring}
                       onClick={onQuoteClick}
-                      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-xl border text-xs font-medium md:text-xs ${
+                      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[0.95rem] border text-[9px] font-medium xl:text-[10px] 2xl:rounded-xl 2xl:text-xs ${
                         button.isHighlight
                           ? "bg-white text-zinc-900 shadow-md"
                           : "border-white/10 bg-white/10 text-white"
                       }`}
                       animate={{
-                        paddingLeft: isHovered ? 16 : mergeRouteLinks ? 9 : 10,
-                        paddingRight: isHovered ? 16 : mergeRouteLinks ? 9 : 10,
+                        paddingLeft: isHovered ? 14 : mergeRouteLinks ? 8 : 9,
+                        paddingRight: isHovered ? 14 : mergeRouteLinks ? 8 : 9,
                       }}
                     >
                       <motion.span
-                        className="flex h-8 w-4 items-center justify-center md:h-10"
+                        className="flex h-6 w-4 items-center justify-center sm:h-7 sm:w-[1.05rem] xl:h-8 xl:w-5 2xl:h-10 2xl:w-6"
                         animate={{ scale: isHovered ? 1.08 : 1 }}
                         transition={spring}
                       >
