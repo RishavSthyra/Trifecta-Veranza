@@ -165,7 +165,7 @@ const SelectedFlatDetailsPanel = forwardRef<
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(245,228,196,0.14),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(171,135,86,0.10),transparent_28%)]" />
 
           <div className={compactContentClassName}>
-            <div className="flex items-center justify-between gap-2 sm:gap-3">
+            {/* <div className="flex items-center justify-between gap-2 sm:gap-3">
               <div className="h-9 w-9 shrink-0 opacity-0 sm:h-10 sm:w-10" aria-hidden="true" />
 
               <div className="min-w-0 flex-1 text-center">
@@ -196,9 +196,9 @@ const SelectedFlatDetailsPanel = forwardRef<
                   {apartment.status}
                 </span>
               )}
-            </div>
+            </div> */}
 
-            <div className="mt-3 rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:mt-4 sm:rounded-[24px] sm:p-4">
+            <div className="mt-0 rounded-[18px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:mt-0 sm:rounded-[24px] sm:p-4">
               <div className="flex items-end justify-between gap-2 sm:gap-3">
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-[0.26em] text-white/42 sm:text-[10px]">

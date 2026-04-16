@@ -30,6 +30,14 @@ const MODEL_PATH = "/models/Tower-Planes.glb";
 const HOVER_VIDEO_PATH = "/360_Level_sequence_optimized.mp4";
 const APARTMENT_ID_PATTERN = /^(Tower_[A-Z]_\d{2}_\d{3,4})_/;
 const TARGET_MODEL_HEIGHT = 10;
+const HOVER_VIDEO_ASPECT = 16 / 9;
+
+type CoverViewport = {
+  height: number;
+  left: number;
+  top: number;
+  width: number;
+};
 
 type HoverMeshData = {
   geometry: Mesh["geometry"];
@@ -50,6 +58,40 @@ type PreparedTowerModel = {
 
 type InventoryLoadState = "loading" | "ready" | "error";
 type PointerPosition = { x: number; y: number };
+
+function getCoverViewport(
+  containerWidth: number,
+  containerHeight: number,
+  aspect: number,
+): CoverViewport {
+  if (containerWidth <= 0 || containerHeight <= 0 || aspect <= 0) {
+    return { width: 1, height: 1, left: 0, top: 0 };
+  }
+
+  const containerAspect = containerWidth / containerHeight;
+
+  if (containerAspect > aspect) {
+    const width = containerWidth;
+    const height = width / aspect;
+
+    return {
+      width,
+      height,
+      left: 0,
+      top: (containerHeight - height) / 2,
+    };
+  }
+
+  const height = containerHeight;
+  const width = height * aspect;
+
+  return {
+    width,
+    height,
+    left: (containerWidth - width) / 2,
+    top: 0,
+  };
+}
 
 function extractApartmentIdFromName(name: string) {
   return name.match(APARTMENT_ID_PATTERN)?.[1] ?? null;
@@ -529,6 +571,8 @@ export default function TowerApartmentHoverPreview({
   const sectionRef = useRef<HTMLElement | null>(null);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const hoveredApartmentIdRef = useRef<string | null>(null);
+  const [sectionSize, setSectionSize] = useState({ width: 0, height: 0 });
+  const [videoAspect, setVideoAspect] = useState(HOVER_VIDEO_ASPECT);
   const [hoveredApartmentId, setHoveredApartmentId] = useState<string | null>(
     null,
   );
@@ -563,6 +607,33 @@ export default function TowerApartmentHoverPreview({
     return () => {
       hoverMedia.removeEventListener("change", syncInteractionPreferences);
       motionMedia.removeEventListener("change", syncInteractionPreferences);
+    };
+  }, []);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+
+    if (!section || typeof ResizeObserver === "undefined") {
+      return;
+    }
+
+    const syncSectionSize = () => {
+      setSectionSize({
+        width: section.clientWidth,
+        height: section.clientHeight,
+      });
+    };
+
+    syncSectionSize();
+
+    const resizeObserver = new ResizeObserver(() => {
+      syncSectionSize();
+    });
+
+    resizeObserver.observe(section);
+
+    return () => {
+      resizeObserver.disconnect();
     };
   }, []);
 
@@ -620,6 +691,15 @@ export default function TowerApartmentHoverPreview({
   }, [tower]);
 
   const allowHover = supportsPreciseHover && !prefersReducedMotion;
+  const coverViewport = useMemo(
+    () =>
+      getCoverViewport(
+        sectionSize.width,
+        sectionSize.height,
+        videoAspect || HOVER_VIDEO_ASPECT,
+      ),
+    [sectionSize.height, sectionSize.width, videoAspect],
+  );
 
   useEffect(() => {
     if (allowHover) {
@@ -660,11 +740,11 @@ export default function TowerApartmentHoverPreview({
     const offsetY = 16;
 
     const nextLeft = Math.min(
-      Math.max(pointerPosition.x + offsetX, 12),
+      Math.max(pointerPosition.x + coverViewport.left + offsetX, 12),
       Math.max(rect.width - tooltipWidth - 12, 12),
     );
     const nextTop = Math.min(
-      Math.max(pointerPosition.y + offsetY, 12),
+      Math.max(pointerPosition.y + coverViewport.top + offsetY, 12),
       Math.max(rect.height - tooltipHeight - 12, 12),
     );
 
@@ -677,25 +757,52 @@ export default function TowerApartmentHoverPreview({
       ref={sectionRef}
       className="relative min-h-dvh w-full overflow-hidden bg-black"
     >
-      <video
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        src={HOVER_VIDEO_PATH}
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,226,138,0.18),_transparent_28%),radial-gradient(circle_at_84%_18%,_rgba(96,165,250,0.18),_transparent_24%),linear-gradient(180deg,_rgba(0,0,0,0.10),_rgba(0,0,0,0.16))]" />
-
       <div className="absolute inset-0">
+        <div className="absolute inset-0 overflow-hidden">
+          <div
+            className="absolute"
+            style={{
+              height: `${coverViewport.height}px`,
+              left: `${coverViewport.left}px`,
+              top: `${coverViewport.top}px`,
+              width: `${coverViewport.width}px`,
+            }}
+          >
+            <video
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="auto"
+              src={HOVER_VIDEO_PATH}
+              className="absolute inset-0 h-full w-full"
+              onLoadedMetadata={(event) => {
+                const nextAspect =
+                  event.currentTarget.videoWidth > 0 &&
+                  event.currentTarget.videoHeight > 0
+                    ? event.currentTarget.videoWidth / event.currentTarget.videoHeight
+                    : HOVER_VIDEO_ASPECT;
+
+                setVideoAspect(nextAspect);
+              }}
+            />
+
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,226,138,0.18),_transparent_28%),radial-gradient(circle_at_84%_18%,_rgba(96,165,250,0.18),_transparent_24%),linear-gradient(180deg,_rgba(0,0,0,0.10),_rgba(0,0,0,0.16))]" />
+          </div>
+        </div>
+
         <div
-          className={`h-full w-full ${
+          className={`absolute ${
             allowHover && hoveredApartmentId
               ? "cursor-pointer"
               : "cursor-[grab] active:cursor-[grabbing]"
           }`}
+          style={{
+            height: `${coverViewport.height}px`,
+            left: `${coverViewport.left}px`,
+            top: `${coverViewport.top}px`,
+            width: `${coverViewport.width}px`,
+          }}
         >
           <Canvas
             dpr={allowHover ? [1, 1.25] : 1}

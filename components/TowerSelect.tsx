@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Image, { type StaticImageData } from "next/image";
 import { CheckCircle2, ChevronRight, X } from "lucide-react";
 import towerimg from "@/assets/Tower.avif";
+import towerAimg from "@/assets/New-a.jpg"
+import towerBimg from "@/assets/New-B.jpg"
 import type { TowerType } from "@/types/inventory";
 
 export type { TowerType } from "@/types/inventory";
@@ -36,7 +38,7 @@ const towerCards: Array<{
     accentMuted: "border-zinc-200 bg-white hover:border-zinc-300",
     accentCheck: "text-cyan-600",
     description: "Premium residences with open park-facing views.",
-    image: towerimg,
+    image: towerAimg,
     imageAlt: "Tower A exterior",
     imageClass:
       "absolute -bottom-[8%] -left-[10%] h-[122%] w-auto max-w-none object-contain object-bottom-left",
@@ -48,7 +50,7 @@ const towerCards: Array<{
     accentMuted: "border-zinc-200 bg-white hover:border-zinc-300",
     accentCheck: "text-violet-600",
     description: "Larger layouts with clubhouse and skyline access.",
-    image: towerimg,
+    image: towerBimg,
     imageAlt: "Tower B exterior",
     imageClass:
       "absolute -bottom-[10%] -left-[8%] h-[126%] w-auto max-w-none object-contain object-bottom-left",
@@ -129,8 +131,7 @@ function TowerSelectPanel({
                   <Image
                     src={towerCard.image}
                     alt={towerCard.imageAlt}
-                    fill
-                    sizes="64px"
+                    
                     className={towerCard.mobileImageClass}
                   />
                 </div>
@@ -274,10 +275,10 @@ function TowerSelectPanel({
                       <Image
                         src={towerCard.image}
                         alt={towerCard.imageAlt}
-                        className={`${towerCard.imageClass} origin-bottom-left w-full object-cover transition  duration-300 ${
+                        className={`${towerCard.imageClass} origin-bottom-left w-full object-cover object-bottom-right transition  duration-300 ${
                           isActive
                             ? "grayscale-0 scale-[1.02]"
-                            : "grayscale scale-[1.02] group-hover:grayscale-0 group-hover:scale-[1.06]"
+                            : " scale-[1.02] group-hover:grayscale-0 group-hover:scale-[1.06]"
                         }`}
                       />
                     </div>

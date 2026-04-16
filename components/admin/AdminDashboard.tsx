@@ -536,20 +536,18 @@ export default function AdminDashboard({
                 <RailTab
                   icon={<LayoutDashboard className="h-4 w-4" />}
                   title="Inventory"
-                  description="Charts, filters, and unit status control."
                   isActive={activeView === "inventory"}
                   onClick={() => setActiveView("inventory")}
                 />
                 <RailTab
                   icon={<Users className="h-4 w-4" />}
                   title="Admin Access"
-                  description="Create admin logins and track active admins."
                   isActive={activeView === "admins"}
                   onClick={() => setActiveView("admins")}
                 />
               </div>
 
-              <div className="mt-6 space-y-3">
+              {/* <div className="mt-6 space-y-3">
                 <RailStrip
                   icon={<ShieldCheck className="h-4 w-4" />}
                   title="Protected Session"
@@ -560,7 +558,7 @@ export default function AdminDashboard({
                   title="Live Sync"
                   description="Status edits update the master plan feed."
                 />
-              </div>
+              </div> */}
 
               {activeView === "inventory" ? (
                 <GlowSurface className="mt-6 rounded-[26px] border border-white/10 bg-white/[0.03] p-4">
@@ -1231,7 +1229,7 @@ function RailTab({
 }: {
   icon: ReactNode;
   title: string;
-  description: string;
+  description?: string;
   isActive: boolean;
   onClick: () => void;
 }) {
@@ -1246,7 +1244,7 @@ function RailTab({
           : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]",
       )}
     >
-      <div className="flex items-start gap-3">
+      <div className="flex items-center gap-3">
         <div
           className={cn(
             "rounded-full p-2",
@@ -1258,10 +1256,7 @@ function RailTab({
           {icon}
         </div>
         <div>
-          <p className="text-sm font-medium text-white">{title}</p>
-          <p className="mt-1 text-[13px] leading-6 text-white/52">
-            {description}
-          </p>
+          <p className="text-sm font-medium text-white ">{title}</p>
         </div>
       </div>
     </button>
