@@ -2032,12 +2032,13 @@ export default function MasterPlanLayout({
                   animate={{ opacity: 1, x: 0, y: 0 }}
                   exit={{ opacity: 0, x: 24, y: 12 }}
                   transition={{ duration: 0.28, ease: smoothEase }}
-                  className="pointer-events-none absolute right-5 top-1/2 bottom-auto z-20 w-full max-w-[23rem] -translate-y-1/2 xl:origin-right xl:scale-[0.92] 2xl:max-w-[27rem] 2xl:scale-100"
+                  className="pointer-events-none absolute right-6 top-1/2 z-20 w-full max-w-[23rem] -translate-y-1/2 overflow-visible xl:origin-right xl:scale-[0.92] 2xl:right-10 2xl:max-w-[26rem] 2xl:scale-100"
                 >
                   <SelectedFlatDetailsPanel
                     apartment={specialVideoApartment}
-                    compact={false}
-                    hideCloseButton={false}
+                    compact
+                    desktopEnhancedCompact
+                    hideCloseButton
                     onClose={handleSpecialVideoBack}
                   />
                 </motion.div>

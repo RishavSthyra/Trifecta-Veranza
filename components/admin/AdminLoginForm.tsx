@@ -2,14 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { LockKeyhole, User2 } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, User2 } from "lucide-react";
 
 export default function AdminLoginForm() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const isDevelopment = process.env.NODE_ENV !== "production";
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -70,15 +72,37 @@ export default function AdminLoginForm() {
             <LockKeyhole className="h-3.5 w-3.5" />
             Password
           </span>
-          <input
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            type="password"
-            className="h-12 w-full rounded-2xl border border-zinc-200 bg-white/90 px-4 text-sm text-zinc-900 outline-none transition focus:border-zinc-400"
-            placeholder="Enter password"
-          />
+          <div className="relative">
+            <input
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              type={showPassword ? "text" : "password"}
+              className="h-12 w-full rounded-2xl border border-zinc-200 bg-white/90 px-4 pr-12 text-sm text-zinc-900 outline-none transition focus:border-zinc-400"
+              placeholder="Enter password"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((value) => !value)}
+              className="absolute inset-y-0 right-0 inline-flex w-12 items-center justify-center text-zinc-500 transition hover:text-zinc-900"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+            >
+              {showPassword ? (
+                <EyeOff className="h-4 w-4" />
+              ) : (
+                <Eye className="h-4 w-4" />
+              )}
+            </button>
+          </div>
         </label>
       </div>
+
+      {isDevelopment ? (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Default dev login: <span className="font-semibold">sthyra-admin</span> /{" "}
+          <span className="font-semibold">veranza-admin-2026</span>.
+          If you forgot the password, run <span className="font-mono">npx tsx scripts/seed-admin-user.ts --reset-password</span>.
+        </div>
+      ) : null}
 
       {error ? (
         <div className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">

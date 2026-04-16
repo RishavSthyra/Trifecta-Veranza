@@ -2,10 +2,13 @@ import { cookies } from "next/headers";
 
 export const ADMIN_COOKIE_NAME = "sthyra_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
+const DEV_ADMIN_SESSION_SECRET = "sthyra-local-admin-session-secret";
 const encoder = new TextEncoder();
 
 function getAdminAuthConfig() {
-  const sessionSecret = process.env.ADMIN_SESSION_SECRET?.trim() || "";
+  const sessionSecret =
+    process.env.ADMIN_SESSION_SECRET?.trim() ||
+    (process.env.NODE_ENV !== "production" ? DEV_ADMIN_SESSION_SECRET : "");
 
   return {
     sessionSecret,

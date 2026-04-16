@@ -96,6 +96,10 @@ export function isInventoryApartmentAllowedAtHotspot(
   apartment: InventoryApartment,
   hotspot: MasterPlanHotspotKey,
 ) {
+  if (apartment.floor <= 0) {
+    return false;
+  }
+
   return isFlatNumberAllowedAtHotspot(
     hotspot,
     apartment.tower,

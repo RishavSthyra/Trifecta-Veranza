@@ -1344,6 +1344,21 @@ function formatApartmentLabel(
   };
 }
 
+function isGroundFloorApartmentId(apartmentId: string | null) {
+  if (!apartmentId) {
+    return false;
+  }
+
+  const [, , floorCode = ""] = apartmentId.split("_");
+  const normalizedFloorCode = floorCode.trim().toUpperCase();
+
+  return (
+    normalizedFloorCode === "G" ||
+    normalizedFloorCode === "0" ||
+    normalizedFloorCode === "00"
+  );
+}
+
 function normalizeFlatToken(value: string) {
   return value.replace(/[^a-z0-9]/gi, "").toUpperCase();
 }
@@ -1444,6 +1459,10 @@ function buildInventoryApartmentIndex(
   const index: InventoryApartmentIndex = new Map();
 
   apartments.forEach((apartment) => {
+    if (apartment.floor <= 0) {
+      return;
+    }
+
     const towerIndex = index.get(apartment.tower) ?? new Map<string, InventoryApartment>();
 
     index.set(apartment.tower, towerIndex);
@@ -1695,6 +1714,10 @@ function prepareTowerScene(
         : apartmentId;
 
     if (!normalizedApartmentId) {
+      return;
+    }
+
+    if (isGroundFloorApartmentId(normalizedApartmentId)) {
       return;
     }
 
@@ -2188,7 +2211,7 @@ const HoverTracker = memo(function HoverTracker({
           | string
           | undefined;
 
-        if (!apartmentId) {
+        if (!apartmentId || isGroundFloorApartmentId(apartmentId)) {
           return false;
         }
 
@@ -2205,7 +2228,10 @@ const HoverTracker = memo(function HoverTracker({
 
       const fallbackHit = intersections.find(
         (intersection) =>
-          typeof intersection.object.userData.apartmentId === "string",
+          typeof intersection.object.userData.apartmentId === "string" &&
+          !isGroundFloorApartmentId(
+            intersection.object.userData.apartmentId as string,
+          ),
       );
 
       const hit = frontFacingHit ?? fallbackHit ?? null;
@@ -2626,7 +2652,7 @@ const TowerScene = memo(function TowerScene({
           | string
           | undefined;
 
-        if (!apartmentId) {
+        if (!apartmentId || isGroundFloorApartmentId(apartmentId)) {
           return false;
         }
 
@@ -2642,7 +2668,10 @@ const TowerScene = memo(function TowerScene({
       });
       const fallbackHit = intersections.find(
         (intersection) =>
-          typeof intersection.object.userData.apartmentId === "string",
+          typeof intersection.object.userData.apartmentId === "string" &&
+          !isGroundFloorApartmentId(
+            intersection.object.userData.apartmentId as string,
+          ),
       );
 
       return (
@@ -4261,6 +4290,10 @@ export default function MasterPlanFrameHoverStage({
     (apartmentId: string | null, pointerPosition: PointerPosition | null) => {
       if (!allowHover) {
         return;
+      }
+
+      if (isGroundFloorApartmentId(apartmentId)) {
+        apartmentId = null;
       }
 
       if (!apartmentId) {
