@@ -19,9 +19,9 @@ type IdleWindow = Window &
   };
 
 const HERO_VIDEO_URL =
-  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774905518/Tf_Fixed.mp4";
+  "https://cdn.sthyra.com/videos/Tf%20Fixed.mp4";
 const ENTRY_VIDEO_URL =
-  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774906461/Tf_Fixed_Final_2.mp4";
+  "https://cdn.sthyra.com/videos/Tf%20Fixed%20Final_2.mp4";
 
 function getVideoLoadProgress(video: HTMLVideoElement) {
   const duration = video.duration;

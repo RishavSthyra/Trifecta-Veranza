@@ -56,7 +56,7 @@ const SPECIAL_UNIT_VIDEO_URL =
 const SPECIAL_UNIT_VIDEO_REVERSE_URL =
   "https://cdn.sthyra.com/videos/Unit%20View%203S%20Reversed%20New_Compressed.mp4";
 const MASTER_PLAN_EXIT_REVERSE_VIDEO_URL =
-  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774916774/Tf_Reversed.mp4";
+  "https://cdn.sthyra.com/videos/Tf%20Reversed(1).mp4";
 const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
 const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
 const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;

@@ -9,7 +9,7 @@ import { MASTER_PLAN_SCRUB_HQ_VIDEO_PATH } from "@/data/masterPlanFrameCdnUrls";
 
 const HERO_POSTER_URL = "https://cdn.sthyra.com/images/first_frame_again.png";
 const ENTRY_VIDEO_SRC =
-  "https://res.cloudinary.com/dlhfbu3kh/video/upload/v1774906461/Tf_Fixed_Final_2.mp4";
+  "https://cdn.sthyra.com/videos/Tf%20Fixed%20Final_2.mp4";
 
 type IdleCapableWindow = Window &
   typeof globalThis & {
@@ -432,7 +432,7 @@ export default function HeroSection({
         <button className="text-xs uppercase tracking-[0.25em] text-white/80">
           <Link href={"/"}>
             <Image
-              src={"https://res.cloudinary.com/dlhfbu3kh/image/upload/v1774853778/Logo_Trifect_Veranza_A.svg"}
+              src={"https://cdn.sthyra.com/images/Logo_Trifect_Veranza%20A.svg"}
               width={140}
               height={100}
               alt="Trifecta Logo"
