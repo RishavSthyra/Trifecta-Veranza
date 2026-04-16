@@ -3085,6 +3085,8 @@ export default function MasterPlanFrameHoverStage({
     },
     [performanceProfile.isSafariLike, performanceProfile.tier],
   );
+  const shouldAllowTouchViewportGestures =
+    !dragEnabled || touchHighlightProfile === "tablet";
   const interactionMode: InteractionMode = isDragging
     ? "dragging"
     : isSettling
@@ -4323,14 +4325,22 @@ export default function MasterPlanFrameHoverStage({
     },
     [],
   );
+  const cancelDragInteraction = useCallback(() => {
+    dragStateRef.current = null;
+    pendingPointerDeltaXRef.current = 0;
+    setIsDragging(false);
+    stopDragLoop();
+    stopMotionAnimation();
+  }, [stopDragLoop, stopMotionAnimation]);
   const handleStageTouchStart = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
-      if (dragEnabled) {
+      if (!shouldAllowTouchViewportGestures) {
         return;
       }
 
       if (event.touches.length >= 2) {
         event.preventDefault();
+        cancelDragInteraction();
         const midpoint = getTouchMidpoint(event.touches);
 
         mobileGestureRef.current = {
@@ -4344,6 +4354,13 @@ export default function MasterPlanFrameHoverStage({
           mode: "pinch",
           moved: true,
         };
+        return;
+      }
+
+      if (
+        dragEnabled &&
+        viewportTransformRef.current.scale <= MOBILE_STAGE_MIN_SCALE + 0.01
+      ) {
         return;
       }
 
@@ -4365,11 +4382,11 @@ export default function MasterPlanFrameHoverStage({
         tapStartY: primaryTouch.clientY,
       };
     },
-    [dragEnabled],
+    [cancelDragInteraction, dragEnabled, shouldAllowTouchViewportGestures],
   );
   const handleStageTouchMove = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
-      if (dragEnabled) {
+      if (!shouldAllowTouchViewportGestures) {
         return;
       }
 
@@ -4423,6 +4440,14 @@ export default function MasterPlanFrameHoverStage({
         return;
       }
 
+      if (
+        dragEnabled &&
+        gestureState.mode !== "pan" &&
+        viewportTransformRef.current.scale <= MOBILE_STAGE_MIN_SCALE + 0.01
+      ) {
+        return;
+      }
+
       const travelDistance = Math.hypot(
         primaryTouch.clientX - gestureState.tapStartX,
         primaryTouch.clientY - gestureState.tapStartY,
@@ -4457,11 +4482,11 @@ export default function MasterPlanFrameHoverStage({
         mode: "pan",
       };
     },
-    [applyViewportTransform, dragEnabled],
+    [applyViewportTransform, dragEnabled, shouldAllowTouchViewportGestures],
   );
   const handleStageTouchEnd = useCallback(
     (event: ReactTouchEvent<HTMLDivElement>) => {
-      if (dragEnabled) {
+      if (!shouldAllowTouchViewportGestures) {
         return;
       }
 
@@ -4491,6 +4516,15 @@ export default function MasterPlanFrameHoverStage({
       const changedTouch = event.changedTouches[0];
 
       if (
+        dragEnabled &&
+        gestureState.mode !== "tap" &&
+        viewportTransformRef.current.scale <= MOBILE_STAGE_MIN_SCALE + 0.01
+      ) {
+        mobileGestureRef.current = createDefaultMobileStageGestureState();
+        return;
+      }
+
+      if (
         changedTouch &&
         gestureState.mode === "tap" &&
         !gestureState.moved
@@ -4510,7 +4544,12 @@ export default function MasterPlanFrameHoverStage({
 
       mobileGestureRef.current = createDefaultMobileStageGestureState();
     },
-    [dragEnabled, resetViewportTransform, selectApartmentByMeshId],
+    [
+      dragEnabled,
+      resetViewportTransform,
+      selectApartmentByMeshId,
+      shouldAllowTouchViewportGestures,
+    ],
   );
   const handleStageTouchCancel = useCallback(() => {
     mobileGestureRef.current = createDefaultMobileStageGestureState();
@@ -4589,6 +4628,16 @@ export default function MasterPlanFrameHoverStage({
               onTouchEndCapture={handleStageTouchEnd}
               onTouchCancelCapture={handleStageTouchCancel}
               onPointerDownCapture={(event) => {
+                if (
+                  event.pointerType === "touch" &&
+                  (!event.isPrimary ||
+                    (shouldAllowTouchViewportGestures &&
+                      viewportTransformRef.current.scale >
+                        MOBILE_STAGE_MIN_SCALE + 0.01))
+                ) {
+                  return;
+                }
+
                 if (!dragEnabled) {
                   return;
                 }
@@ -4619,6 +4668,15 @@ export default function MasterPlanFrameHoverStage({
                 };
               }}
               onPointerUpCapture={(event) => {
+                if (
+                  event.pointerType === "touch" &&
+                  shouldAllowTouchViewportGestures &&
+                  viewportTransformRef.current.scale >
+                    MOBILE_STAGE_MIN_SCALE + 0.01
+                ) {
+                  return;
+                }
+
                 if (event.pointerType !== "touch" && event.button !== 0) {
                   return;
                 }
@@ -4654,11 +4712,7 @@ export default function MasterPlanFrameHoverStage({
                 clearHoveredApartment();
               }}
               onPointerCancel={() => {
-                dragStateRef.current = null;
-                pendingPointerDeltaXRef.current = 0;
-                setIsDragging(false);
-                stopDragLoop();
-                stopMotionAnimation();
+                cancelDragInteraction();
                 clearHoveredApartment();
                 mobileGestureRef.current = createDefaultMobileStageGestureState();
               }}
