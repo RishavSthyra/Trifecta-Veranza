@@ -7,7 +7,7 @@ import { motion, AnimatePresence, type Transition } from "framer-motion";
 import { FiPhone, FiDownload, FiDollarSign, FiGrid, FiHome } from "react-icons/fi";
 import { BiHome } from "react-icons/bi";
 import { IoMapOutline } from "react-icons/io5";
-import { PiMapPinAreaFill } from "react-icons/pi";
+import { RiBuilding2Line } from "react-icons/ri";
 import { Footprints, Menu, User, X } from "lucide-react";
 
 interface CtaButtonType {
@@ -224,7 +224,7 @@ export default function UpperLayoutCTA({
         action: "link",
         isHighlight: false,
         icon: (
-          <PiMapPinAreaFill className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+          <RiBuilding2Line className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
         ),
       },
       {

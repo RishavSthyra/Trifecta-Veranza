@@ -3,7 +3,9 @@
 import { Viewer, events as viewerEvents, type Position } from "@photo-sphere-viewer/core";
 import "@photo-sphere-viewer/core/index.css";
 import { EquirectangularTilesAdapter } from "@photo-sphere-viewer/equirectangular-tiles-adapter";
-import { MarkersPlugin } from "@photo-sphere-viewer/markers-plugin";
+import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
+import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
+import { MarkersPlugin, type MarkerConfig } from "@photo-sphere-viewer/markers-plugin";
 import "@photo-sphere-viewer/markers-plugin/index.css";
 import {
   VirtualTourPlugin,
@@ -11,7 +13,7 @@ import {
   type VirtualTourNode,
 } from "@photo-sphere-viewer/virtual-tour-plugin";
 import "@photo-sphere-viewer/virtual-tour-plugin/index.css";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
+import { Cormorant_Garamond, DM_Sans, Manrope } from "next/font/google";
 import NextImage from "next/image";
 import {
   usePathname,
@@ -64,6 +66,11 @@ const editorialFont = Cormorant_Garamond({
 const uiFont = Manrope({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
+});
+
+const wallLabelFont = DM_Sans({
+  subsets: ["latin"],
+  weight: ["500", "700"],
 });
 
 const FURNISHED_PANO_BASE_URL = "https://cdn.sthyra.com/interior-pano-trifecta-new/";
@@ -168,6 +175,455 @@ type NetworkInformationLike = {
   removeEventListener?: (type: "change", listener: () => void) => void;
 };
 
+const INTERIOR_DIMENSION_ROOM_NAMES = [
+  "Living",
+  "Dinning",
+  "Kitchen",
+  "Utility",
+  "M.Bedroom",
+  "M.Toilet",
+  "Bedroom 02",
+  "Bedroom 03",
+  "C.Toilet",
+] as const;
+
+type InteriorDimensionRoomName = (typeof INTERIOR_DIMENSION_ROOM_NAMES)[number];
+
+type InteriorDimensionMarkerDefinition = {
+  markerId: string;
+  roomNumber: string;
+  roomName: string;
+  dimensions: string;
+};
+
+type InteriorDimensionMarkerPosition = {
+  yaw: number;
+  pitch: number;
+};
+
+type InteriorDimensionMarkerRotation =
+  | number
+  | {
+      yaw?: number;
+      pitch?: number;
+      roll?: number;
+    };
+
+type InteriorDimensionMarkerOverride = InteriorDimensionMarkerPosition & {
+  roomNumber?: string;
+  roomName?: string;
+  dimensions?: string;
+  size?: number;
+  offsetY?: number;
+  rotation?: InteriorDimensionMarkerRotation;
+};
+
+const INTERIOR_ROOM_DIMENSIONS: Record<InteriorDimensionRoomName, Omit<InteriorDimensionMarkerDefinition, "markerId">> = {
+  Living: {
+    roomNumber: "01",
+    roomName: "Living",
+    dimensions: `14'7" x 10'10"`,
+  },
+  Dinning: {
+    roomNumber: "02",
+    roomName: "Dinning",
+    dimensions: `11'3" x 9'0"`,
+  },
+  Kitchen: {
+    roomNumber: "03",
+    roomName: "Kitchen",
+    dimensions: `13'7" x 7'0"`,
+  },
+  Utility: {
+    roomNumber: "04",
+    roomName: "Utility",
+    dimensions: `5'3" x 5'0"`,
+  },
+  "M.Bedroom": {
+    roomNumber: "05",
+    roomName: "M.Bedroom",
+    dimensions: `12'6" x 11'0"`,
+  },
+  "M.Toilet": {
+    roomNumber: "06",
+    roomName: "M.Toilet",
+    dimensions: `5'0" x 8'0"`,
+  },
+  "Bedroom 02": {
+    roomNumber: "07",
+    roomName: "Bedroom 02",
+    dimensions: `10'0" x 11'4"`,
+  },
+  "Bedroom 03": {
+    roomNumber: "08",
+    roomName: "Bedroom 03",
+    dimensions: `12'0" x 9'0"`,
+  },
+  "C.Toilet": {
+    roomNumber: "09",
+    roomName: "C.Toilet",
+    dimensions: `8'0" x 5'0"`,
+  },
+};
+
+const SECONDARY_DIMENSION_ROOM_BY_ROOM: Record<
+  InteriorDimensionRoomName,
+  InteriorDimensionRoomName
+> = {
+  Living: "Dinning",
+  Dinning: "Kitchen",
+  Kitchen: "Utility",
+  Utility: "Kitchen",
+  "M.Bedroom": "M.Toilet",
+  "M.Toilet": "M.Bedroom",
+  "Bedroom 02": "C.Toilet",
+  "Bedroom 03": "C.Toilet",
+  "C.Toilet": "Bedroom 03",
+};
+
+const INTERIOR_DIMENSION_MARKER_OVERRIDES: Record<
+  string,
+  InteriorDimensionMarkerOverride[]
+> = {
+  LS_BP_panoPath_Interior4_F0013: [
+    { yaw: 4.5, pitch: -0.08, roomNumber: "01", roomName: "Living", dimensions: `14'7" x 10'10"` },
+    { yaw: 4.72, pitch: -0.02, roomNumber: "02", roomName: "Dinning", dimensions: `11'3" x 9'0"` },
+  ],
+  LS_BP_panoPath_Interior_F0001: [
+    { yaw: 1.5, pitch: -0.08, roomNumber: "01", roomName: "Living", dimensions: `14'7" x 10'10"` },
+    { yaw: 0.65, rotation:{roll: 0, yaw :50, pitch : 0}, pitch: -0.1, roomNumber: "02",  size: 0.6, roomName: "Dining", dimensions: `11'3" x 9'0"` },
+  ],
+  LS_BP_panoPath_Interior_F0002: [
+    { yaw: 1.75, pitch: -0.08, roomNumber: "01", rotation:{roll: 0, yaw :-20, pitch : 0}, roomName: "Living", size:1, dimensions: `14'7" x 10'10"` },
+    { yaw: 0.60, pitch: -0.1, rotation:{roll: 0, yaw :40, pitch : 0}, roomNumber: "02",  size:1, roomName: "Dining", dimensions: `11'3" x 9'0"` },
+    { yaw: 4.1, pitch: -0.5, rotation:{roll: -10, yaw :-60, pitch : 90}, roomNumber: "03",  size: 1, roomName: "Kitchen", dimensions: `11'3" x 9'0"` },
+  ],
+  LS_BP_panoPath_Interior3_F0010: [
+    { yaw: 4.1, pitch: -0.08, roomNumber: "01", rotation:{roll: 0, yaw :-45, pitch : 0}, roomName: "Living", size:0.8, dimensions: `14'7" x 10'10"` },
+    { yaw: 3.2, pitch: -0.1, rotation:{roll: 0, yaw :0, pitch : 0}, roomNumber: "02",  size:1.3, roomName: "Dining", dimensions: `11'3" x 9'0"` },
+    { yaw: 3.67, pitch: -0.4, rotation:{roll: -15, yaw :-10, pitch : 90}, roomNumber: "03",  size: 0.7, roomName: "C.Toilet", dimensions: `5'0"x8'0"` },
+  ],
+  LS_BP_panoPath_Interior3_F0011: [
+    { yaw: 3.1, pitch: -0.04, roomNumber: "01", rotation:{roll: 0, yaw :5, pitch : 0}, roomName: "M.Bedroom", size:0.8, dimensions: `16'2"x11'0"` },
+    { yaw: 4.7, pitch: -0.08, rotation:{roll: 0, yaw :0, pitch : 0}, roomNumber: "02",  size:0.8, roomName: "Dining", dimensions: `` },
+    { yaw: 6.7, pitch: 5.1, rotation:{roll: -12, yaw :-10, pitch : 94}, roomNumber: "03",  size: 0.9, roomName: "M.Toilet", dimensions: `5'0"x8'0"` },
+  ],
+  LS_BP_panoPath_Interior4_F0012: [
+    { yaw: 4.7, pitch: -0.04, roomNumber: "01", rotation:{roll: 0, yaw :0, pitch : 0}, roomName: "M.Bedroom", size:1, dimensions: `16'2"x11'0"` },
+    // { yaw: 6.7, pitch: -0.08, rotation:{roll: 0, yaw :0, pitch : 0}, roomNumber: "02",  size:0.8, roomName: "Dining", dimensions: `` },
+    { yaw: 7.7, pitch: 5.3, rotation:{roll: 20, yaw :-10, pitch : 94}, roomNumber: "03",  size: 0.9, roomName: "M.Toilet", dimensions: `5'0"x8'0"` },
+  ],
+};
+
+const ROOM_NAME_OVERRIDES: Record<string, string> = {
+  LS_BP_panoPath_Interior_F0001: "Living",
+  LS_BP_panoPath_Interior_F0005: "Living",
+  LS_BP_panoPath_Interior_F0006: "C.Toilet",
+  LS_BP_panoPath_Interior2_F0007: "Living",
+  LS_BP_panoPath_Interior2_F0008: "Living",
+  LS_BP_panoPath_Interior3_F0009: "Dinning",
+  LS_BP_panoPath_Interior3_F0010: "Dinning",
+  LS_BP_panoPath_Interior3_F0011: "Living",
+  LS_BP_panoPath_Interior4_F0012: "Living",
+  LS_BP_panoPath_Interior4_F0013: "Living",
+  LS_BP_panoPath_Interior5_F0014: "Bedroom 03",
+  LS_BP_panoPath_Interior5_F0015: "Bedroom 03",
+  LS_BP_panoPath_Interior5_F0016: "C.Toilet",
+  LS_BP_panoPath_Interior6_F0017: "Living",
+  LS_BP_panoPath_Interior6_F0018: "Kitchen",
+  LS_BP_panoPath_F0001: "Living",
+  LS_BP_panoPath_F0005: "Living",
+  LS_BP_panoPath_F0006: "C.Toilet",
+  LS_BP_panoPath_F0007: "Kitchen",
+  LS_BP_panoPath_F0008: "Utility",
+  LS_BP_panoPath_F0009: "M.Bedroom",
+  LS_BP_panoPath_F0010: "Dinning",
+  LS_BP_panoPath6_F0018: "Living",
+  LS_BP_panoPath6_F0019: "M.Toilet",
+  LS_BP_panoPath7_F0022: "Kitchen",
+  LS_BP_panoPath7_F0021: "Kitchen",
+  LS_BP_panoPath7_F0020: "Dinning",
+  LS_BP_panoPath2_F0008: "Dinning",
+  LS_BP_panoPath2_F0007: "Living",
+  LS_BP_panoPath4_F0014: "Living",
+  LS_BP_panoPath4_F0015: "Living",
+  LS_BP_panoPath3_F0013: "C.Toilet",
+  LS_BP_panoPath2_F0009: "Living",
+  LS_BP_panoPath2_F0010: "Living",
+  LS_BP_panoPath2_F0011: "Living",
+  LS_BP_panoPath5_F0017: "M.Toilet",
+  LS_BP_panoPath5_F0016: "Living",
+};
+
+function normalizeRoomLabelForDisplay(label: string, panoId: string) {
+  const explicitLabel = ROOM_NAME_OVERRIDES[panoId];
+  if (explicitLabel) {
+    return explicitLabel;
+  }
+
+  const normalizedLabel = label.trim().toLowerCase();
+
+  if (!normalizedLabel) {
+    return label;
+  }
+
+  if (normalizedLabel.includes("drawing room") || normalizedLabel.includes("living room")) {
+    return "Living";
+  }
+
+  if (normalizedLabel.includes("dining room")) {
+    return "Dinning";
+  }
+
+  if (normalizedLabel.includes("kitchen")) {
+    return "Kitchen";
+  }
+
+  if (normalizedLabel.includes("maid room") || normalizedLabel.includes("utility")) {
+    return "Utility";
+  }
+
+  if (normalizedLabel.includes("master bedroom")) {
+    return "M.Bedroom";
+  }
+
+  if (normalizedLabel.includes("childrens room")) {
+    return "Bedroom 03";
+  }
+
+  if (normalizedLabel.includes("bedroom 02")) {
+    return "Bedroom 02";
+  }
+
+  if (normalizedLabel.includes("bedroom 03")) {
+    return "Bedroom 03";
+  }
+
+  if (normalizedLabel.includes("bathroom") || normalizedLabel.includes("washroom")) {
+    return "C.Toilet";
+  }
+
+  return label;
+}
+
+function getDimensionRoomName(label: string): InteriorDimensionRoomName | null {
+  return INTERIOR_DIMENSION_ROOM_NAMES.includes(label as InteriorDimensionRoomName)
+    ? (label as InteriorDimensionRoomName)
+    : null;
+}
+
+function getInteriorDimensionMarkerDefinitions(
+  node: ExteriorTourNode | undefined,
+  isBareShellMode: boolean,
+  markerOverrides?: InteriorDimensionMarkerOverride[],
+) {
+  if (!node || isBareShellMode) {
+    return [] as InteriorDimensionMarkerDefinition[];
+  }
+
+  const panoId = imageFilenameToPanoId(node.imageFilename);
+  const primaryRoomName = getDimensionRoomName(getRoomLabel(node.imageFilename));
+
+  if (!primaryRoomName) {
+    return [] as InteriorDimensionMarkerDefinition[];
+  }
+
+  const secondaryRoomName = SECONDARY_DIMENSION_ROOM_BY_ROOM[primaryRoomName];
+  const roomNames = [primaryRoomName, secondaryRoomName];
+  const totalMarkers = Math.max(roomNames.length, markerOverrides?.length ?? 0);
+
+  return Array.from({ length: totalMarkers }, (_, index) => {
+    const override = markerOverrides?.[index];
+    const fallbackRoomName = override?.roomName ?? roomNames[roomNames.length - 1] ?? primaryRoomName;
+    const baseRoomDefinition = getDimensionRoomName(fallbackRoomName)
+      ? INTERIOR_ROOM_DIMENSIONS[fallbackRoomName as InteriorDimensionRoomName]
+      : undefined;
+
+    return {
+      markerId: `${panoId}-dimension-marker-${index + 1}`,
+      roomNumber: override?.roomNumber ?? baseRoomDefinition?.roomNumber ?? String(index + 1).padStart(2, "0"),
+      roomName: override?.roomName ?? baseRoomDefinition?.roomName ?? `Marker ${index + 1}`,
+      dimensions: override?.dimensions ?? baseRoomDefinition?.dimensions ?? "",
+    };
+  });
+}
+
+function buildInteriorDimensionMarkerElement(
+  marker: InteriorDimensionMarkerDefinition,
+  variant: "primary" | "secondary",
+  offsetY = 0,
+  size = 1,
+) {
+  const root = document.createElement("div");
+  root.className = `interior-dimension-marker interior-dimension-marker--${variant} relative block [transform-style:preserve-3d]`;
+  root.style.transform = `translate3d(0, ${offsetY}px, 0)`;
+
+  const label = document.createElement("div");
+  label.className = `${wallLabelFont.className} interior-dimension-marker__wall-text inline-flex min-w-[320px] w-max flex-col items-start gap-3 whitespace-nowrap`;
+  label.style.transform = `scale(${size})`;
+  label.style.transformOrigin = "left center";
+
+  const eyebrow = document.createElement("span");
+  eyebrow.className = "interior-dimension-marker__eyebrow block text-[18px] font-bold uppercase tracking-[0.32em] leading-none text-white/50";
+  eyebrow.textContent = marker.roomNumber;
+
+  const title = document.createElement("span");
+  title.className = "interior-dimension-marker__title block text-[76px] font-bold leading-[0.84] tracking-[-0.05em] text-white/92 [text-shadow:0_1px_1px_rgba(0,0,0,0.22),0_12px_28px_rgba(0,0,0,0.18)]";
+  title.textContent = marker.roomName;
+
+  const dimension = document.createElement("span");
+  dimension.className = "interior-dimension-marker__size block pt-1 text-[30px] font-medium leading-[1.08] tracking-[0.03em] text-white/60";
+  dimension.textContent = marker.dimensions;
+
+  label.appendChild(eyebrow);
+  label.appendChild(title);
+  label.appendChild(dimension);
+  root.appendChild(label);
+
+  return root;
+}
+
+function normalizeMarkerRotation(rotation: InteriorDimensionMarkerRotation | undefined) {
+  if (typeof rotation === "number") {
+    return {
+      roll: `${rotation}deg`,
+    };
+  }
+
+  return {
+    yaw: rotation?.yaw !== undefined ? `${rotation.yaw}deg` : undefined,
+    pitch: rotation?.pitch !== undefined ? `${rotation.pitch}deg` : undefined,
+    roll: rotation?.roll !== undefined ? `${rotation.roll}deg` : undefined,
+  };
+}
+
+function getRawRoomLabel(imageFilename: string) {
+  const panoId = imageFilenameToPanoId(imageFilename);
+  return ROOM_LABELS[panoId] ?? panoId.match(/F(\d{4})$/i)?.[0] ?? panoId;
+}
+
+function getLegacyImportantRoomLabel(label: string) {
+  const normalizedLabel = label.trim().toLowerCase();
+
+  if (!normalizedLabel) {
+    return null;
+  }
+
+  if (normalizedLabel === "entrance") {
+    return "Entrance";
+  }
+
+  if (normalizedLabel.includes("passage") || /^hall\b/.test(normalizedLabel)) {
+    return null;
+  }
+
+  if (normalizedLabel.endsWith("entrance")) {
+    return null;
+  }
+
+  if (normalizedLabel.includes("kitchen")) {
+    return "Kitchen";
+  }
+
+  if (normalizedLabel.includes("master bedroom")) {
+    return "Master Bedroom";
+  }
+
+  if (normalizedLabel.includes("childrens room")) {
+    return "Childrens Room";
+  }
+
+  if (normalizedLabel.includes("maid room")) {
+    return "Maid Room";
+  }
+
+  if (normalizedLabel.includes("drawing room")) {
+    return "Drawing Room";
+  }
+
+  if (normalizedLabel.includes("dining room")) {
+    return "Dining Room";
+  }
+
+  if (normalizedLabel.includes("living room")) {
+    return "Living Room";
+  }
+
+  if (
+    normalizedLabel.includes("bathroom") ||
+    normalizedLabel.includes("washroom")
+  ) {
+    return "Bathroom";
+  }
+
+  return null;
+}
+
+function getInteriorDimensionMarkers(
+  node: ExteriorTourNode | undefined,
+  isBareShellMode: boolean,
+  isDimensionsVisible: boolean,
+  anchorYaw: number,
+): MarkerConfig[] {
+  if (!node || isBareShellMode || !isDimensionsVisible) {
+    return [];
+  }
+
+  const panoId = imageFilenameToPanoId(node.imageFilename);
+  const markerOverrides = INTERIOR_DIMENSION_MARKER_OVERRIDES[panoId];
+  const markers = getInteriorDimensionMarkerDefinitions(
+    node,
+    isBareShellMode,
+    markerOverrides,
+  );
+  const fallbackPositions: InteriorDimensionMarkerPosition[] = [
+      { yaw: wrapAngleRad(anchorYaw - 0.22), pitch: -0.08 },
+      { yaw: wrapAngleRad(anchorYaw + 0.2), pitch: -0.02 },
+    ];
+
+  return markers.map((marker, index) => {
+      const rotation = normalizeMarkerRotation(markerOverrides?.[index]?.rotation);
+
+      return {
+      id: marker.markerId,
+      position:
+        markerOverrides?.[index]
+          ? {
+              yaw: markerOverrides[index].yaw,
+              pitch: markerOverrides[index].pitch,
+            }
+          : fallbackPositions[index] ?? fallbackPositions[fallbackPositions.length - 1],
+      elementLayer: buildInteriorDimensionMarkerElement(
+        {
+          ...marker,
+          roomNumber: marker.roomNumber,
+          roomName: marker.roomName,
+          dimensions: marker.dimensions,
+        },
+        "primary",
+        markerOverrides?.[index]?.offsetY ?? 0,
+        markerOverrides?.[index]?.size ?? 1,
+      ),
+      className: "overflow-visible",
+      rotation: {
+        yaw: rotation.yaw,
+        pitch: rotation.pitch,
+        roll: rotation.roll,
+      },
+      hideList: true,
+      zIndex: 40,
+      size: {
+        width: index % 2 === 0 ? 420 : 380,
+        height: index % 2 === 0 ? 240 : 220,
+      },
+      data: {
+        roomName: marker.roomName,
+        type: "room-dimension",
+      },
+    };
+    });
+}
+
 function ArrowButton({
   icon: Icon,
   label,
@@ -244,7 +700,8 @@ const ROOM_LABELS: Record<string, string> = {
 
 function getRoomLabel(imageFilename: string) {
   const panoId = imageFilenameToPanoId(imageFilename);
-  return ROOM_LABELS[panoId] ?? panoId.match(/F(\d{4})$/i)?.[0] ?? panoId;
+  const baseLabel = ROOM_LABELS[panoId] ?? panoId.match(/F(\d{4})$/i)?.[0] ?? panoId;
+  return normalizeRoomLabelForDisplay(baseLabel, panoId);
 }
 
 function getImportantRoomLabel(label: string) {
@@ -256,6 +713,42 @@ function getImportantRoomLabel(label: string) {
 
   if (normalizedLabel === "entrance") {
     return "Entrance";
+  }
+
+  if (normalizedLabel === "living") {
+    return "Living";
+  }
+
+  if (normalizedLabel === "dinning") {
+    return "Dinning";
+  }
+
+  if (normalizedLabel === "kitchen") {
+    return "Kitchen";
+  }
+
+  if (normalizedLabel === "utility") {
+    return "Utility";
+  }
+
+  if (normalizedLabel === "m.bedroom") {
+    return "M.Bedroom";
+  }
+
+  if (normalizedLabel === "m.toilet") {
+    return "M.Toilet";
+  }
+
+  if (normalizedLabel === "bedroom 02") {
+    return "Bedroom 02";
+  }
+
+  if (normalizedLabel === "bedroom 03") {
+    return "Bedroom 03";
+  }
+
+  if (normalizedLabel === "c.toilet") {
+    return "C.Toilet";
   }
 
   if (normalizedLabel.includes("passage") || /^hall\b/.test(normalizedLabel)) {
@@ -271,34 +764,34 @@ function getImportantRoomLabel(label: string) {
   }
 
   if (normalizedLabel.includes("master bedroom")) {
-    return "Master Bedroom";
+    return "M.Bedroom";
   }
 
   if (normalizedLabel.includes("childrens room")) {
-    return "Childrens Room";
+    return "Bedroom 03";
   }
 
   if (normalizedLabel.includes("maid room")) {
-    return "Maid Room";
+    return "Utility";
   }
 
   if (normalizedLabel.includes("drawing room")) {
-    return "Drawing Room";
+    return "Living";
   }
 
   if (normalizedLabel.includes("dining room")) {
-    return "Dining Room";
+    return "Dinning";
   }
 
   if (normalizedLabel.includes("living room")) {
-    return "Living Room";
+    return "Living";
   }
 
   if (
     normalizedLabel.includes("bathroom") ||
     normalizedLabel.includes("washroom")
   ) {
-    return "Bathroom";
+    return "C.Toilet";
   }
 
   return null;
@@ -501,6 +994,7 @@ export default function InteriorPanoWalkthrough({
   const requestedBareShellMode = getWalkthroughMode(searchParams) === "bare-shell";
   const [isBareShellMode, setIsBareShellMode] = useState(requestedBareShellMode);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isDimensionsVisible, setIsDimensionsVisible] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [viewerError, setViewerError] = useState<string | null>(null);
   const [viewYaw, setViewYaw] = useState(0);
@@ -514,6 +1008,7 @@ export default function InteriorPanoWalkthrough({
   const bindingsRef = useRef<ViewerBindings | null>(null);
   const activeNodeIdRef = useRef(activeNodeId);
   const currentNodeIdRef = useRef("");
+  const isDimensionsVisibleRef = useRef(isDimensionsVisible);
   const cacheRef = useRef(new Map<string, ResolvedPano>());
 
   const allNodes = useMemo(
@@ -543,6 +1038,17 @@ export default function InteriorPanoWalkthrough({
     : undefined;
   const currentNodeId = explicitNodeId || preferredNodeId || fallbackNodeId;
   const activeNode = graph.byId[currentNodeId];
+  const activePanoId = activeNode ? imageFilenameToPanoId(activeNode.imageFilename) : "";
+  const activeRoomLabel = activeNode ? getRoomLabel(activeNode.imageFilename) : "";
+  const activeDimensionMarkerDefinitions = useMemo(
+    () =>
+      getInteriorDimensionMarkerDefinitions(
+        activeNode,
+        isBareShellMode,
+        activePanoId ? INTERIOR_DIMENSION_MARKER_OVERRIDES[activePanoId] : undefined,
+      ),
+    [activeNode, activePanoId, isBareShellMode],
+  );
   const navigationTargets = useMemo(
     () => getViewRelativeNavigationTargets(graph, activeNode, viewYaw),
     [activeNode, graph, viewYaw],
@@ -585,15 +1091,52 @@ export default function InteriorPanoWalkthrough({
     mapBounds,
     panoBaseUrl,
   ]);
+  const mapRooms = useMemo<MenuRoomItem[]>(() => {
+    const seenLabels = new Set<string>();
+
+    return graph.nodes.reduce<MenuRoomItem[]>((items, node) => {
+      const importantLabel = getLegacyImportantRoomLabel(getRawRoomLabel(node.imageFilename));
+
+      if (!importantLabel || seenLabels.has(importantLabel)) {
+        return items;
+      }
+
+      seenLabels.add(importantLabel);
+
+      const panoId = getResolvedPanoFolderId(
+        node.id,
+        node.imageFilename,
+        availablePanoFolders,
+        isBareShellMode,
+      );
+
+      items.push({
+        id: node.id,
+        image: `${panoBaseUrl}${panoId}/${getDefaultPreviewFile()}`,
+        isActive: node.id === currentNodeId,
+        label: importantLabel,
+        point: getMapPointForNode(node, mapBounds),
+      });
+
+      return items;
+    }, []);
+  }, [
+    availablePanoFolders,
+    currentNodeId,
+    graph.nodes,
+    isBareShellMode,
+    mapBounds,
+    panoBaseUrl,
+  ]);
   const mapPoints = useMemo(
     () =>
-      menuRooms.map((item) => ({
+      mapRooms.map((item) => ({
         id: item.id,
         isActive: item.isActive,
         label: item.label,
         point: item.point,
       })),
-    [menuRooms],
+    [mapRooms],
   );
 
   const updateModeInUrl = useCallback(
@@ -634,6 +1177,10 @@ export default function InteriorPanoWalkthrough({
     applyModeChange(nextMode);
     updateModeInUrl(nextMode);
   }, [applyModeChange, isBareShellMode, updateModeInUrl]);
+
+  const handleDimensionsToggle = useCallback(() => {
+    setIsDimensionsVisible((current) => !current);
+  }, []);
 
   const resolvePano = useCallback(
     async (nodeId: string) => {
@@ -699,6 +1246,26 @@ export default function InteriorPanoWalkthrough({
       };
     },
     [graph.byId, isBareShellMode, resolvePano],
+  );
+
+  const syncNodeMarkers = useCallback(
+    (viewer: Viewer, nodeId: string, anchorYaw = viewer.getPosition().yaw) => {
+      const markersPlugin = viewer.getPlugin<MarkersPlugin>(MarkersPlugin);
+
+      if (!markersPlugin) {
+        return;
+      }
+
+      markersPlugin.setMarkers(
+        getInteriorDimensionMarkers(
+          graph.byId[nodeId],
+          isBareShellMode,
+          isDimensionsVisibleRef.current,
+          anchorYaw,
+        ),
+      );
+    },
+    [graph.byId, isBareShellMode],
   );
 
   const goToNode = useCallback(async (targetId: string) => {
@@ -844,8 +1411,22 @@ export default function InteriorPanoWalkthrough({
   }, [currentNodeId]);
 
   useEffect(() => {
+    isDimensionsVisibleRef.current = isDimensionsVisible;
+  }, [isDimensionsVisible]);
+
+  useEffect(() => {
     cacheRef.current.clear();
   }, [availablePanoFolders, isBareShellMode, panoBaseUrl]);
+
+  useEffect(() => {
+    const bindings = bindingsRef.current;
+
+    if (!bindings || !currentNodeId) {
+      return;
+    }
+
+    syncNodeMarkers(bindings.viewer, currentNodeId);
+  }, [currentNodeId, isDimensionsVisible, isBareShellMode, syncNodeMarkers]);
 
   useEffect(() => {
     if (typeof navigator === "undefined") {
@@ -1005,6 +1586,11 @@ export default function InteriorPanoWalkthrough({
         },
         plugins: [
           MarkersPlugin,
+          GyroscopePlugin,
+        //    AutorotatePlugin.withConfig({
+        //     autorotatePitch: '5deg',
+        //     autostartDelay: 9000,
+        // }),
           VirtualTourPlugin.withConfig({
             positionMode: "manual",
             renderMode: "3d",
@@ -1024,6 +1610,7 @@ export default function InteriorPanoWalkthrough({
 
       const virtualTour = viewer.getPlugin<VirtualTourPlugin>(VirtualTourPlugin);
       const handleNodeChanged = ({ node }: { node: VirtualTourNode }) => {
+        syncNodeMarkers(viewer, node.id);
         setActiveNodeId(node.id);
         setViewYaw(viewer.getPosition().yaw);
         setViewerError(null);
@@ -1045,6 +1632,7 @@ export default function InteriorPanoWalkthrough({
       viewer.addEventListener(viewerEvents.PositionUpdatedEvent.type, handlePositionUpdated);
 
       bindingsRef.current = { viewer, virtualTour };
+      syncNodeMarkers(viewer, startNodeId);
       setActiveNodeId(startNodeId);
       setViewYaw(viewer.getPosition().yaw);
       setViewerError(null);
@@ -1092,6 +1680,7 @@ export default function InteriorPanoWalkthrough({
     isSlowNetwork,
     panoBaseUrl,
     resolvePano,
+    syncNodeMarkers,
   ]);
 
   if (availableNodeIds === null) {
@@ -1200,6 +1789,33 @@ export default function InteriorPanoWalkthrough({
             {isBareShellMode ? <Sofa className="h-4 w-4" /> : <BedDouble className="h-4 w-4" />}
             {isBareShellMode ? "View Furnished" : "View Bare Shell"}
           </button>
+
+          <button
+            type="button"
+            onClick={handleDimensionsToggle}
+            className={`${uiFont.className} mt-3 flex w-full items-center justify-center rounded-[1.25rem] border px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.24em] shadow-[0_16px_32px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition ${
+              isDimensionsVisible
+                ? "border-[#ecd1a0]/40 bg-[linear-gradient(180deg,rgba(255,244,224,0.22),rgba(206,175,120,0.12))] text-[#fff3da] hover:border-[#f3dbb0]/54 hover:bg-[linear-gradient(180deg,rgba(255,244,224,0.26),rgba(206,175,120,0.16))]"
+                : "border-white/18 bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(171,188,196,0.05))] text-white hover:border-white/30 hover:bg-white/12"
+            }`}
+          >
+            {isDimensionsVisible ? "Hide Dimensions" : "Show Dimensions"}
+          </button>
+
+          <div className={`${uiFont.className} mt-3 rounded-[1.2rem] border border-white/16 bg-[linear-gradient(180deg,rgba(9,13,19,0.42),rgba(9,13,19,0.28))] px-3 py-2.5 text-white/82 shadow-[0_14px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl`}>
+            <div className="text-[9px] font-semibold uppercase tracking-[0.28em] text-white/42">
+              Pano Devtool
+            </div>
+            <div className="mt-2 text-[12px] font-semibold leading-4 text-white">
+              {activeRoomLabel || "Unknown Room"}
+            </div>
+            <div className="mt-1 break-all text-[10px] leading-4 text-white/58">
+              {activePanoId || "No pano selected"}
+            </div>
+            <div className="mt-2 text-[10px] uppercase tracking-[0.22em] text-white/46">
+              Dimensions {isDimensionsVisible ? "on" : "off"} • {activeDimensionMarkerDefinitions.length} markers • Yaw {Math.round((viewYaw * 180) / Math.PI)}°
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1212,7 +1828,7 @@ export default function InteriorPanoWalkthrough({
             className="absolute inset-0 bg-[rgba(14,20,27,0.22)] transition duration-200 xl:bg-[rgba(14,20,27,0.12)]"
           />
 
-          <div className="relative flex h-full w-full flex-col border-r border-white/14 bg-[linear-gradient(180deg,rgba(144,155,164,0.16)_0%,rgba(116,127,136,0.1)_100%)] p-4 text-white shadow-[0_24px_64px_rgba(0,0,0,0.16)] backdrop-blur-[24px] transition duration-300 sm:w-[28rem] xl:mb-6 xl:ml-6 xl:mt-24 xl:h-[calc(100%-7.5rem)] xl:w-[24rem] xl:rounded-[2rem] xl:border xl:border-white/18 xl:bg-[linear-gradient(180deg,rgba(165,176,184,0.18)_0%,rgba(120,134,142,0.12)_100%)]">
+          <div className="relative flex h-full w-full flex-col border-r border-white/14 bg-[linear-gradient(180deg,rgba(144,155,164,0.16)_0%,rgba(116,127,136,0.1)_100%)] p-4 text-white shadow-[0_24px_64px_rgba(0,0,0,0.16)] backdrop-blur-[24px] transition duration-300 sm:w-[28rem] xl:mb-6 xl:ml-6 xl:mt-24 xl:h-[min(58dvh,calc(100dvh-8rem))] xl:w-[24rem] xl:overflow-hidden xl:rounded-[2rem] xl:border xl:border-white/18 xl:bg-[linear-gradient(180deg,rgba(165,176,184,0.18)_0%,rgba(120,134,142,0.12)_100%)] 2xl:h-[min(60dvh,calc(100dvh-8rem))]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className={`${uiFont.className} text-[10px] uppercase tracking-[0.32em] text-white/55`}>
@@ -1236,8 +1852,8 @@ export default function InteriorPanoWalkthrough({
             </div>
 
             <div className="mt-5 xl:hidden">
-              <div className="mx-auto w-full max-w-[13.5rem] rounded-[1.45rem] border border-white/15 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(161,177,185,0.05))] p-2.5 shadow-[0_14px_30px_rgba(0,0,0,0.12)] sm:max-w-[16rem]">
-                <div className="relative overflow-hidden rounded-[1.1rem] border border-white/12">
+              <div className="mx-auto w-full max-w-[13.5rem] rounded-[1.45rem] sm:max-w-[16rem]">
+                <div className="relative overflow-hidden rounded-[1.1rem] ">
                   <Image
                     src={floorMapUrl}
                     width={800}
@@ -1274,10 +1890,22 @@ export default function InteriorPanoWalkthrough({
                   {isBareShellMode ? <Sofa className="h-4 w-4" /> : <BedDouble className="h-4 w-4" />}
                   {isBareShellMode ? "View Furnished" : "View Bare Shell"}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={handleDimensionsToggle}
+                  className={`${uiFont.className} mt-3 flex w-full items-center justify-center rounded-[1.15rem] border px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.24em] shadow-[0_14px_28px_rgba(0,0,0,0.16)] backdrop-blur-2xl transition ${
+                    isDimensionsVisible
+                      ? "border-[#ecd1a0]/40 bg-[linear-gradient(180deg,rgba(255,244,224,0.22),rgba(206,175,120,0.12))] text-[#fff3da] hover:border-[#f3dbb0]/54 hover:bg-[linear-gradient(180deg,rgba(255,244,224,0.26),rgba(206,175,120,0.16))]"
+                      : "border-white/18 bg-[linear-gradient(180deg,rgba(255,255,255,0.1),rgba(171,188,196,0.05))] text-white hover:border-white/30 hover:bg-white/12"
+                  }`}
+                >
+                  {isDimensionsVisible ? "Hide Dimensions" : "Show Dimensions"}
+                </button>
               </div>
             </div>
 
-            <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-2">
               {menuRooms.map((room) => {
                 const isActive = room.id === currentNodeId;
                 return (

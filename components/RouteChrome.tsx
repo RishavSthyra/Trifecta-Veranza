@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BiHome } from "react-icons/bi";
 import { IoMapOutline } from "react-icons/io5";
-import { PiMapPinAreaFill } from "react-icons/pi";
+import { RiBuilding2Line } from "react-icons/ri";
 import QuoteRequestController from "@/components/QuoteRequestController";
 import { Footprints } from 'lucide-react';
 import { FloatingDock } from "@/components/ui/floating-dock";
@@ -139,7 +139,7 @@ export default function RouteChrome() {
       },
       {
         title: "Master Plan",
-        icon: <PiMapPinAreaFill className="h-full w-full text-neutral-100" />,
+        icon: <RiBuilding2Line className="h-full w-full text-neutral-100" />,
         href: "/master-plan",
       },
       {

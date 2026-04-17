@@ -120,7 +120,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
           >
             <div className="flex items-center justify-center">
               <Image
-                src="/logos/credai.gif"
+                src="https://cdn.sthyra.com/images/credai.png"
                 alt="CREDAI logo"
                 width={180}
                 height={64}
