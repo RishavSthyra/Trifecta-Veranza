@@ -58,6 +58,23 @@ const spring: Transition = {
   damping: 24,
 };
 
+function isQuickRouteActive(pathname: string, href?: string) {
+  if (!href) {
+    return false;
+  }
+
+  if (href === "/exterior-walkthrough") {
+    return (
+      pathname === "/exterior-walkthrough" ||
+      pathname === "/exterior-tour" ||
+      pathname === "/exterios-walkthrough" ||
+      pathname === "/walkthrough"
+    );
+  }
+
+  return pathname === href;
+}
+
 export default function UpperLayoutCTA({
   onQuoteClick,
   mergeRouteLinks = false,
@@ -159,7 +176,7 @@ export default function UpperLayoutCTA({
       name: "Contact Us",
       link: "tel:+91-808 800 4411",
       action: "link",
-      isHighlight: true,
+      isHighlight: false,
       icon: (
         <FiPhone className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
       ),
@@ -185,7 +202,10 @@ export default function UpperLayoutCTA({
       name: isMasterPlanRoute ? "Home" : "Floor Plan",
       link: isMasterPlanRoute ? "/" : "/floor-plan",
       action: "link",
-      isHighlight: false,
+      isHighlight: isQuickRouteActive(
+        pathname ?? "",
+        isMasterPlanRoute ? "/" : "/floor-plan",
+      ),
       icon: isMasterPlanRoute ? (
         <FiHome className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
       ) : (
@@ -204,7 +224,7 @@ export default function UpperLayoutCTA({
         name: "Home",
         link: "/",
         action: "link",
-        isHighlight: false,
+        isHighlight: isQuickRouteActive(pathname ?? "", "/"),
         icon: (
           <BiHome className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
         ),
@@ -213,7 +233,7 @@ export default function UpperLayoutCTA({
         name: "Project Overview",
         link: "/project-overview",
         action: "link",
-        isHighlight: false,
+        isHighlight: isQuickRouteActive(pathname ?? "", "/project-overview"),
         icon: (
           <User className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
         ),
@@ -222,7 +242,7 @@ export default function UpperLayoutCTA({
         name: "Master Plan",
         link: "/master-plan",
         action: "link",
-        isHighlight: false,
+        isHighlight: isQuickRouteActive(pathname ?? "", "/master-plan"),
         icon: (
           <RiBuilding2Line className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
         ),
@@ -231,7 +251,7 @@ export default function UpperLayoutCTA({
         name: "Map",
         link: "/area-map",
         action: "link",
-        isHighlight: false,
+        isHighlight: isQuickRouteActive(pathname ?? "", "/area-map"),
         icon: (
           <IoMapOutline className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
         ),
@@ -240,13 +260,13 @@ export default function UpperLayoutCTA({
         name: "Walkthrough",
         link: "/exterior-walkthrough",
         action: "link",
-        isHighlight: false,
+        isHighlight: isQuickRouteActive(pathname ?? "", "/exterior-walkthrough"),
         icon: (
           <Footprints className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
         ),
       },
     ].filter((button) => !(isMasterPlanRoute && button.name === "Home"));
-  }, [isMasterPlanRoute, mergeRouteLinks]);
+  }, [isMasterPlanRoute, mergeRouteLinks, pathname]);
 
   const buttons = [...primaryButtons, ...routeButtons];
   const shouldShowLabels = !mergeRouteLinks && !shouldDockAtBottom;

@@ -3567,7 +3567,7 @@ export default function MasterPlanFrameHoverStage({
       }
 
       const rawTargetProgress = wrapProgress(
-        dragState.startProgress +
+        dragState.startProgress -
           dragState.clampedDeltaX / (dragConfig.pixelsPerFrame * TOTAL_FRAMES),
       );
 
@@ -4006,8 +4006,8 @@ export default function MasterPlanFrameHoverStage({
         dragState.clampedDeltaX === 0
           ? 0
           : dragState.clampedDeltaX > 0
-            ? 1
-            : -1;
+            ? -1
+            : 1;
       const snappedFrame =
         dragDirection === 0
           ? getNearestSnapFrame(releaseFrame)
@@ -4374,10 +4374,7 @@ export default function MasterPlanFrameHoverStage({
         ...createDefaultMobileStageGestureState(),
         lastTouchX: primaryTouch.clientX,
         lastTouchY: primaryTouch.clientY,
-        mode:
-          viewportTransformRef.current.scale > MOBILE_STAGE_MIN_SCALE + 0.01
-            ? "pan"
-            : "tap",
+        mode: "tap",
         tapStartX: primaryTouch.clientX,
         tapStartY: primaryTouch.clientY,
       };
@@ -4452,15 +4449,18 @@ export default function MasterPlanFrameHoverStage({
         primaryTouch.clientX - gestureState.tapStartX,
         primaryTouch.clientY - gestureState.tapStartY,
       );
+      const isZoomedIn =
+        viewportTransformRef.current.scale > MOBILE_STAGE_MIN_SCALE + 0.01;
 
       if (travelDistance > MOBILE_STAGE_TAP_MOVE_THRESHOLD_PX) {
         gestureState.moved = true;
       }
 
-      if (
-        gestureState.mode !== "pan" &&
-        viewportTransformRef.current.scale <= MOBILE_STAGE_MIN_SCALE + 0.01
-      ) {
+      if (gestureState.mode !== "pan" && !isZoomedIn) {
+        return;
+      }
+
+      if (gestureState.mode !== "pan" && !gestureState.moved) {
         return;
       }
 
@@ -4480,6 +4480,7 @@ export default function MasterPlanFrameHoverStage({
         lastTouchX: primaryTouch.clientX,
         lastTouchY: primaryTouch.clientY,
         mode: "pan",
+        moved: true,
       };
     },
     [applyViewportTransform, dragEnabled, shouldAllowTouchViewportGestures],

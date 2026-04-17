@@ -48,6 +48,7 @@ const bhkOptions = ["All", "2", "3"] as const;
 const INVENTORY_REFRESH_INTERVAL = 15000;
 const TOTAL_MASTER_PLAN_FRAMES = 360;
 const MASTER_PLAN_SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
+const SPECIAL_UNIT_VIDEO_TOWER: TowerType = "Tower B";
 const SPECIAL_UNIT_VIDEO_FLAT = "3601";
 const SPECIAL_UNIT_VIDEO_HOTSPOT = "A1";
 const SPECIAL_UNIT_VIDEO_FRAME = 1;
@@ -222,7 +223,10 @@ function isSpecialVideoApartment(apartment: InventoryApartment | null) {
     return false;
   }
 
-  return getApartmentFlatToken(apartment) === SPECIAL_UNIT_VIDEO_FLAT;
+  return (
+    apartment.tower === SPECIAL_UNIT_VIDEO_TOWER &&
+    getApartmentFlatToken(apartment) === SPECIAL_UNIT_VIDEO_FLAT
+  );
 }
 
 function MasterPlanHotspotControls({
@@ -2091,6 +2095,9 @@ function MasterPlanFiltersCard({
     Number(status !== "All") +
     Number(minArea > 0);
   const [isCompactOpen, setIsCompactOpen] = useState(compact);
+  const handleSearchInputChange = (value: string) => {
+    onSearchChange(value.replace(/\D+/g, ""));
+  };
 
   if (compact) {
     return (
@@ -2139,7 +2146,11 @@ function MasterPlanFiltersCard({
           <Search className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
           <input
             value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
+            onChange={(e) => handleSearchInputChange(e.target.value)}
+            inputMode="numeric"
+            pattern="[0-9]*"
+            enterKeyHint="search"
+            autoComplete="off"
             placeholder="Search unit number"
             className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
           />
@@ -2284,7 +2295,11 @@ function MasterPlanFiltersCard({
             <Search className="h-4 w-4 text-zinc-500 transition group-focus-within:text-zinc-800 dark:group-focus-within:text-white" />
             <input
               value={search}
-              onChange={(e) => onSearchChange(e.target.value)}
+              onChange={(e) => handleSearchInputChange(e.target.value)}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              enterKeyHint="search"
+              autoComplete="off"
               placeholder="Search unit number"
               className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
             />

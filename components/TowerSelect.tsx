@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Image, { type StaticImageData } from "next/image";
 import { CheckCircle2, ChevronRight, X } from "lucide-react";
-import towerimg from "@/assets/Tower.avif";
 import towerAimg from "@/assets/New-a.jpg"
 import towerBimg from "@/assets/New-B.jpg"
 import type { TowerType } from "@/types/inventory";
@@ -81,78 +80,72 @@ function TowerSelectPanel({
   if (mobile) {
     return (
       <aside className="w-full">
-        <div className="px-1">
+        <div className="overflow-hidden rounded-[28px] border border-white/70 bg-[linear-gradient(180deg,rgba(255,255,255,0.9),rgba(248,246,242,0.92))] p-4 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:rounded-[32px] sm:p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-zinc-500/85">
                 Master Plan
               </p>
-              <h2 className="mt-1.5 text-[1.35rem] font-semibold tracking-[-0.03em] text-zinc-950">
+              <h2 className="mt-2 text-[1.4rem] font-semibold tracking-[-0.04em] text-zinc-950 sm:text-[1.55rem]">
                 Choose Your Tower
               </h2>
-              <p className="mt-1 text-sm leading-5 text-zinc-600">
-                Pick a tower to open the matching flats.
+              <p className="mt-1.5 max-w-[30rem] text-sm leading-5 text-zinc-600">
+                Pick a tower to open the matching flats with a cleaner,
+                touch-first layout.
               </p>
             </div>
-
-            {/* {onTopViewClick ? (
-              <button
-                type="button"
-                onClick={onTopViewClick}
-                className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] transition ${
-                  isTopViewActive
-                    ? "border-zinc-900 bg-zinc-900 text-white shadow-[0_12px_24px_rgba(15,23,42,0.18)]"
-                    : "border-zinc-200 bg-white/92 text-zinc-700 hover:border-zinc-300 hover:bg-white"
-                }`}
-              >
-                <Layers3 className="h-3.5 w-3.5" />
-                Top View
-              </button>
-            ) : null} */}
           </div>
-        </div>
 
-        <div className="mt-4 flex flex-col gap-3">
-          {towerCards.map((towerCard) => {
-            const isActive = selectedTower === towerCard.value;
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {towerCards.map((towerCard) => {
+              const isActive = selectedTower === towerCard.value;
 
-            return (
-              <button
-                key={towerCard.value}
-                type="button"
-                onClick={() => onSelectTower(towerCard.value)}
-                className={`group flex w-full items-center gap-3 rounded-full border px-3 py-3 text-left shadow-[0_14px_36px_rgba(15,23,42,0.10)] transition ${
-                  isActive
-                    ? "border-zinc-900/15 bg-white"
-                    : "border-white/70 bg-white/84"
-                }`}
-              >
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-zinc-100 ring-1 ring-black/5">
-                  <Image
-                    src={towerCard.image}
-                    alt={towerCard.imageAlt}
-                    
-                    className={towerCard.mobileImageClass}
-                  />
-                </div>
+              return (
+                <button
+                  key={towerCard.value}
+                  type="button"
+                  onClick={() => onSelectTower(towerCard.value)}
+                  className={`group relative overflow-hidden rounded-[24px] border p-3.5 text-left shadow-[0_16px_36px_rgba(15,23,42,0.08)] transition duration-300 sm:min-h-[220px] sm:p-4 ${
+                    isActive
+                      ? "border-zinc-900/15 bg-white shadow-[0_22px_48px_rgba(15,23,42,0.12)]"
+                      : "border-white/70 bg-white/86 hover:border-zinc-200 hover:bg-white"
+                  }`}
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.22),rgba(255,255,255,0))]" />
+                  <div className="relative flex items-start gap-3">
+                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[20px] bg-zinc-100 ring-1 ring-black/5 sm:h-24 sm:w-24">
+                      <Image
+                        src={towerCard.image}
+                        alt={towerCard.imageAlt}
+                        fill
+                        sizes="(max-width: 639px) 80px, 96px"
+                        className={`object-cover ${towerCard.mobileImageClass}`}
+                      />
+                    </div>
 
-                <div className="min-w-0 flex-1">
-                  <p className="text-base font-semibold tracking-[-0.03em] text-zinc-950">
-                    {towerCard.value}
-                  </p>
-                  <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-400">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[1.05rem] font-semibold tracking-[-0.03em] text-zinc-950 sm:text-[1.15rem]">
+                        {towerCard.value}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-600 sm:text-[13px]">
+                        {towerCard.description}
+                      </p>
+                    </div>
+
+                    {isActive ? (
+                      <CheckCircle2 className="h-5 w-5 shrink-0 text-zinc-900" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5 shrink-0 text-zinc-400 transition group-hover:text-zinc-700" />
+                    )}
+                  </div>
+
+                  <div className="relative mt-4 inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-zinc-500">
                     Tap to explore
-                  </p>
-                </div>
-
-                {isActive ? (
-                  <CheckCircle2 className="h-5 w-5 shrink-0 text-zinc-900" />
-                ) : (
-                  <ChevronRight className="h-5 w-5 shrink-0 text-zinc-400 transition group-hover:text-zinc-700" />
-                )}
-              </button>
-            );
-          })}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </aside>
     );

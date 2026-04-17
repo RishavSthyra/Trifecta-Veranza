@@ -18,7 +18,7 @@ export const FloatingDock = ({
   desktopClassName,
   mobileClassName,
 }: {
-  items: { title: string; icon: React.ReactNode; href: string }[];
+  items: { title: string; icon: React.ReactNode; href: string; active?: boolean }[];
   desktopClassName?: string;
   mobileClassName?: string;
 }) => {
@@ -34,7 +34,7 @@ const FloatingDockMobile = ({
   items,
   className,
 }: {
-  items: { title: string; icon: React.ReactNode; href: string }[];
+  items: { title: string; icon: React.ReactNode; href: string; active?: boolean }[];
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
@@ -64,7 +64,12 @@ const FloatingDockMobile = ({
                 <Link
                   href={item.href}
                   onClick={() => setOpen(false)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-transparent "
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-full border transition",
+                    item.active
+                      ? "border-white/10 bg-neutral-900 shadow-[0_10px_24px_rgba(0,0,0,0.22)]"
+                      : "border-transparent bg-transparent",
+                  )}
                 >
                   <div className="h-4 w-4">{item.icon}</div>
                 </Link>
@@ -88,7 +93,7 @@ const FloatingDockDesktop = ({
   items,
   className,
 }: {
-  items: { title: string; icon: React.ReactNode; href: string }[];
+  items: { title: string; icon: React.ReactNode; href: string; active?: boolean }[];
   className?: string;
 }) => {
   const mouseY = useMotionValue(Infinity);
@@ -114,11 +119,13 @@ function IconContainer({
   title,
   icon,
   href,
+  active = false,
 }: {
   mouseY: MotionValue<number>;
   title: string;
   icon: React.ReactNode;
   href: string;
+  active?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const centerYRef = useRef(0);
@@ -198,7 +205,12 @@ function IconContainer({
         style={{ width, height }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        className="relative flex aspect-square items-center justify-center rounded-full bg-neutral-900"
+        className={cn(
+          "relative flex aspect-square items-center justify-center rounded-full border transition",
+          active
+            ? "border-[#e7d7b3]/28 bg-[linear-gradient(180deg,#2d2418_0%,#17120b_100%)] shadow-[0_18px_40px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,246,224,0.14)]"
+            : "border-transparent bg-neutral-900",
+        )}
       >
         <AnimatePresence>
           {hovered && (

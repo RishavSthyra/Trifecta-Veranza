@@ -247,7 +247,7 @@ export default function FlipBookDeck() {
     <div
       className={`relative min-h-dvh justify-center bg-neutral-100 ${
         useStackedDeck
-          ? "h-dvh overflow-y-auto overflow-x-hidden overscroll-contain bg-[linear-gradient(180deg,#d5b785_0%,#c19b64_26%,#f5ede0_62%,#f7f1e7_100%)] px-0 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-16 [-webkit-overflow-scrolling:touch] touch-pan-y sm:pt-18"
+          ? "h-dvh overflow-y-auto overflow-x-hidden overscroll-contain bg-[linear-gradient(180deg,#d5b785_0%,#c19b64_26%,#f5ede0_62%,#f7f1e7_100%)] px-0 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-16 [-webkit-overflow-scrolling:touch] [touch-action:pan-y_pinch-zoom] sm:pt-18"
           : "flex h-dvh items-center overflow-hidden px-1.5 pb-4 pt-6 sm:px-4 sm:py-4"
       }`}
     >
@@ -317,7 +317,7 @@ export default function FlipBookDeck() {
         }`}
       >
         {useStackedDeck ? (
-          <div className="w-full flex-none touch-pan-y">
+          <div className="w-full flex-none [touch-action:pan-y_pinch-zoom]">
             <MobileDeckLanding />
           </div>
         ) : (

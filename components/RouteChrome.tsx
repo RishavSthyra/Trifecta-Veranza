@@ -10,6 +10,19 @@ import QuoteRequestController from "@/components/QuoteRequestController";
 import { Footprints } from 'lucide-react';
 import { FloatingDock } from "@/components/ui/floating-dock";
 
+function isDockRouteActive(pathname: string, href: string) {
+  if (href === "/exterior-walkthrough") {
+    return (
+      pathname === "/exterior-walkthrough" ||
+      pathname === "/exterior-tour" ||
+      pathname === "/exterios-walkthrough" ||
+      pathname === "/walkthrough"
+    );
+  }
+
+  return pathname === href;
+}
+
 function shouldUseMergedChrome() {
   if (typeof window === "undefined") {
     return false;
@@ -131,26 +144,31 @@ export default function RouteChrome() {
         title: "Home",
         icon: <BiHome className="h-full w-full text-neutral-100" />,
         href: "/",
+        active: isDockRouteActive(pathname, "/"),
       },
       {
         title: "Project Overview",
         icon: <User className="h-full w-full text-neutral-100" />,
         href: "/project-overview",
+        active: isDockRouteActive(pathname, "/project-overview"),
       },
       {
         title: "Master Plan",
         icon: <RiBuilding2Line className="h-full w-full text-neutral-100" />,
         href: "/master-plan",
+        active: isDockRouteActive(pathname, "/master-plan"),
       },
       {
         title: "Walkthrough",
         icon: <Footprints className="h-full w-full text-neutral-100" />,
         href: "/exterior-walkthrough",
+        active: isDockRouteActive(pathname, "/exterior-walkthrough"),
       },
       {
         title: "Map",
         icon: <IoMapOutline className="h-full w-full text-neutral-100" />,
         href: "/area-map",
+        active: isDockRouteActive(pathname, "/area-map"),
       },
     ];
 
@@ -163,15 +181,17 @@ export default function RouteChrome() {
         title: "Call",
         icon: <Phone className="h-full w-full text-neutral-100" />,
         href: "tel:+91-8088004411",
+        active: false,
       },
       {
         title: "Brochure",
         icon: <Download className="h-full w-full text-neutral-100" />,
         href: "/Veranza Floorplan_ E-Brochure_V3_02-03-26 (2).pdf",
+        active: false,
       },
       ...baseItems,
     ];
-  }, [shouldAddCompactDesktopCtasToDock]);
+  }, [pathname, shouldAddCompactDesktopCtasToDock]);
 
   useEffect(() => {
     if (pathname !== "/master-plan" || typeof document === "undefined") {
