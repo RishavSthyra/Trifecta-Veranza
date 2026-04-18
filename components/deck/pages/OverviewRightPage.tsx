@@ -242,27 +242,27 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
           variants={container}
           initial="hidden"
           animate="show"
-          className="relative flex min-h-full flex-col px-4 py-4 sm:px-5 sm:py-5 md:h-full md:min-h-0 md:px-6 md:py-6 xl:px-6 xl:py-6 min-[1700px]:xl:px-8 min-[1700px]:xl:py-8"
+          className="relative flex min-h-full flex-col px-4 py-4 sm:px-5 sm:py-5 md:h-full md:min-h-0 md:px-6 md:py-6 xl:px-5 xl:py-5 min-[1700px]:xl:px-7 min-[1700px]:xl:py-7"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.75),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(216,201,178,0.18),transparent_28%)]" />
 
-          <div className="relative z-10 grid min-h-full grid-rows-[auto_auto_auto_auto_auto] gap-3 sm:gap-4 md:h-full md:min-h-0 md:grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] xl:gap-4">
+          <div className="relative z-10 grid min-h-full grid-rows-[auto_auto_auto_auto_auto] gap-3 sm:gap-4 md:h-full md:min-h-0 md:grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] xl:gap-3.5">
             <motion.div
               variants={fadeUp}
               className="flex items-start justify-between gap-3 sm:gap-4"
             >
-              <div className="max-w-full md:max-w-[76%] xl:max-w-[72%]">
+              <div className="max-w-full md:max-w-[80%] xl:max-w-[82%]">
                 <p className="mb-1.5 text-[9px] uppercase tracking-[0.28em] text-neutral-500 sm:mb-2 sm:text-[10px] sm:tracking-[0.34em] xl:tracking-[0.38em]">
                   Project Overview
                 </p>
 
-                <h2 className="max-w-[520px] text-[1.55rem] font-semibold leading-[0.98] tracking-[-0.04em] text-neutral-900 sm:text-[2rem] md:text-[2.15rem] xl:text-[2.1rem] min-[1700px]:xl:text-[2.45rem]">
+                <h2 className="max-w-[560px] text-[1.55rem] font-semibold leading-[0.98] tracking-[-0.04em] text-neutral-900 sm:text-[2rem] md:text-[2.15rem] xl:max-w-[620px] xl:text-[2.12rem] min-[1700px]:xl:text-[2.45rem]">
                   Open to sky,
                   <br />
                   rooted in green.
                 </h2>
 
-                <p className="mt-2 max-w-[500px] text-[11px] leading-5 text-neutral-600 sm:mt-3 sm:text-[13px] sm:leading-6 md:text-sm xl:text-sm">
+                <p className="mt-2 max-w-[520px] text-[11px] leading-5 text-neutral-600 sm:mt-3 sm:text-[13px] sm:leading-6 md:text-sm xl:max-w-[560px] xl:text-sm">
                   A premium skyrise address designed around openness,
                   landscape, elevation, and a richer everyday living
                   experience.
@@ -361,7 +361,7 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                 </p>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.2rem] border border-[#ddd4c8] bg-white/75 p-2.5 shadow-[0_15px_45px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:rounded-[1.5rem] sm:p-3.5 xl:h-[220px] xl:flex-none xl:rounded-[1.8rem] xl:p-4 min-[1700px]:xl:h-auto min-[1700px]:xl:flex-1">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.2rem] border border-[#ddd4c8] bg-white/75 p-2.5 shadow-[0_15px_45px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:rounded-[1.5rem] sm:p-3.5 xl:h-[228px] xl:flex-none xl:rounded-[1.8rem] xl:p-4 min-[1700px]:xl:h-auto min-[1700px]:xl:flex-1">
                 <div
                   ref={chartWrapRef}
                   className="h-full w-full min-h-[220px] min-w-0 sm:min-h-[240px] md:min-h-[260px] xl:min-h-[180px] min-[1700px]:xl:min-h-0"

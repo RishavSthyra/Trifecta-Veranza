@@ -1,9 +1,10 @@
 "use client";
 
-import { Download, Phone, User } from "lucide-react";
+import { Download, Phone } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BiHome } from "react-icons/bi";
+import { FiGrid } from "react-icons/fi";
 import { IoMapOutline } from "react-icons/io5";
 import { RiBuilding2Line } from "react-icons/ri";
 import QuoteRequestController from "@/components/QuoteRequestController";
@@ -148,7 +149,7 @@ export default function RouteChrome() {
       },
       {
         title: "Project Overview",
-        icon: <User className="h-full w-full text-neutral-100" />,
+        icon: <FiGrid className="h-full w-full text-neutral-100" />,
         href: "/project-overview",
         active: isDockRouteActive(pathname, "/project-overview"),
       },

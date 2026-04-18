@@ -26,6 +26,7 @@ type HeroSectionProps = {
   heroVideoSrc?: string | null;
   onHeroReadyChange?: (ready: boolean) => void;
   onHeroVideoProgressChange?: (progress: number) => void;
+  playIntroAnimation?: boolean;
 };
 
 function getHeroVideoLoadProgress(video: HTMLVideoElement) {
@@ -59,6 +60,7 @@ export default function HeroSection({
   heroVideoSrc,
   onHeroReadyChange,
   onHeroVideoProgressChange,
+  playIntroAnimation = false,
 }: HeroSectionProps) {
   const router = useRouter();
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -102,6 +104,11 @@ export default function HeroSection({
   };
 
   const contentWrap: Variants = {
+    hidden: {
+      transition: {
+        staggerChildren: 0,
+      },
+    },
     show: {
       transition: {
         staggerChildren: 0.08,
@@ -116,6 +123,15 @@ export default function HeroSection({
   };
 
   const contentItem: Variants = {
+    hidden: {
+      opacity: 0,
+      y: 24,
+      filter: "blur(10px)",
+      transition: {
+        duration: 0.24,
+        ease: [0.4, 0, 0.2, 1] as const,
+      },
+    },
     show: {
       opacity: 1,
       y: 0,
@@ -447,13 +463,19 @@ export default function HeroSection({
       <div className="absolute inset-0 z-10 flex items-center justify-center px-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-[max(env(safe-area-inset-top),1.5rem)]">
         <motion.div
           variants={contentWrap}
-          initial="show"
-          animate={isTransitioningToMasterPlan ? "exit" : "show"}
+          initial="hidden"
+          animate={
+            isTransitioningToMasterPlan
+              ? "exit"
+              : playIntroAnimation
+                ? "show"
+                : "hidden"
+          }
           className="max-w-5xl text-center"
         >
           <motion.p
             variants={contentItem}
-            className="mb-4 text-[11px] uppercase tracking-[0.4em] text-white/70 md:text-xs"
+            className="mb-6 text-[11px] uppercase tracking-[0.4em] text-white/70 md:mb-7 md:text-xs"
           >
             Trifecta Veranza
           </motion.p>
@@ -462,8 +484,14 @@ export default function HeroSection({
             <motion.h1
               variants={container}
               initial="hidden"
-              animate={isTransitioningToMasterPlan ? "hidden" : "show"}
-              className="text-4xl font-light uppercase tracking-[0.08em] md:text-7xl md:leading-[0.95]"
+              animate={
+                isTransitioningToMasterPlan
+                  ? "hidden"
+                  : playIntroAnimation
+                    ? "show"
+                    : "hidden"
+              }
+              className="text-[2.15rem] font-light uppercase tracking-[0.01em] sm:text-[3.2rem] md:text-[4.1rem] md:leading-[0.94] lg:text-[4.85rem] xl:text-7xl"
             >
               <div className="flex flex-wrap justify-center overflow-hidden">
               {line1.split("").map((char, i) => (
@@ -477,7 +505,7 @@ export default function HeroSection({
               ))}
               </div>
 
-              <div className="flex flex-wrap justify-center overflow-hidden">
+              <div className="mt-2 flex flex-wrap justify-center overflow-hidden sm:mt-3">
               {line2.split("").map((char, i) => (
                 <motion.span
                   key={`l2-${i}`}
@@ -493,7 +521,7 @@ export default function HeroSection({
 
           <motion.p
             variants={contentItem}
-            className="mx-auto mt-6 max-w-2xl text-sm text-white/80 md:text-base"
+            className="mx-auto mt-6 max-w-[24rem] text-sm text-white/80 sm:max-w-[30rem] md:max-w-[36rem] md:text-[15px] lg:max-w-[40rem] lg:text-base"
           >
             Expansive skyrise residences set across 6+ acres with 2 iconic
             towers, rising G+36 floors and offering 444 exclusive homes designed

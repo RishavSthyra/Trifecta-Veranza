@@ -384,6 +384,7 @@ export default function HomePageClient() {
       >
         <HeroSection
           heroVideoSrc={heroVideoSrc}
+          playIntroAnimation={!loading}
           onHeroReadyChange={setHeroReady}
           onHeroVideoProgressChange={(nextProgress) => {
             setProgress((currentProgress) => {

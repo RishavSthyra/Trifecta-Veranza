@@ -4,7 +4,6 @@ import { Viewer, events as viewerEvents, type Position } from "@photo-sphere-vie
 import "@photo-sphere-viewer/core/index.css";
 import { EquirectangularTilesAdapter } from "@photo-sphere-viewer/equirectangular-tiles-adapter";
 import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
-import { AutorotatePlugin } from '@photo-sphere-viewer/autorotate-plugin';
 import { MarkersPlugin, type MarkerConfig } from "@photo-sphere-viewer/markers-plugin";
 import "@photo-sphere-viewer/markers-plugin/index.css";
 import {
@@ -56,7 +55,6 @@ import type {
 import {
   getWalkthroughMode,
 } from "@/lib/walkthrough";
-import Image from "next/image";
 
 const editorialFont = Cormorant_Garamond({
   subsets: ["latin"],
@@ -76,8 +74,6 @@ const wallLabelFont = DM_Sans({
 const FURNISHED_PANO_BASE_URL = "https://cdn.sthyra.com/interior-pano-trifecta-new/";
 const BARE_SHELL_PANO_BASE_URL =
   "https://cdn.sthyra.com/bareshell-pano-trifecta-new/";
-const FURNISHED_FLOOR_MAP_URL = "https://cdn.sthyra.com/images/Tower_A_01_2D.webp";
-const BARE_SHELL_FLOOR_MAP_URL = "https://cdn.sthyra.com/images/Tower_A_06_2D.webp";
 const DEFAULT_ZOOM = 10;
 const MIN_PITCH = -Math.PI / 2 + 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.08;
@@ -85,31 +81,7 @@ const INTERIOR_SPHERE_RESOLUTION = 128;
 const INTERIOR_SLOW_SPHERE_RESOLUTION = 96;
 const INTERIOR_MIN_FOV = 36;
 const INTERIOR_MAX_FOV = 74;
-const FURNISHED_MAP_FLIP_X = false;
-const FURNISHED_MAP_FLIP_Y = false;
-const BARE_SHELL_MAP_FLIP_X = false;
-const BARE_SHELL_MAP_FLIP_Y = false;
 const ENTRANCE_FRAME_ID = "F0000";
-
-const LEGACY_SOURCE_BOTTOM_LEFT = {
-  x: 1899.143896,
-  y: -7658.955338,
-};
-
-const LEGACY_SOURCE_TOP_RIGHT = {
-  x: 581.121048,
-  y: -9052.578353,
-};
-
-const BARE_SHELL_SOURCE_BOTTOM_LEFT = {
-  x: 4600.149307,
-  y: -7708.955825,
-};
-
-const BARE_SHELL_SOURCE_TOP_RIGHT = {
-  x: 5850.028969,
-  y: -9052.57788,
-};
 
 const FURNISHED_PANO_FOLDER_OVERRIDES: Record<string, string> = {
   LS_BP_panoPath_Interior_F0005: "LS_BP_panoPath_Interior_F0005",
@@ -145,27 +117,12 @@ type RoomTab = {
 };
 
 type MenuRoomItem = RoomTab & {
-  point: MapPoint;
   isActive: boolean;
 };
 
 type ViewerBindings = {
   viewer: Viewer;
   virtualTour: VirtualTourPlugin;
-};
-
-type MapBounds = {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-  flipX: boolean;
-  flipY: boolean;
-};
-
-type MapPoint = {
-  leftPercent: number;
-  topPercent: number;
 };
 
 type NetworkInformationLike = {
@@ -497,68 +454,6 @@ function normalizeMarkerRotation(rotation: InteriorDimensionMarkerRotation | und
   };
 }
 
-function getRawRoomLabel(imageFilename: string) {
-  const panoId = imageFilenameToPanoId(imageFilename);
-  return ROOM_LABELS[panoId] ?? panoId.match(/F(\d{4})$/i)?.[0] ?? panoId;
-}
-
-function getLegacyImportantRoomLabel(label: string) {
-  const normalizedLabel = label.trim().toLowerCase();
-
-  if (!normalizedLabel) {
-    return null;
-  }
-
-  if (normalizedLabel === "entrance") {
-    return "Entrance";
-  }
-
-  if (normalizedLabel.includes("passage") || /^hall\b/.test(normalizedLabel)) {
-    return null;
-  }
-
-  if (normalizedLabel.endsWith("entrance")) {
-    return null;
-  }
-
-  if (normalizedLabel.includes("kitchen")) {
-    return "Kitchen";
-  }
-
-  if (normalizedLabel.includes("master bedroom")) {
-    return "Master Bedroom";
-  }
-
-  if (normalizedLabel.includes("childrens room")) {
-    return "Childrens Room";
-  }
-
-  if (normalizedLabel.includes("maid room")) {
-    return "Maid Room";
-  }
-
-  if (normalizedLabel.includes("drawing room")) {
-    return "Drawing Room";
-  }
-
-  if (normalizedLabel.includes("dining room")) {
-    return "Dining Room";
-  }
-
-  if (normalizedLabel.includes("living room")) {
-    return "Living Room";
-  }
-
-  if (
-    normalizedLabel.includes("bathroom") ||
-    normalizedLabel.includes("washroom")
-  ) {
-    return "Bathroom";
-  }
-
-  return null;
-}
-
 function getInteriorDimensionMarkers(
   node: ExteriorTourNode | undefined,
   isBareShellMode: boolean,
@@ -862,42 +757,6 @@ function vectorFromAngle(angle: number) {
   };
 }
 
-function getMapBounds(isBareShellMode: boolean): MapBounds {
-  if (isBareShellMode) {
-    return {
-      minX: Math.min(BARE_SHELL_SOURCE_BOTTOM_LEFT.x, BARE_SHELL_SOURCE_TOP_RIGHT.x),
-      maxX: Math.max(BARE_SHELL_SOURCE_BOTTOM_LEFT.x, BARE_SHELL_SOURCE_TOP_RIGHT.x),
-      minY: Math.min(BARE_SHELL_SOURCE_BOTTOM_LEFT.y, BARE_SHELL_SOURCE_TOP_RIGHT.y),
-      maxY: Math.max(BARE_SHELL_SOURCE_BOTTOM_LEFT.y, BARE_SHELL_SOURCE_TOP_RIGHT.y),
-      flipX: BARE_SHELL_MAP_FLIP_X,
-      flipY: BARE_SHELL_MAP_FLIP_Y,
-    };
-  }
-
-  return {
-    minX: Math.min(LEGACY_SOURCE_BOTTOM_LEFT.x, LEGACY_SOURCE_TOP_RIGHT.x),
-    maxX: Math.max(LEGACY_SOURCE_BOTTOM_LEFT.x, LEGACY_SOURCE_TOP_RIGHT.x),
-    minY: Math.min(LEGACY_SOURCE_BOTTOM_LEFT.y, LEGACY_SOURCE_TOP_RIGHT.y),
-    maxY: Math.max(LEGACY_SOURCE_BOTTOM_LEFT.y, LEGACY_SOURCE_TOP_RIGHT.y),
-    flipX: FURNISHED_MAP_FLIP_X,
-    flipY: FURNISHED_MAP_FLIP_Y,
-  };
-}
-
-function getMapPointForNode(node: ExteriorTourNode, bounds: MapBounds): MapPoint {
-  const width = Math.max(bounds.maxX - bounds.minX, 1);
-  const height = Math.max(bounds.maxY - bounds.minY, 1);
-  const normalizedX = clamp((node.rawPosition.x - bounds.minX) / width, 0, 1);
-  const normalizedY = clamp((node.rawPosition.y - bounds.minY) / height, 0, 1);
-  const mappedX = bounds.flipX ? 1 - normalizedX : normalizedX;
-  const mappedY = bounds.flipY ? 1 - normalizedY : normalizedY;
-
-  return {
-    leftPercent: mappedX * 100,
-    topPercent: mappedY * 100,
-  };
-}
-
 function getViewRelativeNavigationTargets(
   graph: { nodes: ExteriorTourNode[] },
   activeNode: ExteriorTourNode | undefined,
@@ -1016,7 +875,6 @@ export default function InteriorPanoWalkthrough({
     [isBareShellMode],
   );
   const panoBaseUrl = isBareShellMode ? BARE_SHELL_PANO_BASE_URL : FURNISHED_PANO_BASE_URL;
-  const floorMapUrl = isBareShellMode ? BARE_SHELL_FLOOR_MAP_URL : FURNISHED_FLOOR_MAP_URL;
   const assetStore = useMemo(() => new PanoAssetStore(panoBaseUrl), [panoBaseUrl]);
   const interiorViewerMoveSpeed = isMobileTouchViewport ? 3.6 : 2;
   const interiorViewerMoveInertia = isMobileTouchViewport ? 0.82 : 0.92;
@@ -1053,7 +911,6 @@ export default function InteriorPanoWalkthrough({
     () => getViewRelativeNavigationTargets(graph, activeNode, viewYaw),
     [activeNode, graph, viewYaw],
   );
-  const mapBounds = useMemo(() => getMapBounds(isBareShellMode), [isBareShellMode]);
   const menuRooms = useMemo<MenuRoomItem[]>(() => {
     const seenLabels = new Set<string>();
 
@@ -1078,7 +935,6 @@ export default function InteriorPanoWalkthrough({
         image: `${panoBaseUrl}${panoId}/${getDefaultPreviewFile()}`,
         isActive: node.id === currentNodeId,
         label: importantLabel,
-        point: getMapPointForNode(node, mapBounds),
       });
 
       return items;
@@ -1088,56 +944,8 @@ export default function InteriorPanoWalkthrough({
     currentNodeId,
     graph.nodes,
     isBareShellMode,
-    mapBounds,
     panoBaseUrl,
   ]);
-  const mapRooms = useMemo<MenuRoomItem[]>(() => {
-    const seenLabels = new Set<string>();
-
-    return graph.nodes.reduce<MenuRoomItem[]>((items, node) => {
-      const importantLabel = getLegacyImportantRoomLabel(getRawRoomLabel(node.imageFilename));
-
-      if (!importantLabel || seenLabels.has(importantLabel)) {
-        return items;
-      }
-
-      seenLabels.add(importantLabel);
-
-      const panoId = getResolvedPanoFolderId(
-        node.id,
-        node.imageFilename,
-        availablePanoFolders,
-        isBareShellMode,
-      );
-
-      items.push({
-        id: node.id,
-        image: `${panoBaseUrl}${panoId}/${getDefaultPreviewFile()}`,
-        isActive: node.id === currentNodeId,
-        label: importantLabel,
-        point: getMapPointForNode(node, mapBounds),
-      });
-
-      return items;
-    }, []);
-  }, [
-    availablePanoFolders,
-    currentNodeId,
-    graph.nodes,
-    isBareShellMode,
-    mapBounds,
-    panoBaseUrl,
-  ]);
-  const mapPoints = useMemo(
-    () =>
-      mapRooms.map((item) => ({
-        id: item.id,
-        isActive: item.isActive,
-        label: item.label,
-        point: item.point,
-      })),
-    [mapRooms],
-  );
 
   const updateModeInUrl = useCallback(
     (nextMode: boolean) => {
@@ -1754,33 +1562,6 @@ export default function InteriorPanoWalkthrough({
 
       <div className="pointer-events-none absolute right-4 top-[1.5rem] z-30 hidden w-[220px] xl:block 2xl:right-6 2xl:top-[2rem] 2xl:w-[300px]">
         <div className="pointer-events-auto rounded-[1.6rem] p-3 ">
-            <Image
-              src={floorMapUrl}
-              width={800}
-              height={800}
-              alt="Apartment floorplan"
-              className="h-auto w-full object-contain"
-            />
-
-            {mapPoints.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                aria-label={`Open ${item.label}`}
-                title={item.label}
-                onClick={() => void goToNode(item.id)}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition ${
-                  item.isActive
-                    ? "h-3.5 w-3.5 border-2 border-[#082227] bg-[#77f0ea] shadow-[0_0_0_4px_rgba(119,240,234,0.2)]"
-                    : "h-2.5 w-2.5 border border-white/55 bg-white/88 hover:scale-110 hover:bg-[#c9fffb]"
-                }`}
-                style={{
-                  left: `${item.point.leftPercent}%`,
-                  top: `${item.point.topPercent}%`,
-                }}
-              />
-            ))}
-
           <button
             type="button"
             onClick={handleModeToggle}
@@ -1852,36 +1633,7 @@ export default function InteriorPanoWalkthrough({
             </div>
 
             <div className="mt-5 xl:hidden">
-              <div className="mx-auto w-full max-w-[13.5rem] rounded-[1.45rem] sm:max-w-[16rem]">
-                <div className="relative overflow-hidden rounded-[1.1rem] ">
-                  <Image
-                    src={floorMapUrl}
-                    width={800}
-                    height={800}
-                    alt="Apartment floorplan"
-                    className="h-auto w-full object-contain"
-                  />
-
-                  {mapPoints.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-label={`Open ${item.label}`}
-                      title={item.label}
-                      onClick={() => void goToNode(item.id)}
-                      className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full transition ${
-                        item.isActive
-                          ? "h-3.5 w-3.5 border-2 border-[#082227] bg-[#77f0ea] shadow-[0_0_0_4px_rgba(119,240,234,0.2)]"
-                          : "h-2.5 w-2.5 border border-white/55 bg-white/88 hover:scale-110 hover:bg-[#c9fffb]"
-                      }`}
-                      style={{
-                        left: `${item.point.leftPercent}%`,
-                        top: `${item.point.topPercent}%`,
-                      }}
-                    />
-                  ))}
-                </div>
-
+              <div className="mx-auto w-full max-w-[16rem] rounded-[1.45rem] sm:max-w-[18rem]">
                 <button
                   type="button"
                   onClick={handleModeToggle}

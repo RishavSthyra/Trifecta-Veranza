@@ -8,7 +8,7 @@ import { FiPhone, FiDownload, FiDollarSign, FiGrid, FiHome } from "react-icons/f
 import { BiHome } from "react-icons/bi";
 import { IoMapOutline } from "react-icons/io5";
 import { RiBuilding2Line } from "react-icons/ri";
-import { Footprints, Menu, User, X } from "lucide-react";
+import { Footprints, Menu, X } from "lucide-react";
 
 interface CtaButtonType {
   name: string;
@@ -198,21 +198,19 @@ export default function UpperLayoutCTA({
         <FiDollarSign className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
       ),
     },
-    {
-      name: isMasterPlanRoute ? "Home" : "Floor Plan",
-      link: isMasterPlanRoute ? "/" : "/floor-plan",
-      action: "link",
-      isHighlight: isQuickRouteActive(
-        pathname ?? "",
-        isMasterPlanRoute ? "/" : "/floor-plan",
-      ),
-      icon: isMasterPlanRoute ? (
-        <FiHome className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
-      ) : (
-        <FiGrid className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
-      ),
-    },
   ];
+
+  if (isMasterPlanRoute) {
+    primaryButtons.push({
+      name: "Home",
+      link: "/",
+      action: "link",
+      isHighlight: isQuickRouteActive(pathname ?? "", "/"),
+      icon: (
+        <FiHome className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+      ),
+    });
+  }
 
   const routeButtons = useMemo(() => {
     if (!mergeRouteLinks) {
@@ -235,7 +233,7 @@ export default function UpperLayoutCTA({
         action: "link",
         isHighlight: isQuickRouteActive(pathname ?? "", "/project-overview"),
         icon: (
-          <User className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+          <FiGrid className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
         ),
       },
       {

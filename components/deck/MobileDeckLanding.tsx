@@ -79,6 +79,31 @@ const fadeUp = {
   },
 };
 
+const titleContainer = {
+  hidden: {},
+  show: {
+    transition: {
+      delayChildren: 0.14,
+      staggerChildren: 0.022,
+    },
+  },
+};
+
+const titleLetter = {
+  hidden: {
+    opacity: 0,
+    y: "0.8em",
+  },
+  show: {
+    opacity: 1,
+    y: "0em",
+    transition: {
+      duration: 0.58,
+      ease: [0.22, 1, 0.36, 1] as const,
+    },
+  },
+};
+
 const chartViews: Record<ChartKey, ChartPoint[]> = {
   lifestyle: [
     { name: "Arrival", value: 68 },
@@ -132,30 +157,46 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
 export default function MobileDeckLanding() {
   const [activeView, setActiveView] = useState<ChartKey>("lifestyle");
   const chartData = useMemo(() => chartViews[activeView], [activeView]);
+  const heroTitleLines = ["The New Standard", "of Refined Urban", "Living"];
   const featuredPlans = useMemo(() => unitPlans, []);
 
   return (
-    <div className="w-full px-1.5 pb-[max(env(safe-area-inset-bottom),5.5rem)] [touch-action:pan-y_pinch-zoom] sm:px-2.5 md:px-3 lg:px-4 xl:mx-auto xl:max-w-full xl:px-0">
+    <div className="w-full px-1.5 pb-[max(env(safe-area-inset-bottom),5.5rem)] [touch-action:pan-y_pinch-zoom] sm:px-2.5 md:px-3 lg:mx-auto lg:max-w-[1180px] lg:px-4 xl:max-w-full xl:px-0">
       <article className="w-full overflow-hidden rounded-t-[34px] bg-[linear-gradient(180deg,#f8f2ea_0%,#f5ede1_26%,#f8f3ea_58%,#f6efe4_100%)] pt-20 shadow-[0_-8px_36px_rgba(95,62,22,0.08)] sm:rounded-t-[42px] sm:pt-24">
         {/* HERO */}
-        <section className="relative flex flex-col justify-center items-center overflow-hidden  rounded-t-[34px] px-3 pb-0 pt-5 sm:rounded-t-[42px] sm:px-4 md:px-5 lg:px-6 sm:pt-7">
+        <section className="relative flex flex-col items-center justify-center overflow-hidden rounded-t-[34px] px-3 pb-0 pt-5 sm:rounded-t-[42px] sm:px-4 sm:pt-7 md:px-5 lg:px-7">
           {/* <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,249,239,0.98),rgba(255,249,239,0.78)_34%,rgba(214,180,123,0.14)_68%,transparent_100%)]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[34%] bg-[linear-gradient(180deg,rgba(232,213,184,0)_0%,rgba(224,198,152,0.16)_100%)]" /> */}
 
-          <div className="relative  z-10 mx-auto text-center flex flex-col justify-center items-center sm:max-w-full md:max-w-full lg:mx-0 lg:max-w-full ">
+          <div className="relative z-10 mx-auto flex flex-col items-center justify-center text-center sm:max-w-full md:max-w-full lg:max-w-[48rem]">
             <p className="text-[10px] uppercase tracking-[0.38em] text-[#7f6b58]">
               TRIFECTA VERANZA
             </p>
 
-            <h1 className="mt-3 text-[2.18rem] text-center font-medium leading-[0.9] tracking-[-0.05em] text-[#171411] sm:text-[3.8rem] font-montserrat">
-              The New Standard
-              <br />
-              of Refined Urban Living
-            </h1>
+            <motion.h1
+              variants={titleContainer}
+              initial="hidden"
+              animate="show"
+              className="mt-3 text-center font-medium leading-[0.9] tracking-[-0.05em] text-[#171411] font-montserrat text-[1.92rem] sm:text-[3.15rem] md:text-[3.45rem] lg:text-[3.55rem]"
+            >
+              {heroTitleLines.map((line) => (
+                <div key={line} className="flex justify-center overflow-hidden">
+                  {line.split("").map((char, index) => (
+                    <motion.span
+                      key={`${line}-${index}`}
+                      variants={titleLetter}
+                      className="inline-block"
+                    >
+                      {char === " " ? "\u00A0" : char}
+                    </motion.span>
+                  ))}
+                </div>
+              ))}
+            </motion.h1>
 
             <div className="mx-auto mt-4 h-px w-24 bg-[linear-gradient(90deg,#b0895d,rgba(176,137,93,0.18))] lg:mx-0" />
 
-            <p className="mx-auto mt-4 max-w-[20rem] text-[13px] leading-6 text-[#60574d] sm:max-w-[24rem] sm:text-[15px] sm:leading-7 lg:mx-0 lg:max-w-[22rem]">
+            <p className="mx-auto mt-4 max-w-[20rem] text-[13px] leading-6 text-[#60574d] sm:max-w-[24rem] sm:text-[15px] sm:leading-7 lg:max-w-[28rem]">
               Timeless design, elevated lifestyle, and open green living.
             </p>
           </div>
@@ -175,7 +216,7 @@ export default function MobileDeckLanding() {
         {/* OVERVIEW */}
         <section className="">
           <div className={`${softCardClass} overflow-hidden`}>
-            <div className="relative aspect-[1.18] py-6 w-full sm:aspect-[1.5]">
+            <div className="relative aspect-[1.18] w-full py-6 sm:aspect-[1.5] lg:aspect-[2.05]">
               <Image
                 src={"https://cdn.sthyra.com/images/bros_1.webp"}
                 alt="Project overview"
@@ -185,23 +226,23 @@ export default function MobileDeckLanding() {
               <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,13,8,0.02),rgba(18,13,8,0.02)_35%,rgba(18,13,8,0.22)_100%)]" />
             </div>
 
-            <div className="px-4 pb-4 pt-4 sm:px-5 sm:pb-5">
+            <div className="px-4 pb-4 pt-4 sm:px-5 sm:pb-5 lg:px-6 lg:pb-6 lg:pt-5">
               <p className="text-[10px] uppercase tracking-[0.34em] text-[#7f6b58]">
                 Project Overview
               </p>
-              <h2 className="mt-2 text-[1.72rem] font-semibold leading-[0.95] tracking-[-0.05em] text-[#171411] sm:text-[2.4rem]">
+              <h2 className="mt-2 text-[1.72rem] font-semibold leading-[0.95] tracking-[-0.05em] text-[#171411] sm:text-[2.4rem] lg:max-w-[42rem] lg:text-[2.85rem]">
                 Open to sky,
                 <br />
                 rooted in green.
               </h2>
-              <p className="mt-3 max-w-[32rem] text-[13px] leading-6 text-[#5f554c] sm:text-[15px] sm:leading-7">
+              <p className="mt-3 max-w-[32rem] text-[13px] leading-6 text-[#5f554c] sm:text-[15px] sm:leading-7 lg:max-w-[44rem]">
                 A premium skyrise address shaped around openness, landscape,
                 elevation, and a richer everyday living experience.
               </p>
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:mt-4 sm:px-5 sm:gap-3">
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:mt-4 sm:px-5 sm:gap-3 lg:grid-cols-4 lg:px-0">
             {statCards.map((item) => (
               <div key={item.title} className={`${softCardClass} p-3.5`}>
                 <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full border border-[#eadfcd] bg-[#faf5ec] text-[#57483c]">
@@ -426,6 +467,7 @@ export default function MobileDeckLanding() {
             ))}
           </div>
         </section>
+
         <motion.div
           variants={fadeUp}
           className="mt-10 flex w-full max-w-4xl flex-wrap items-center justify-center gap-8 sm:gap-12"

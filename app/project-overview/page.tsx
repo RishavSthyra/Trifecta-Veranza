@@ -4,7 +4,7 @@ import { buildPageMetadata } from "@/lib/metadata";
 export const metadata = buildPageMetadata({
   title: "Project Overview",
   description:
-    "Review the Trifecta Veranza project overview deck with curated highlights, plans, and presentation-ready storytelling.",
+    "Review the Trifecta Veranza project overview deck with curated highlights and presentation-ready storytelling.",
   keywords: [
     "project overview",
     "real estate presentation",

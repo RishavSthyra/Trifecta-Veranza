@@ -19,6 +19,11 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "cdn.sthyra.com",
+        pathname: "/AADHYA%20SERENE/images/**",
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.sthyra.com",
         pathname: "/interior-panos-trifecta/**",
       },
       {
