@@ -4,14 +4,9 @@ import os from "os"
 import sharp from "sharp"
 
 const INPUT = "./raw-panos"
-const RESIZED = "./resized-panos"
-const OUTPUT = "./public/interior-panos-aadhya-serene"
+const OUTPUT = "./public/exterior-panos-trifecta"
 
 const PREVIEW_WIDTH = 2000
-
-// 🔥 perfect pano size (2:1 ratio)
-const TARGET_WIDTH = 16384
-const TARGET_HEIGHT = 8192
 
 const CPU_THREADS =
   typeof os.availableParallelism === "function"
@@ -24,7 +19,8 @@ sharp.simd(true)
 const FILE_CONCURRENCY = Math.max(1, Math.min(4, Math.floor(CPU_THREADS / 4)))
 const TILE_CONCURRENCY = Math.max(16, CPU_THREADS * 2)
 
-// 🔥 grid (now guaranteed square tiles)
+// set these based on your pano size
+// for 12288 x 6144 use:
 const TARGET_COLS = 16
 const TARGET_ROWS = 8
 
@@ -82,45 +78,11 @@ async function runInBatches<T>(
   }
 }
 
-//
-// 🔥 STEP 1: RESIZE PANOS (ULTRA HIGH QUALITY)
-//
-async function resizePano(file: string): Promise<string> {
-  const inputPath = path.join(INPUT, file)
-  const outputPath = path.join(RESIZED, file)
-
-  if (pathExists(outputPath)) {
-    console.log("already resized:", file)
-    return outputPath
-  }
-
-  console.log("resizing:", file)
-
-  await sharp(inputPath, SHARP_INPUT_OPTIONS)
-    .resize(TARGET_WIDTH, TARGET_HEIGHT, {
-      fit: "inside", // keeps 2:1 by cropping if needed
-      kernel: sharp.kernel.lanczos3, // 🔥 best quality resize
-    })
-    .jpeg({
-      quality: 90, // 🔥 max quality
-
-      mozjpeg: false,
-    })
-    .toFile(outputPath)
-
-  return outputPath
-}
-
-//
-// 🔥 STEP 2: TILE FROM RESIZED PANO
-//
 async function processImage(file: string): Promise<void> {
   console.log("processing:", file)
 
   const panoId = getPanoId(file)
-
-  // 🔥 USE RESIZED VERSION
-  const resizedPath = await resizePano(file)
+  const inputPath = path.join(INPUT, file)
 
   const folder = path.join(OUTPUT, panoId)
   const tilesFolder = path.join(folder, "tiles")
@@ -133,7 +95,7 @@ async function processImage(file: string): Promise<void> {
   ensureDir(folder)
   ensureDir(tilesFolder)
 
-  const baseImage = sharp(resizedPath, SHARP_INPUT_OPTIONS)
+  const baseImage = sharp(inputPath, SHARP_INPUT_OPTIONS)
   const meta = await baseImage.metadata()
 
   if (!meta.width || !meta.height) {
@@ -146,17 +108,21 @@ async function processImage(file: string): Promise<void> {
   const cols = TARGET_COLS
   const rows = TARGET_ROWS
 
+  if (fullWidth % cols !== 0 || fullHeight % rows !== 0) {
+    throw new Error(
+      `Image ${file} cannot be evenly divided by grid ${cols} x ${rows}. Got ${fullWidth} x ${fullHeight}`
+    )
+  }
+
   const tileWidth = fullWidth / cols
   const tileHeight = fullHeight / rows
 
-  // now ALWAYS square
   if (tileWidth !== tileHeight) {
-    throw new Error("Tiles are not square — something is wrong")
+    throw new Error(
+      `Tiles are not square for ${file}. tileWidth=${tileWidth}, tileHeight=${tileHeight}`
+    )
   }
 
-  //
-  // preview
-  //
   await baseImage
     .clone()
     .resize({
@@ -168,9 +134,6 @@ async function processImage(file: string): Promise<void> {
     })
     .toFile(path.join(folder, "preview.jpg"))
 
-  //
-  // tiles
-  //
   const tileJobs: TileJob[] = []
 
   for (let row = 0; row < rows; row++) {
@@ -203,15 +166,12 @@ async function processImage(file: string): Promise<void> {
         height: job.height,
       })
       .jpeg({
-        quality: 95, // 🔥 very high, almost lossless
+        quality: 95,
         chromaSubsampling: "4:4:4",
       })
       .toFile(tilePath)
   })
 
-  //
-  // meta
-  //
   const metaJson = {
     width: fullWidth,
     height: fullHeight,
@@ -236,12 +196,8 @@ async function processImage(file: string): Promise<void> {
   })
 }
 
-//
-// 🔥 MAIN
-//
 async function run(): Promise<void> {
   ensureDir(INPUT)
-  ensureDir(RESIZED)
   ensureDir(OUTPUT)
 
   const files = fs
@@ -256,7 +212,6 @@ async function run(): Promise<void> {
 
   console.log("CPU:", CPU_THREADS)
   console.log("grid:", `${TARGET_COLS} x ${TARGET_ROWS}`)
-  console.log("target size:", `${TARGET_WIDTH} x ${TARGET_HEIGHT}`)
 
   const totalStart = Date.now()
 

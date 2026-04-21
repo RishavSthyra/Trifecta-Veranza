@@ -1,16 +1,26 @@
-import exteriorNodes from "@/data/trifecta_pano_walkthrough_data_Exterior.json";
+import exteriorNodes from "@/data/trifecta_pano_walkthrough_data_Exterior1.json";
 import ExteriorPanoWalkthrough from "@/components/tour/ExteriorPanoWalkthrough";
 import type { ExteriorPanoNodeSource } from "@/lib/exterior-tour/types";
 import { buildPageMetadata } from "@/lib/metadata";
 
-const exteriorTourNodes = exteriorNodes as ExteriorPanoNodeSource[];
+function isIgnoredExteriorPano(node: ExteriorPanoNodeSource) {
+  return (
+    /\.0000(?:\.[^/.]+)?$/i.test(node.id) ||
+    /\.0000(?:\.[^/.]+)?$/i.test(node.image_filename)
+  );
+}
+
+const exteriorTourNodes = (exteriorNodes as ExteriorPanoNodeSource[]).filter(
+  (node) => !isIgnoredExteriorPano(node),
+);
 
 const preferredInitialNodeId =
-  exteriorTourNodes.find((node) => node.id === "BP_panoPath_Exterior10_F0039")?.id ??
+  exteriorTourNodes.find((node) => node.id === "BP_panoPath_Exterior_GateEntry_F0001")?.id ??
   exteriorTourNodes[0]?.id;
 
 /** Preconnect to the panorama CDN — saves ~100-300ms on first connection setup. */
 const CDN_BASE = "https://cdn.sthyra.com";
+const EXTERIOR_PANO_BASE = `${CDN_BASE}/exterior-panos-trifecta`;
 
 export const metadata = buildPageMetadata({
   title: "Exterior Walkthrough",
@@ -38,7 +48,7 @@ function ExteriorWalkthroughHead() {
       <link
         rel="preload"
         as="image"
-        href={`${CDN_BASE}/panos/LS_Exterior10_F0039/preview.jpg`}
+        href={`${EXTERIOR_PANO_BASE}/LS_BP_panoPath_Exterior_GateEntry_F0001/preview.jpg`}
         fetchPriority="high"
       />
     </>
@@ -52,7 +62,7 @@ export default function ExteriorTourPage() {
       <div className="h-full w-full">
         <ExteriorPanoWalkthrough
           nodes={exteriorTourNodes}
-          cdnBaseUrl={`${CDN_BASE}/panos`}
+          cdnBaseUrl={EXTERIOR_PANO_BASE}
           initialNodeId={preferredInitialNodeId}
           className="h-full w-full"
           title="Trifecta Exterior Walkthrough"
