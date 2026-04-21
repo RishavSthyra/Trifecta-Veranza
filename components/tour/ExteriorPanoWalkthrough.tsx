@@ -40,6 +40,7 @@ import {
 } from "@/data/exteriorAmenities";
 import {
   clamp,
+  degToRad,
   dotPlanar,
   negativeVec3,
   normalizePlanar,
@@ -680,6 +681,7 @@ export default function ExteriorPanoWalkthrough({
 
     let cancelled = false;
     let localViewer: Viewer | null = null;
+    let retriedInitialWithoutBase = false;
 
     void (async () => {
       prefersCoarsePointerRef.current =
@@ -716,6 +718,16 @@ export default function ExteriorPanoWalkthrough({
         });
       }
 
+      const initialNode = graph.byId[initialResolved.nodeId];
+      const initialYaw = initialNode ? degToRad(initialNode.yaw) : 0;
+      const initialPitch = initialNode
+        ? clamp(degToRad(initialNode.pitch), MIN_PITCH, MAX_PITCH)
+        : 0;
+      const initialZoom = prefersCoarsePointerRef.current
+        ? DEFAULT_ZOOM - 3
+        : DEFAULT_ZOOM;
+      const initialTileOnlyPanorama = withoutBasePreview(initialResolved.panorama);
+
       localViewer = new Viewer({
         container: viewerHostRef.current,
         adapter: EquirectangularTilesAdapter.withConfig({
@@ -738,7 +750,9 @@ export default function ExteriorPanoWalkthrough({
         ],
         touchmoveTwoFingers: false,
         mousewheelCtrlKey: false,
-        defaultZoomLvl: prefersCoarsePointerRef.current ? DEFAULT_ZOOM - 3 : DEFAULT_ZOOM,
+        defaultYaw: initialYaw,
+        defaultPitch: initialPitch,
+        defaultZoomLvl: initialZoom,
         minFov: EXTERIOR_MIN_FOV,
         maxFov: EXTERIOR_MAX_FOV,
         moveInertia: true,
@@ -769,6 +783,25 @@ export default function ExteriorPanoWalkthrough({
       localViewer.addEventListener("panorama-error", ({ error }) => {
         console.error("Exterior panorama error:", error);
         localViewer?.hideError();
+        if (!retriedInitialWithoutBase && initialTileOnlyPanorama && localViewer) {
+          retriedInitialWithoutBase = true;
+          setLoadState(createLoadState("preview", "Retrying panorama"));
+          void localViewer
+            .setPanorama(initialTileOnlyPanorama, {
+              position: {
+                yaw: initialYaw,
+                pitch: initialPitch,
+              },
+              zoom: initialZoom,
+              showLoader: false,
+            })
+            .catch((fallbackError) => {
+              console.error("Exterior initial tile-only fallback failed:", fallbackError);
+              localViewer?.hideError();
+              setLoadState(createLoadState("error", "Panorama unavailable"));
+            });
+          return;
+        }
         setLoadState(createLoadState("error", "Panorama unavailable"));
       });
 

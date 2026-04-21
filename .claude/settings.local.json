@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -I \"https://cdn.sthyra.com/exterior-panos-trifecta/BP_panoPath_Exterior_GateEntry_F0000/meta.json\")"
+    ]
+  }
+}
