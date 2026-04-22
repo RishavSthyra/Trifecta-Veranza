@@ -3022,6 +3022,9 @@ export default function MasterPlanFrameHoverStage({
   const [isSettling, setIsSettling] = useState(false);
   const [isVideoReady, setIsVideoReady] = useState(false);
   const [isHoverCoolingDown, setIsHoverCoolingDown] = useState(false);
+  const [tooltipMountTransform, setTooltipMountTransform] = useState(
+    "translate3d(12px, 12px, 0)",
+  );
   const [showTowerMeshes, setShowTowerMeshes] = useState(() =>
     updateVisibilityWithHysteresis(
       false,
@@ -4453,7 +4456,7 @@ export default function MasterPlanFrameHoverStage({
 
   const updateTooltipPosition = useCallback(
     (pointerPosition: PointerPosition | null) => {
-      if (!pointerPosition || !sectionRef.current || !tooltipRef.current) {
+      if (!pointerPosition || !sectionRef.current) {
         return;
       }
 
@@ -4473,9 +4476,9 @@ export default function MasterPlanFrameHoverStage({
       };
 
       const rect = sectionRef.current.getBoundingClientRect();
-      const tooltipBounds = tooltipRef.current.getBoundingClientRect();
-      const tooltipWidth = tooltipBounds.width || 180;
-      const tooltipHeight = tooltipBounds.height || 62;
+      const tooltipBounds = tooltipRef.current?.getBoundingClientRect();
+      const tooltipWidth = tooltipBounds?.width || 180;
+      const tooltipHeight = tooltipBounds?.height || 62;
       const offsetX = 16;
       const offsetY = 16;
 
@@ -4499,8 +4502,13 @@ export default function MasterPlanFrameHoverStage({
         x: nextLeft,
         y: nextTop,
       };
+      const nextTooltipTransform = `translate3d(${nextLeft}px, ${nextTop}px, 0)`;
 
-      if (tooltipFrameRef.current !== null) {
+      if (!tooltipRef.current) {
+        setTooltipMountTransform(nextTooltipTransform);
+      }
+
+      if (!tooltipRef.current || tooltipFrameRef.current !== null) {
         return;
       }
 
@@ -4511,7 +4519,7 @@ export default function MasterPlanFrameHoverStage({
           return;
         }
 
-        tooltipRef.current.style.transform = `translate3d(${tooltipPositionRef.current.x}px, ${tooltipPositionRef.current.y}px, 0)`;
+        tooltipRef.current.style.transform = nextTooltipTransform;
       });
     },
     [],
@@ -5052,7 +5060,7 @@ export default function MasterPlanFrameHoverStage({
         <div
           ref={tooltipRef}
           className="pointer-events-none absolute z-30 will-change-transform"
-          style={{ transform: "translate3d(12px, 12px, 0)" }}
+          style={{ transform: tooltipMountTransform }}
         >
           <div className="rounded-[18px] border border-white/30 bg-[linear-gradient(145deg,rgba(255,255,255,0.20),rgba(255,255,255,0.10))] px-3.5 py-3 shadow-[0_18px_44px_rgba(15,23,42,0.18),inset_0_1px_0_rgba(255,255,255,0.28)] backdrop-blur-2xl">
             <div className="flex items-center gap-3">

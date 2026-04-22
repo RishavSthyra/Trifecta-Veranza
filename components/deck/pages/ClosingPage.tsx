@@ -100,9 +100,9 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
               <Image
                 src={qrCodeImage}
                 alt="Trifecta Veranza QR code"
-                width={88}
-                height={88}
-                className="h-[4.15rem] w-[4.15rem] object-contain sm:h-[4.7rem] sm:w-[4.7rem] xl:h-[3.6rem] xl:w-[3.6rem] min-[1700px]:xl:h-[4.8rem] min-[1700px]:xl:w-[4.8rem]"
+                width={138}
+                height={138}
+                className="h-[4.15rem] w-[4.15rem] object-contain sm:h-[4.7rem] sm:w-[4.7rem] xl:h-[3.6rem] xl:w-[3.6rem] min-[1700px]:xl:h-[6.8rem] min-[1700px]:xl:w-[6.8rem]"
               />
             </div>
           </motion.div>
