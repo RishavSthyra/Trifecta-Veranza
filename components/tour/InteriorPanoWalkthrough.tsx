@@ -283,7 +283,7 @@ const ROOM_NAME_OVERRIDES: Record<string, string> = {
   LS_BP_panoPath_Interior3_F0011: "Living",
   LS_BP_panoPath_Interior4_F0012: "Living",
   LS_BP_panoPath_Interior4_F0013: "Living",
-  LS_BP_panoPath_Interior5_F0014: "Bedroom 03",
+  LS_BP_panoPath_Interior5_F0014: "Bedroom 03",    
   LS_BP_panoPath_Interior5_F0015: "Bedroom 03",
   LS_BP_panoPath_Interior5_F0016: "C.Toilet",
   LS_BP_panoPath_Interior6_F0017: "Living",
