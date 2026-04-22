@@ -3,6 +3,7 @@
 import React, { forwardRef } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
+import qrCodeImage from "@/assets/qrcode_337099377_6c38f308a957e01663b85ac414ea62bf.png";
 
 type Props = {
   number?: number;
@@ -73,16 +74,16 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
           </motion.div>
         ) : null}
 
-        <div className="relative z-10 flex h-full w-full flex-col items-center justify-center px-8 py-16 text-center sm:px-12 xl:justify-start xl:px-9 xl:pb-36 xl:pt-16 min-[1700px]:xl:justify-center min-[1700px]:xl:px-12 min-[1700px]:xl:pb-16">
+        <div className="relative z-10 flex h-full w-full flex-col items-center justify-start px-8 pb-16 pt-12 text-center sm:px-12 sm:pt-14 xl:px-9 xl:pb-28 xl:pt-11 min-[1700px]:xl:px-12 min-[1700px]:xl:pb-14 min-[1700px]:xl:pt-14">
           <motion.p
             variants={fadeUp}
-            className="text-[11px] uppercase tracking-[0.48em] text-[#a17376] sm:text-xs"
+            className="text-[10px] uppercase tracking-[0.46em] text-[#a17376] sm:text-[11px]"
           >
             Trifecta Projects
           </motion.p>
 
-          <motion.div variants={logoReveal} className="mt-8 w-full max-w-[820px] xl:max-w-[620px] min-[1700px]:xl:max-w-[820px]">
-            <div className="relative mx-auto aspect-[5.4/2.1] w-full max-w-[780px]">
+          <motion.div variants={logoReveal} className="mt-5 w-full max-w-[680px] sm:max-w-[740px] xl:mt-4 xl:max-w-[540px] min-[1700px]:xl:max-w-[700px]">
+            <div className="relative mx-auto aspect-[5.4/2.1] w-full max-w-[660px]">
               <Image
                 src="/Logo_Trifect_Veranza.png"
                 alt="Trifecta Veranza"
@@ -94,21 +95,33 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
             </div>
           </motion.div>
 
-          <motion.div variants={fadeUp} className="mt-6 xl:mt-5 min-[1700px]:xl:mt-8">
+          <motion.div variants={fadeUp} className="mt-2.5 xl:mt-2 min-[1700px]:xl:mt-3">
+            <div className="rounded-[0.8rem] border border-[#c8b18f]/25 bg-white/58 p-1.5 shadow-[0_8px_22px_rgba(91,78,73,0.08)] backdrop-blur-md">
+              <Image
+                src={qrCodeImage}
+                alt="Trifecta Veranza QR code"
+                width={72}
+                height={72}
+                className="h-14 w-14 object-contain sm:h-16 sm:w-16 xl:h-12 xl:w-12 min-[1700px]:xl:h-16 min-[1700px]:xl:w-16"
+              />
+            </div>
+          </motion.div>
+
+          <motion.div variants={fadeUp} className="mt-4 xl:mt-3 min-[1700px]:xl:mt-5">
             <div className="flex items-center justify-center gap-4 text-[#7b6a61]">
               <span className="h-px w-14 bg-gradient-to-r from-transparent to-[#b18c76] sm:w-20" />
-              <span className="text-[11px] font-medium uppercase tracking-[0.32em] sm:text-xs">
+              <span className="text-[10px] font-medium uppercase tracking-[0.32em] sm:text-[11px]">
                 Off Sarjapur Road
               </span>
               <span className="h-px w-14 bg-gradient-to-l from-transparent to-[#b18c76] sm:w-20" />
             </div>
           </motion.div>
 
-          <motion.div variants={fadeUp} className="mt-6 max-w-3xl xl:mt-5 min-[1700px]:xl:mt-8">
-            <h2 className="text-[2rem] font-light tracking-[-0.04em] text-[#5b4e49] sm:text-[2.6rem] lg:text-[3.2rem] xl:text-[2.45rem] min-[1700px]:xl:text-[3.2rem]">
+          <motion.div variants={fadeUp} className="mt-5 max-w-3xl xl:mt-4 min-[1700px]:xl:mt-7">
+            <h2 className="text-[1.8rem] font-light tracking-[-0.04em] text-[#5b4e49] sm:text-[2.35rem] lg:text-[2.9rem] xl:text-[2.15rem] min-[1700px]:xl:text-[2.9rem]">
               Open to sky, rooted in green.
             </h2>
-            <p className="mx-auto mt-3 max-w-[560px] text-sm leading-6 text-[#7a6b63] sm:text-[15px] sm:leading-7 xl:max-w-[500px] xl:text-[13px] xl:leading-6 min-[1700px]:xl:max-w-2xl min-[1700px]:xl:text-[15px] min-[1700px]:xl:leading-7">
+            <p className="mx-auto mt-3 max-w-[540px] text-[13px] leading-6 text-[#7a6b63] sm:text-sm sm:leading-7 xl:max-w-[480px] xl:text-[12px] xl:leading-5 min-[1700px]:xl:max-w-2xl min-[1700px]:xl:text-sm min-[1700px]:xl:leading-7">
               A final note in a quieter tone, shaped around calm luxury,
               elevated living, and the signature presence of Trifecta Veranza.
             </p>
@@ -116,7 +129,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
 
           <motion.div
             variants={fadeUp}
-            className="mt-8 flex w-full max-w-4xl flex-wrap items-center justify-center gap-6 sm:gap-12 xl:mt-7 xl:gap-5 min-[1700px]:xl:mt-10 min-[1700px]:xl:gap-8"
+            className="mt-6 flex w-full max-w-4xl flex-wrap items-center justify-center gap-5 sm:gap-10 xl:mt-5 xl:gap-5 min-[1700px]:xl:mt-8 min-[1700px]:xl:gap-8"
           >
             <div className="flex items-center justify-center">
               <Image

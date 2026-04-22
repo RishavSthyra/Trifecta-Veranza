@@ -82,6 +82,21 @@ const INTERIOR_SLOW_SPHERE_RESOLUTION = 96;
 const INTERIOR_MIN_FOV = 36;
 const INTERIOR_MAX_FOV = 74;
 const ENTRANCE_FRAME_ID = "F0000";
+const TRACKPAD_PANO_YAW_RADIANS_PER_PIXEL = 0.0032;
+
+function getWheelPixelDelta(event: WheelEvent) {
+  const scale =
+    event.deltaMode === 1
+      ? 16
+      : event.deltaMode === 2
+        ? window.innerWidth
+        : 1;
+
+  return {
+    x: event.deltaX * scale,
+    y: event.deltaY * scale,
+  };
+}
 
 const FURNISHED_PANO_FOLDER_OVERRIDES: Record<string, string> = {
   LS_BP_panoPath_Interior_F0005: "LS_BP_panoPath_Interior_F0005",
@@ -1215,6 +1230,57 @@ export default function InteriorPanoWalkthrough({
   }, [activeNodeId]);
 
   useEffect(() => {
+    const host = viewerHostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || isTransitioning) {
+        return;
+      }
+
+      const bindings = bindingsRef.current;
+      const viewer = bindings?.viewer;
+      if (!viewer) {
+        return;
+      }
+
+      const wheelDelta = getWheelPixelDelta(event);
+      const horizontalDelta =
+        Math.abs(wheelDelta.x) >= Math.abs(wheelDelta.y) * 0.55
+          ? wheelDelta.x
+          : event.shiftKey
+            ? wheelDelta.y
+            : 0;
+
+      if (Math.abs(horizontalDelta) < 0.5) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const position = viewer.getPosition();
+      const nextYaw = wrapAngleRad(
+        position.yaw +
+          horizontalDelta * TRACKPAD_PANO_YAW_RADIANS_PER_PIXEL,
+      );
+
+      viewer.rotate({
+        yaw: nextYaw,
+        pitch: position.pitch,
+      });
+      setViewYaw(nextYaw);
+    };
+
+    host.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      host.removeEventListener("wheel", handleWheel);
+    };
+  }, [isTransitioning]);
+
+  useEffect(() => {
     currentNodeIdRef.current = currentNodeId;
   }, [currentNodeId]);
 
@@ -1533,7 +1599,10 @@ export default function InteriorPanoWalkthrough({
       ) : null} */}
 
       <div className="absolute inset-0">
-        <div ref={viewerHostRef} className="h-full w-full" />
+        <div
+          ref={viewerHostRef}
+          className="h-full w-full select-none [touch-action:none] [-webkit-user-drag:none] [-webkit-user-select:none]"
+        />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(11,18,24,0.18)_0%,rgba(11,18,24,0.03)_22%,rgba(11,18,24,0.05)_68%,rgba(11,18,24,0.22)_100%)]" />
         <div
           className={`pointer-events-none absolute inset-0 bg-black/10 transition-opacity duration-200 ${

@@ -95,11 +95,14 @@ const EXTERIOR_MAX_FOV = 74;
 const RESOLVED_PANO_CACHE_LIMIT = 10;
 const CACHE_MAX_ITEMS = 320;
 const CACHE_TTL_MS = 1000 * 60 * 10;
-const AUTOROTATE_IDLE_MS = 4000;
+const AUTOROTATE_IDLE_MS = 2000;
 const TRAIL_ADVANCE_MS = 15000;
 const DIRECTIONS: NavigationDirection[] = ["forward", "left", "right", "backward"];
 const VIEW_DIRECTION_ALIGNMENT_FLOOR = 0.08;
-const EXTERIOR_PANO_DEV_TOOL_ENABLED = process.env.NODE_ENV !== "production";
+// Dev pano angle tool is intentionally hard-disabled; keep the JSX below for
+// future tuning without running debug state updates during walkthrough use.
+const EXTERIOR_PANO_DEV_TOOL_ENABLED = false;
+const TRACKPAD_PANO_YAW_RADIANS_PER_PIXEL = 0.0032;
 const DESKTOP_WARMUP_PROFILE = {
   activeFocusLimit: 220,
   activeFocusConcurrency: 24,
@@ -182,6 +185,20 @@ function formatDebugNumber(value: number) {
   return Number.isInteger(value)
     ? String(value)
     : value.toFixed(4).replace(/\.?0+$/, "");
+}
+
+function getWheelPixelDelta(event: WheelEvent) {
+  const scale =
+    event.deltaMode === 1
+      ? 16
+      : event.deltaMode === 2
+        ? window.innerWidth
+        : 1;
+
+  return {
+    x: event.deltaX * scale,
+    y: event.deltaY * scale,
+  };
 }
 
 function scheduleIdle(callback: () => void) {
@@ -303,30 +320,31 @@ function getViewDirectionalCandidates(
   const viewForward = getViewForwardVector(node, currentYaw);
   const axis = getViewDirectionAxis(direction, viewForward);
   const neighborIds = new Set(node.neighbors.map((neighbor) => neighbor.id));
-  const distanceScale = Math.max(
-    graph.medianNearestDistance * 8,
-    node.nearestDistance * 8,
-    1,
-  );
+  const distanceScale = Math.max(graph.medianNearestDistance * 4, node.nearestDistance * 4, 1);
 
-  return graph.nodes
-    .filter((candidate) => candidate.id !== node.id)
+  const rankCandidates = (
+    candidates: ExteriorTourNode[],
+    alignmentFloor: number,
+  ) =>
+    candidates
     .map((candidate) => {
       const delta = subVec3(candidate.rawPosition, node.rawPosition);
       const candidateDirection = normalizePlanar(delta, axis);
       const alignment = dotPlanar(candidateDirection, axis);
       const distance = Math.hypot(delta.x, delta.y);
       const distanceBias = 1 - clamp(distance / distanceScale, 0, 1);
-      const neighborBonus = neighborIds.has(candidate.id) ? 0.08 : 0;
+      const isNeighbor = neighborIds.has(candidate.id);
+      const neighborBonus = isNeighbor ? 0.7 : 0;
+      const farPenalty = isNeighbor ? 0 : 0.3;
 
       return {
         node: candidate,
-        score: alignment * 1.6 + distanceBias * 0.28 + neighborBonus,
+        score: alignment * 1.8 + distanceBias * 0.42 + neighborBonus - farPenalty,
         alignment,
         distance,
       };
     })
-    .filter((candidate) => candidate.alignment > VIEW_DIRECTION_ALIGNMENT_FLOOR)
+    .filter((candidate) => candidate.alignment > alignmentFloor)
     .sort((a, b) => {
       const scoreDelta = b.score - a.score;
       if (Math.abs(scoreDelta) > 0.035) {
@@ -335,21 +353,35 @@ function getViewDirectionalCandidates(
 
       return a.distance - b.distance;
     });
-}
 
-function getNavigationDirectionFromPoint(
-  clientX: number,
-  clientY: number,
-  rect: DOMRect,
-): NavigationDirection {
-  const relativeX = (clientX - rect.left) / Math.max(rect.width, 1) - 0.5;
-  const relativeY = (clientY - rect.top) / Math.max(rect.height, 1) - 0.5;
+  const neighborCandidates = rankCandidates(
+    node.neighbors
+      .map((neighbor) => graph.byId[neighbor.id])
+      .filter((candidate): candidate is ExteriorTourNode => Boolean(candidate)),
+    VIEW_DIRECTION_ALIGNMENT_FLOOR,
+  );
 
-  if (Math.abs(relativeX) > Math.abs(relativeY)) {
-    return relativeX < 0 ? "left" : "right";
+  if (neighborCandidates.length > 0) {
+    return neighborCandidates;
   }
 
-  return relativeY < 0 ? "forward" : "backward";
+  const nearbyDistanceLimit = Math.max(
+    graph.medianNearestDistance * 2.8,
+    node.nearestDistance * 3.2,
+    1,
+  );
+
+  return rankCandidates(
+    graph.nodes.filter((candidate) => {
+      if (candidate.id === node.id || neighborIds.has(candidate.id)) {
+        return false;
+      }
+
+      const delta = subVec3(candidate.rawPosition, node.rawPosition);
+      return Math.hypot(delta.x, delta.y) <= nearbyDistanceLimit;
+    }),
+    Math.max(VIEW_DIRECTION_ALIGNMENT_FLOOR, 0.18),
+  );
 }
 
 function withoutBasePreview(panorama: ExteriorPanoramaSource) {
@@ -594,6 +626,7 @@ export default function ExteriorPanoWalkthrough({
   const assetStore = useMemo(() => new PanoAssetStore(cdnBaseUrl), [cdnBaseUrl]);
   const viewerHostRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<Viewer | null>(null);
+  const navigationLockRef = useRef(false);
   const autorotatePluginRef = useRef<AutorotatePlugin | null>(null);
   const trailProgressFillRef = useRef<HTMLDivElement | null>(null);
   const nodeHistoryRef = useRef<string[]>([]);
@@ -1214,7 +1247,7 @@ export default function ExteriorPanoWalkthrough({
         viewZoom?: number;
       } = {},
     ) => {
-      if (isTransitioning) {
+      if (isTransitioning || navigationLockRef.current) {
         return;
       }
 
@@ -1267,6 +1300,7 @@ export default function ExteriorPanoWalkthrough({
       }
 
       const warmupProfile = getWarmupProfile(isCompactExperienceRef.current);
+      navigationLockRef.current = true;
       autorotatePluginRef.current?.stop();
       setTransitionPulseKey((current) => (current + 1) % 10000);
       setIsTransitioning(true);
@@ -1346,7 +1380,10 @@ export default function ExteriorPanoWalkthrough({
         viewer.hideError();
         setLoadState(createLoadState("error", "Panorama unavailable"));
       } finally {
-        globalThis.setTimeout(() => setIsTransitioning(false), 120);
+        globalThis.setTimeout(() => {
+          navigationLockRef.current = false;
+          setIsTransitioning(false);
+        }, 120);
       }
     },
     [graph, isTransitioning, pushNavigationHistory, resolvePano],
@@ -1456,7 +1493,7 @@ export default function ExteriorPanoWalkthrough({
 
   const navigateTo = useCallback(
     async (direction: NavigationDirection) => {
-      if (isTransitioning) {
+      if (isTransitioning || navigationLockRef.current) {
         return;
       }
 
@@ -1467,6 +1504,7 @@ export default function ExteriorPanoWalkthrough({
       }
 
       const warmupProfile = getWarmupProfile(isCompactExperienceRef.current);
+      navigationLockRef.current = true;
       autorotatePluginRef.current?.stop();
       setTransitionPulseKey((current) => (current + 1) % 10000);
       setIsTransitioning(true);
@@ -1625,7 +1663,10 @@ export default function ExteriorPanoWalkthrough({
         viewer.hideError();
         setLoadState(createLoadState("error", "Panorama unavailable"));
       } finally {
-        globalThis.setTimeout(() => setIsTransitioning(false), 120);
+        globalThis.setTimeout(() => {
+          navigationLockRef.current = false;
+          setIsTransitioning(false);
+        }, 120);
       }
     },
     [graph, isTransitioning, pushNavigationHistory, resolvePano],
@@ -1641,14 +1682,7 @@ export default function ExteriorPanoWalkthrough({
       event.preventDefault();
       event.stopPropagation();
 
-      const rect = host.getBoundingClientRect();
-      const direction = getNavigationDirectionFromPoint(
-        event.clientX,
-        event.clientY,
-        rect,
-      );
-
-      void navigateTo(direction);
+      void navigateTo("forward");
     };
 
     const handlePointerDown = (event: PointerEvent) => {
@@ -1682,12 +1716,7 @@ export default function ExteriorPanoWalkthrough({
         return;
       }
 
-      const rect = host.getBoundingClientRect();
-      const direction = getNavigationDirectionFromPoint(
-        event.clientX,
-        event.clientY,
-        rect,
-      );
+      const direction: NavigationDirection = "forward";
       const now = performance.now();
       const isDoubleTap =
         now - tapState.lastTapAt < 320 &&
@@ -1718,6 +1747,64 @@ export default function ExteriorPanoWalkthrough({
       host.removeEventListener("pointerup", handlePointerUp);
     };
   }, [navigateTo]);
+
+  useEffect(() => {
+    const host = viewerHostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey || isTransitioning) {
+        return;
+      }
+
+      const viewer = viewerRef.current;
+      if (!viewer) {
+        return;
+      }
+
+      const wheelDelta = getWheelPixelDelta(event);
+      const horizontalDelta =
+        Math.abs(wheelDelta.x) >= Math.abs(wheelDelta.y) * 0.55
+          ? wheelDelta.x
+          : event.shiftKey
+            ? wheelDelta.y
+            : 0;
+
+      if (Math.abs(horizontalDelta) < 0.5) {
+        return;
+      }
+
+      event.preventDefault();
+      autorotatePluginRef.current?.stop();
+
+      const position = viewer.getPosition();
+      const nextView = {
+        yaw: wrapAngleRad(
+          position.yaw +
+            horizontalDelta * TRACKPAD_PANO_YAW_RADIANS_PER_PIXEL,
+        ),
+        pitch: position.pitch,
+        zoom: viewer.getZoomLevel(),
+      };
+
+      viewer.rotate({
+        yaw: nextView.yaw,
+        pitch: nextView.pitch,
+      });
+      viewRef.current = nextView;
+      if (EXTERIOR_PANO_DEV_TOOL_ENABLED) {
+        setLiveDebugView(nextView);
+      }
+    };
+
+    host.addEventListener("wheel", handleWheel, { passive: false });
+
+    return () => {
+      host.removeEventListener("wheel", handleWheel);
+    };
+  }, [isTransitioning]);
 
   const resetTrailProgress = useCallback(() => {
     if (trailProgressFillRef.current) {
@@ -1939,7 +2026,10 @@ export default function ExteriorPanoWalkthrough({
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(255,255,255,0.08),transparent_24%),radial-gradient(circle_at_80%_12%,rgba(207,193,167,0.08),transparent_20%)]" />
 
       <div className="absolute inset-0 overflow-hidden rounded-[2.25rem]">
-        <div ref={viewerHostRef} className="h-full w-full" />
+        <div
+          ref={viewerHostRef}
+          className="h-full w-full select-none [touch-action:none] [-webkit-user-drag:none] [-webkit-user-select:none]"
+        />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(4,6,10,0.2)_0%,rgba(4,6,10,0.02)_26%,rgba(4,6,10,0.05)_70%,rgba(4,6,10,0.28)_100%)]" />
         <div
           className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_10%,rgba(0,0,0,0.1)_72%,rgba(0,0,0,0.18)_100%)] transition-opacity duration-200 ${
@@ -2307,19 +2397,23 @@ export default function ExteriorPanoWalkthrough({
         </div>
       ) : null}
 
-      <div
-        className={`${uiFont.className} pointer-events-none absolute inset-x-0 bottom-[5.8rem] z-30 flex justify-center px-3 text-[11px] font-semibold text-white/78 sm:bottom-[6.1rem] sm:text-xs`}
-      >
-        <button
-          type="button"
-          onClick={() => void copyDebugPanoId()}
-          className="pointer-events-auto max-w-[calc(100vw-1.5rem)] truncate rounded-full border border-white/12 bg-black/38 px-3 py-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/24 hover:bg-black/48 active:scale-[0.98]"
-          title="Click to copy pano name"
+      {EXTERIOR_PANO_DEV_TOOL_ENABLED ? (
+        // Dev pano id chip kept here for future tuning, but disabled so it
+        // cannot trigger clipboard/debug state updates during walkthrough use.
+        <div
+          className={`${uiFont.className} pointer-events-none absolute inset-x-0 bottom-[5.8rem] z-30 flex justify-center px-3 text-[11px] font-semibold text-white/78 sm:bottom-[6.1rem] sm:text-xs`}
         >
-          {copiedDebugPanoId === activeNode.panoId ? "Copied " : ""}
-          {activeNode.panoId}
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={() => void copyDebugPanoId()}
+            className="pointer-events-auto max-w-[calc(100vw-1.5rem)] truncate rounded-full border border-white/12 bg-black/38 px-3 py-1.5 shadow-[0_12px_30px_rgba(0,0,0,0.28)] backdrop-blur-2xl transition hover:border-white/24 hover:bg-black/48 active:scale-[0.98]"
+            title="Click to copy pano name"
+          >
+            {copiedDebugPanoId === activeNode.panoId ? "Copied " : ""}
+            {activeNode.panoId}
+          </button>
+        </div>
+      ) : null}
 
       <div
         className="pointer-events-none absolute bottom-3 left-4 z-30 hidden w-[20.5rem] xl:block 2xl:left-5 2xl:w-[22rem]"

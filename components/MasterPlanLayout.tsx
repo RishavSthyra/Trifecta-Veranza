@@ -18,7 +18,6 @@ import {
   type Easing,
 } from "framer-motion";
 import MasterPlanTopViewStage from "./MasterPlanTopViewStage";
-import GlassSelect, { GlassSelectItem } from "./ui/GlassSelect";
 import MasterPlanFrameHoverStage from "./MasterPlanFrameHoverStage";
 import SelectedFlatDetailsPanel from "./SelectedFlatDetailsPanel";
 import {
@@ -27,24 +26,26 @@ import {
   BedDouble,
   Building2,
   ChevronDown,
+  ChevronUp,
   MapPin,
-  Play,
+  Ruler,
   Search,
   SlidersHorizontal,
   X,
 } from "lucide-react";
 import TowerSelect from "./TowerSelect";
+import { unitPlans } from "@/data/unitPlans";
 import {
   getNearestMasterPlanHotspot,
   isInventoryApartmentAllowedAtHotspot,
 } from "@/lib/master-plan-hotspots";
-import { buildWalkthroughHref } from "@/lib/walkthrough";
 import type { MasterPlanHotspotKey } from "@/lib/master-plan-hotspots";
 import type { InventoryApartment, TowerType } from "@/types/inventory";
 
 const facingOptions = ["All", "North", "South", "East", "West"] as const;
 const statusOptions = ["All", "Available", "Reserved", "Sold"] as const;
 const bhkOptions = ["All", "2", "3"] as const;
+const FLOOR_ALL_VALUE = "All";
 const INVENTORY_REFRESH_INTERVAL = 15000;
 const TOTAL_MASTER_PLAN_FRAMES = 360;
 const MASTER_PLAN_SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
@@ -64,9 +65,6 @@ const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
 const HOTSPOT_NAVIGATION_MIN_DURATION_MS = 380;
 const HOTSPOT_NAVIGATION_MAX_DURATION_MS = 720;
 const HOTSPOT_NAVIGATION_MS_PER_FRAME = 6.8;
-const BARE_SHELL_PANEL_PREVIEW_IMAGE =
-  "https://cdn.sthyra.com/interior-panos-trifecta/bare-shell-pano/LS_BP_panoPath_F0000/preview.jpg";
-
 const smoothEase: Easing = [0.22, 1, 0.36, 1];
 
 const panelVariants: Variants = {
@@ -152,6 +150,17 @@ type MasterPlanLayoutProps = {
   initialApartments?: InventoryApartment[];
 };
 
+type FloorFilterOption = {
+  value: string;
+  label: string;
+};
+
+type FilterableApartmentRow = {
+  apartment: InventoryApartment;
+  floorValue: string;
+  searchText: string;
+};
+
 function getApartmentSignature(apartments: InventoryApartment[]) {
   return apartments
     .map(
@@ -185,6 +194,38 @@ function getApartmentFlatToken(apartment: InventoryApartment) {
   return (apartment.flatNumber || apartment.title || "")
     .replace(/[^0-9]/g, "")
     .trim();
+}
+
+function getRoomDimensionItems(roomDimensions: string) {
+  return roomDimensions
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part, index) => {
+      const [label, ...valueParts] = part.split(":");
+      const value = valueParts.join(":").trim();
+
+      return {
+        key: `${label || part}-${index}`,
+        label: value ? label.trim() : `Space ${index + 1}`,
+        value: value || label.trim(),
+      };
+    });
+}
+
+function getUnitPlanForApartment(apartment: InventoryApartment) {
+  const flatToken = getApartmentFlatToken(apartment);
+  const unitEnding = Number(flatToken.at(-1));
+  const unitPlanByEnding =
+    Number.isFinite(unitEnding) && unitEnding > 0
+      ? unitPlans[unitEnding - 1]
+      : null;
+
+  return (
+    unitPlanByEnding ??
+    unitPlans.find((plan) => plan.bhk === `${apartment.bhk} BHK`) ??
+    unitPlans[0]
+  );
 }
 
 function wrapMasterPlanFrame(frame: number, totalFrames = TOTAL_MASTER_PLAN_FRAMES) {
@@ -286,6 +327,114 @@ function MasterPlanHotspotControls({
   );
 }
 
+function SelectedFlatPlanPanel({
+  apartment,
+}: {
+  apartment: InventoryApartment;
+}) {
+  const dimensionItems = useMemo(
+    () => getRoomDimensionItems(apartment.roomDimensions),
+    [apartment.roomDimensions],
+  );
+  const unitPlan = useMemo(() => getUnitPlanForApartment(apartment), [apartment]);
+
+  if (!unitPlan) {
+    return null;
+  }
+
+  return (
+    <div
+      className="pointer-events-auto custom-scrollbar relative max-h-[min(78dvh,42rem)] w-[clamp(17rem,24vw,22.5rem)] overflow-y-auto bg-transparent p-0 text-zinc-900 2xl:w-[24rem]"
+      data-scroll-area="flat-plan-panel"
+    >
+      <div className="space-y-3">
+        <div className="overflow-hidden rounded-[26px] border border-white/48 bg-white/26 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.58),0_18px_44px_rgba(15,23,42,0.12)] backdrop-blur-[26px] 2xl:rounded-[30px] 2xl:p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.26em] text-zinc-500">
+                Floor Plan
+              </p>
+              <h3 className="mt-1 text-[1rem] font-semibold leading-tight tracking-[-0.03em] text-zinc-950 2xl:text-[1.15rem]">
+                {apartment.title} layout
+              </h3>
+            </div>
+            <span className="rounded-full border border-white/60 bg-white/55 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+              {apartment.floorLabel || apartment.floor}
+            </span>
+          </div>
+
+          <div className="relative mt-3 aspect-[4/3] w-full">
+            <NextImage
+              src={unitPlan.image2D}
+              alt={`${apartment.title} floor plan`}
+              fill
+              sizes="(min-width: 1536px) 360px, 320px"
+              className="object-contain mix-blend-multiply drop-shadow-[0_14px_24px_rgba(15,23,42,0.10)]"
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-full border border-white/42 bg-white/24 px-2.5 py-1.5 text-[10px] font-semibold text-zinc-700 backdrop-blur-xl">
+              {apartment.bhk} BHK
+            </div>
+            <div className="rounded-full border border-white/42 bg-white/24 px-2.5 py-1.5 text-right text-[10px] font-semibold text-zinc-700 backdrop-blur-xl">
+              {apartment.areaSqft} sqft
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-[26px] border border-white/48 bg-white/26 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.58),0_18px_44px_rgba(15,23,42,0.12)] backdrop-blur-[26px] 2xl:rounded-[30px] 2xl:p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[8px] font-semibold uppercase tracking-[0.26em] text-zinc-500">
+                Spatial Composition
+              </p>
+              <h4 className="mt-1 text-sm font-semibold tracking-[-0.03em] text-zinc-950">
+                Room Dimensions
+              </h4>
+            </div>
+            <span className="rounded-full border border-white/42 bg-white/24 px-2 py-1 text-[9px] font-medium text-zinc-500 backdrop-blur-xl">
+              {dimensionItems.length} rooms
+            </span>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            {dimensionItems.length > 0 ? (
+              dimensionItems.map((item, index) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between gap-3 border-b border-white/45 pb-2 last:border-b-0 last:pb-0"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/42 bg-white/22 backdrop-blur-xl">
+                      <Ruler className="h-3.5 w-3.5 text-zinc-600" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[8px] uppercase tracking-[0.2em] text-zinc-400">
+                        {String(index + 1).padStart(2, "0")}
+                      </p>
+                      <p className="truncate text-[11px] font-medium text-zinc-800">
+                        {item.label}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="shrink-0 text-right text-[11px] font-semibold text-zinc-900">
+                    {item.value}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <p className="py-3 text-xs text-zinc-500">
+                Room dimensions are not available for this apartment yet.
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MasterPlanModeToggle({
   isTopViewMode,
   onNormalView,
@@ -360,6 +509,7 @@ export default function MasterPlanLayout({
   const [bhk, setBhk] = useState<(typeof bhkOptions)[number]>("All");
   const [facing, setFacing] = useState<(typeof facingOptions)[number]>("All");
   const [status, setStatus] = useState<(typeof statusOptions)[number]>("All");
+  const [floor, setFloor] = useState(FLOOR_ALL_VALUE);
   const [minArea, setMinArea] = useState(0);
 
   const [isLeaving, setIsLeaving] = useState(false);
@@ -740,50 +890,120 @@ export default function MasterPlanLayout({
     };
   }, [initialApartments.length, isStageInteracting]);
 
+  const normalizedDeferredSearch = useMemo(
+    () => deferredSearch.trim().toLowerCase(),
+    [deferredSearch],
+  );
+  const selectedBhkNumber = useMemo(
+    () => (bhk === "All" ? null : Number(bhk)),
+    [bhk],
+  );
+  const filterableApartmentsByTower = useMemo(() => {
+    const next = new Map<TowerType, FilterableApartmentRow[]>([
+      ["Tower A", []],
+      ["Tower B", []],
+    ]);
+
+    apartments.forEach((apartment) => {
+      next.get(apartment.tower)?.push({
+        apartment,
+        floorValue: String(apartment.floor),
+        searchText: `${apartment.title} ${apartment.flatNumber}`.toLowerCase(),
+      });
+    });
+
+    return next;
+  }, [apartments]);
+
   const filteredApartments = useMemo(() => {
     if (!selectedTower) {
       return [];
     }
 
-    return apartments.filter((apartment) => {
-      const matchesSearch = apartment.title
-        .toLowerCase()
-        .includes(deferredSearch.toLowerCase());
+    const towerRows = filterableApartmentsByTower.get(selectedTower) ?? [];
+    const hasSearch = normalizedDeferredSearch.length > 0;
 
-      const matchesFloor = apartment.floor > 0;
-      const matchesTower = apartment.tower === selectedTower;
-      const matchesBhk = bhk === "All" || apartment.bhk === Number(bhk);
+    return towerRows.reduce<InventoryApartment[]>((matches, row) => {
+      const { apartment } = row;
+      const matchesSearch =
+        !hasSearch || row.searchText.includes(normalizedDeferredSearch);
+      const matchesFloor =
+        apartment.floor >= 0 &&
+        (floor === FLOOR_ALL_VALUE || row.floorValue === floor);
+      const matchesBhk =
+        selectedBhkNumber === null || apartment.bhk === selectedBhkNumber;
       const matchesFacing = facing === "All" || apartment.facing === facing;
       const matchesStatus = status === "All" || apartment.status === status;
       const matchesArea = apartment.areaSqft >= minArea;
 
-      return (
+      if (
         matchesFloor &&
         matchesSearch &&
-        matchesTower &&
         matchesBhk &&
         matchesFacing &&
         matchesStatus &&
         matchesArea
-      );
-    });
+      ) {
+        matches.push(apartment);
+      }
+
+      return matches;
+    }, []);
   }, [
-    apartments,
-    deferredSearch,
+    filterableApartmentsByTower,
+    normalizedDeferredSearch,
     selectedTower,
-    bhk,
+    selectedBhkNumber,
     facing,
     status,
+    floor,
     minArea,
   ]);
+  const floorOptions = useMemo<FloorFilterOption[]>(() => {
+    if (!selectedTower) {
+      return [{ value: FLOOR_ALL_VALUE, label: "All floors" }];
+    }
+
+    const towerRows = filterableApartmentsByTower.get(selectedTower) ?? [];
+    const floors = new Map<number, string>();
+
+    towerRows.forEach(({ apartment }) => {
+      if (apartment.floor < 0) {
+        return;
+      }
+
+      floors.set(
+        apartment.floor,
+        apartment.floor === 0
+          ? apartment.floorLabel || "G"
+          : apartment.floorLabel || String(apartment.floor),
+      );
+    });
+
+    return [
+      { value: FLOOR_ALL_VALUE, label: "All floors" },
+      ...Array.from(floors.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([value, label]) => ({
+          value: String(value),
+          label: value === 0 ? "G" : label,
+      })),
+    ];
+  }, [filterableApartmentsByTower, selectedTower]);
+  useEffect(() => {
+    if (!floorOptions.some((option) => option.value === floor)) {
+      setFloor(FLOOR_ALL_VALUE);
+    }
+  }, [floor, floorOptions]);
   const hasActiveInventoryFilters = useMemo(
     () =>
       deferredSearch.trim().length > 0 ||
       bhk !== "All" ||
       facing !== "All" ||
       status !== "All" ||
+      floor !== FLOOR_ALL_VALUE ||
       minArea > 0,
-    [deferredSearch, bhk, facing, status, minArea],
+    [deferredSearch, bhk, facing, status, floor, minArea],
   );
 
   const resetFilters = () => {
@@ -791,6 +1011,7 @@ export default function MasterPlanLayout({
     setBhk("All");
     setFacing("All");
     setStatus("All");
+    setFloor(FLOOR_ALL_VALUE);
     setMinArea(0);
   };
 
@@ -827,10 +1048,6 @@ export default function MasterPlanLayout({
       setIsMobileSheetOpen(true);
     }
   }, [selectedTower]);
-
-  const handleOpenBareShellWalkthrough = useCallback(() => {
-    router.push(buildWalkthroughHref({ mode: "bare-shell" }));
-  }, [router]);
 
   const closeSpecialUnitVideo = useCallback(() => {
     if (specialUnitVideoTimeoutRef.current !== null) {
@@ -886,6 +1103,9 @@ export default function MasterPlanLayout({
 
       lastApartmentSelectionAtRef.current =
         typeof performance !== "undefined" ? performance.now() : Date.now();
+
+      setSelectedTower(apartment.tower);
+      setIsDesktopSidebarOpen(true);
 
       if (isSpecialVideoApartment(apartment)) {
         setSelectedApartment(null);
@@ -1602,12 +1822,16 @@ export default function MasterPlanLayout({
                     search={search}
                     onSearchChange={setSearch}
                     selectedTower={selectedTower}
+                    onTowerChange={handleTowerSelect}
                     bhk={bhk}
                     onBhkChange={setBhk}
                     facing={facing}
                     onFacingChange={setFacing}
                     status={status}
                     onStatusChange={setStatus}
+                    floor={floor}
+                    floorOptions={floorOptions}
+                    onFloorChange={setFloor}
                     minArea={minArea}
                     onMinAreaChange={setMinArea}
                     onReset={resetFilters}
@@ -1661,8 +1885,8 @@ export default function MasterPlanLayout({
                   ? "xl:grid-cols-[minmax(0,1fr)_330px]"
                   : "xl:grid-cols-[minmax(0,1fr)_clamp(320px,27vw,380px)] 2xl:grid-cols-[minmax(0,1fr)_420px]"
                 : isDesktopCompactViewport
-                  ? "xl:grid-cols-[minmax(0,1fr)_380px]"
-                  : "xl:grid-cols-[minmax(0,1fr)_clamp(360px,31vw,460px)] 2xl:grid-cols-[minmax(0,1fr)_540px]"
+                  ? "xl:grid-cols-[minmax(0,1fr)_310px]"
+                  : "xl:grid-cols-[minmax(0,1fr)_clamp(300px,22vw,360px)] 2xl:grid-cols-[minmax(0,1fr)_380px]"
               : selectedTower
                 ? "xl:grid-cols-[minmax(0,1fr)]"
                 : "xl:grid-cols-[minmax(0,1fr)]"
@@ -1683,54 +1907,9 @@ export default function MasterPlanLayout({
                 animate={{ opacity: 1, x: 0, y: 0 }}
                 exit={{ opacity: 0, x: 24, y: 12 }}
                 transition={{ duration: 0.26, ease: smoothEase }}
-                className="pointer-events-none absolute left-6 top-1/2 z-40 hidden -translate-y-1/2 xl:block 2xl:left-10"
+                className="pointer-events-none absolute left-4 top-1/2 z-40 hidden -translate-y-1/2 xl:block 2xl:left-8"
               >
-                <button
-                  type="button"
-                  onClick={handleOpenBareShellWalkthrough}
-                  className="pointer-events-auto group relative flex h-[320px] w-[280px] flex-col overflow-hidden rounded-[40px] border border-white/15 bg-black/20 shadow-[0_20px_40px_rgba(0,0,0,0.4)] backdrop-blur-[10px] transition-all duration-300 hover:scale-[1.02] hover:border-white/30"
-                  aria-label="Open bare shell walkthrough"
-                >
-                  <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
-                    <NextImage
-                      src={BARE_SHELL_PANEL_PREVIEW_IMAGE}
-                      alt="Bare shell walkthrough preview"
-                      fill
-                      sizes="280px"
-                      className="object-cover transition-all duration-700 group-hover:scale-[1.05]"
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.2)_0%,rgba(0,0,0,0.1)_50%,rgba(0,0,0,0.7)_100%)]" />
-                  </div>
-
-                  <div className="relative flex h-full flex-col p-6">
-                    <div className="flex items-start justify-between">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.25em] text-white/60">
-                        Bare Shell
-                      </p>
-                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/25 shadow-[0_4px_12px_rgba(0,0,0,0.2)] backdrop-blur-[4px]">
-                        <Play className="h-3 w-3 fill-white ml-0.5" />
-                      </div>
-                    </div>
-
-                    <div className="my-auto text-center">
-                      <p className="mx-auto max-w-[180px] text-[22px] font-medium leading-[1.2] tracking-[-0.01em] text-white">
-                        Open alternate walkthrough
-                      </p>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="h-px w-full bg-white/20" />
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
-                          <Play className="h-2 w-2 fill-white" />
-                        </div>
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-white/80">
-                          Video Walkthrough
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </button>
+                <SelectedFlatPlanPanel apartment={selectedApartment} />
               </motion.div>
             ) : null}
           </AnimatePresence>
@@ -1791,8 +1970,8 @@ export default function MasterPlanLayout({
                         ? "max-w-[330px]"
                         : "max-w-[clamp(320px,27vw,380px)] 2xl:max-w-[420px]"
                       : isDesktopCompactViewport
-                        ? "max-w-[380px]"
-                        : "max-w-[clamp(360px,31vw,460px)] 2xl:max-w-[540px]"
+                        ? "max-w-[310px]"
+                        : "max-w-[clamp(300px,22vw,360px)] 2xl:max-w-[380px]"
                   }`}
                   style={{
                     height:
@@ -1810,12 +1989,16 @@ export default function MasterPlanLayout({
                           search={search}
                           onSearchChange={setSearch}
                           selectedTower={selectedTower}
+                          onTowerChange={handleTowerSelect}
                           bhk={bhk}
                           onBhkChange={setBhk}
                           facing={facing}
                           onFacingChange={setFacing}
                           status={status}
                           onStatusChange={setStatus}
+                          floor={floor}
+                          floorOptions={floorOptions}
+                          onFloorChange={setFloor}
                           minArea={minArea}
                           onMinAreaChange={setMinArea}
                           onClosePanel={() => setIsDesktopSidebarOpen(false)}
@@ -1937,12 +2120,16 @@ export default function MasterPlanLayout({
                         search={search}
                         onSearchChange={setSearch}
                         selectedTower={selectedTower}
+                        onTowerChange={handleTowerSelect}
                         bhk={bhk}
                         onBhkChange={setBhk}
                         facing={facing}
                         onFacingChange={setFacing}
                         status={status}
                         onStatusChange={setStatus}
+                        floor={floor}
+                        floorOptions={floorOptions}
+                        onFloorChange={setFloor}
                         minArea={minArea}
                         onMinAreaChange={setMinArea}
                         onReset={resetFilters}
@@ -2032,6 +2219,22 @@ export default function MasterPlanLayout({
               !isSpecialVideoReversing &&
               specialVideoApartment ? (
                 <motion.div
+                  initial={{ opacity: 0, x: -24, y: 12 }}
+                  animate={{ opacity: 1, x: 0, y: 0 }}
+                  exit={{ opacity: 0, x: -24, y: 12 }}
+                  transition={{ duration: 0.28, ease: smoothEase }}
+                  className="pointer-events-none absolute left-4 top-1/2 z-20 hidden -translate-y-1/2 xl:block 2xl:left-8"
+                >
+                  <SelectedFlatPlanPanel apartment={specialVideoApartment} />
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {isSpecialVideoCompleted &&
+              !isSpecialVideoReversing &&
+              specialVideoApartment ? (
+                <motion.div
                   initial={{ opacity: 0, x: 24, y: 12 }}
                   animate={{ opacity: 1, x: 0, y: 0 }}
                   exit={{ opacity: 0, x: 24, y: 12 }}
@@ -2059,12 +2262,16 @@ function MasterPlanFiltersCard({
   search,
   onSearchChange,
   selectedTower,
+  onTowerChange,
   bhk,
   onBhkChange,
   facing,
   onFacingChange,
   status,
   onStatusChange,
+  floor,
+  floorOptions,
+  onFloorChange,
   minArea,
   onMinAreaChange,
   onClosePanel,
@@ -2075,12 +2282,16 @@ function MasterPlanFiltersCard({
   search: string;
   onSearchChange: (value: string) => void;
   selectedTower: TowerType;
+  onTowerChange: (tower: TowerType) => void;
   bhk: (typeof bhkOptions)[number];
   onBhkChange: (value: (typeof bhkOptions)[number]) => void;
   facing: (typeof facingOptions)[number];
   onFacingChange: (value: (typeof facingOptions)[number]) => void;
   status: (typeof statusOptions)[number];
   onStatusChange: (value: (typeof statusOptions)[number]) => void;
+  floor: string;
+  floorOptions: FloorFilterOption[];
+  onFloorChange: (value: string) => void;
   minArea: number;
   onMinAreaChange: (value: number) => void;
   onClosePanel?: () => void;
@@ -2093,79 +2304,85 @@ function MasterPlanFiltersCard({
     Number(bhk !== "All") +
     Number(facing !== "All") +
     Number(status !== "All") +
+    Number(floor !== FLOOR_ALL_VALUE) +
     Number(minArea > 0);
   const [isCompactOpen, setIsCompactOpen] = useState(compact);
+  const [isDesktopFilterOpen, setIsDesktopFilterOpen] = useState(true);
   const handleSearchInputChange = (value: string) => {
     onSearchChange(value.replace(/\D+/g, ""));
   };
+  const towerOptions: TowerType[] = ["Tower A", "Tower B"];
+  const searchControl = (
+    <div className="group flex items-center gap-2 rounded-full border border-white/55 bg-white/68 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_10px_24px_rgba(15,23,42,0.06)] transition focus-within:border-white/80 focus-within:bg-white/82 dark:border-white/10 dark:bg-white/7 dark:focus-within:border-white/24 dark:focus-within:bg-white/12">
+      <Search className="h-3.5 w-3.5 shrink-0 text-zinc-500 transition group-focus-within:text-zinc-800 dark:text-zinc-400 dark:group-focus-within:text-white" />
+      <input
+        value={search}
+        onChange={(e) => handleSearchInputChange(e.target.value)}
+        inputMode="numeric"
+        pattern="[0-9]*"
+        enterKeyHint="search"
+        autoComplete="off"
+        placeholder="Search unit number"
+        className="w-full bg-transparent text-xs font-medium text-zinc-800 outline-none placeholder:text-zinc-400 dark:text-white sm:text-[13px]"
+      />
+    </div>
+  );
 
   if (compact) {
     return (
-      <motion.div className="surface-contain shrink-0 rounded-[24px] border border-white/45 bg-white/88 p-3 shadow-[0_18px_46px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/35 dark:shadow-[0_18px_46px_rgba(0,0,0,0.30)]">
+      <motion.div className="surface-contain shrink-0 rounded-[20px] border border-white/50 bg-white/72 p-2.5 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_18px_46px_rgba(0,0,0,0.30)] sm:rounded-[24px] sm:p-3">
         <div className="flex items-start gap-2">
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/55 bg-white/60 text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:bg-white/78 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
             aria-label="Back to tower selection"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-3.5 w-3.5" />
           </button>
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-semibold text-zinc-950 dark:text-white">
-                Filters
+              <p className="text-xs font-semibold text-zinc-900 dark:text-white sm:text-[13px]">
+                Refine Flats
               </p>
-              <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-700 dark:bg-white/8 dark:text-zinc-200">
-                <Building2 className="h-3.5 w-3.5" />
+              <span className="inline-flex items-center gap-1 rounded-full border border-white/45 bg-white/45 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:border-white/10 dark:bg-white/8 dark:text-zinc-200">
+                <Building2 className="h-3 w-3" />
                 {selectedTower}
               </span>
             </div>
-            <p className="mt-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+            <p className="mt-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
               {activeFilterCount > 0
                 ? `${activeFilterCount} active refinements`
-                : "Minimal phone filters"}
+                : "Search first, expand for details"}
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => setIsCompactOpen((value) => !value)}
-            className="inline-flex h-10 items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 text-xs font-medium text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
+            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/55 bg-white/60 px-2.5 text-[10px] font-semibold text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:bg-white/78 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
           >
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            {isCompactOpen ? "Hide filters" : "Show filters"}
-            <ChevronDown
-              className={`h-3.5 w-3.5 transition ${isCompactOpen ? "rotate-180" : ""}`}
-            />
+            <SlidersHorizontal className="h-3 w-3" />
+            {isCompactOpen ? "Close filters" : "Filters"}
           </button>
         </div>
 
-        <div className="mt-3 flex items-center gap-2 rounded-[18px] border border-zinc-200/80 bg-zinc-50/85 px-3 py-2.5 shadow-sm transition focus-within:border-zinc-400 focus-within:bg-white dark:border-white/10 dark:bg-white/5 dark:focus-within:border-white/20 dark:focus-within:bg-white/10">
-          <Search className="h-4 w-4 shrink-0 text-zinc-500 dark:text-zinc-400" />
-          <input
-            value={search}
-            onChange={(e) => handleSearchInputChange(e.target.value)}
-            inputMode="numeric"
-            pattern="[0-9]*"
-            enterKeyHint="search"
-            autoComplete="off"
-            placeholder="Search unit number"
-            className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
-          />
-          <button
-            type="button"
-            onClick={onReset}
-            className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[11px] font-medium text-zinc-600 shadow-sm transition hover:bg-zinc-100 dark:bg-white/8 dark:text-zinc-200 dark:hover:bg-white/12"
-          >
-            Reset
-          </button>
+        <div className="mt-2.5">
+          {searchControl}
         </div>
 
-        {activeFilterCount > 0 ? (
+        {activeFilterCount > 0 && !isCompactOpen ? (
           <div className="mt-3 flex flex-wrap gap-2">
             {bhk !== "All" ? <FilterChip label={`${bhk} BHK`} /> : null}
+            {floor !== FLOOR_ALL_VALUE ? (
+              <FilterChip
+                label={
+                  floorOptions.find((option) => option.value === floor)?.label ??
+                  `Floor ${floor}`
+                }
+              />
+            ) : null}
             {facing !== "All" ? <FilterChip label={facing} /> : null}
             {status !== "All" ? <FilterChip label={status} /> : null}
             {minArea > 0 ? <FilterChip label={`${minArea}+ sqft`} /> : null}
@@ -2173,72 +2390,77 @@ function MasterPlanFiltersCard({
         ) : null}
 
         {isCompactOpen ? (
-          <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="mt-2.5 max-h-[31svh] space-y-2.5 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch] sm:max-h-[36svh]">
+            <FilterBlock compact label="Tower">
+              <FilterPillGroup
+                options={towerOptions}
+                value={selectedTower}
+                onChange={onTowerChange}
+                getLabel={(item) => item.replace("Tower ", "Tower ")}
+              />
+            </FilterBlock>
+
             <FilterBlock compact label="BHK">
-              <CompactFilterSelect
+              <FilterPillGroup
+                options={bhkOptions}
                 value={bhk}
-                onChange={(value) =>
-                  onBhkChange(value as (typeof bhkOptions)[number])
-                }
-              >
-                {bhkOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item === "All" ? "All" : `${item} BHK`}
-                  </option>
-                ))}
-              </CompactFilterSelect>
+                onChange={onBhkChange}
+                getLabel={(item) => (item === "All" ? "All" : `${item} BHK`)}
+              />
+            </FilterBlock>
+
+            <FilterBlock compact label="Floor">
+              <FilterDropdown
+                value={floor}
+                options={floorOptions}
+                onChange={onFloorChange}
+              />
             </FilterBlock>
 
             <FilterBlock compact label="Facing">
-              <CompactFilterSelect
+              <FilterPillGroup
+                options={facingOptions}
                 value={facing}
-                onChange={(value) =>
-                  onFacingChange(value as (typeof facingOptions)[number])
-                }
-              >
-                {facingOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </CompactFilterSelect>
+                onChange={onFacingChange}
+              />
             </FilterBlock>
 
             <FilterBlock compact label="Status">
-              <CompactFilterSelect
+              <FilterPillGroup
+                options={statusOptions}
                 value={status}
-                onChange={(value) =>
-                  onStatusChange(value as (typeof statusOptions)[number])
-                }
-              >
-                {statusOptions.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </CompactFilterSelect>
+                onChange={onStatusChange}
+              />
             </FilterBlock>
 
-            <div className="rounded-[18px] border border-zinc-200/80 bg-zinc-50/85 px-3 py-2.5 dark:border-white/10 dark:bg-white/5">
-              <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">
-                Tower
-              </p>
-              <p className="mt-1 text-sm font-semibold text-zinc-900 dark:text-white">
-                {selectedTower}
-              </p>
-            </div>
-
-            <FilterBlock compact className="col-span-2" label={`Min Area: ${minArea} sqft`}>
+            <FilterBlock compact label={`Min Area: ${minArea} sqft`}>
               <input
                 type="range"
                 min={0}
-                max={2500}
+                max={1700}
                 step={50}
                 value={minArea}
                 onChange={(e) => onMinAreaChange(Number(e.target.value))}
-                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/70 accent-zinc-600 dark:bg-white/10 dark:accent-white"
               />
             </FilterBlock>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onReset}
+                className="flex-1 rounded-full border border-white/55 bg-white/52 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:bg-white/72 dark:border-white/10 dark:bg-white/8 dark:text-zinc-200 dark:hover:bg-white/12"
+              >
+                Reset
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsCompactOpen(false)}
+                className="flex-1 rounded-full border border-white/70 bg-white/76 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-800 shadow-[0_10px_22px_rgba(15,23,42,0.08)] transition hover:bg-white dark:border-white/12 dark:bg-white dark:text-black"
+              >
+                Close filters
+              </button>
+            </div>
           </div>
         ) : null}
       </motion.div>
@@ -2247,16 +2469,16 @@ function MasterPlanFiltersCard({
 
   return (
     <motion.div
-      className="surface-contain shrink-0 rounded-[24px] border border-white/30 bg-white/60 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] sm:p-5"
+      className="surface-contain shrink-0 rounded-[22px] border border-white/35 bg-white/58 p-3.5 shadow-[0_18px_50px_rgba(15,23,42,0.09)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[26px] sm:p-4"
     >
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="rounded-xl bg-zinc-900 p-2 text-white dark:bg-white dark:text-black">
-            <SlidersHorizontal className="h-4 w-4" />
+          <div className="rounded-xl border border-white/55 bg-white/58 p-1.5 text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-white/10 dark:bg-white/8 dark:text-white">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
           </div>
           <div>
-            <h2 className="text-lg font-semibold">Filters</h2>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            <h2 className="text-base font-semibold">Filters</h2>
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
               Refine inventory in real time
             </p>
           </div>
@@ -2266,7 +2488,7 @@ function MasterPlanFiltersCard({
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex items-center gap-1 rounded-full border bg-transparent px-3 py-1.5 text-xs font-medium text-black cursor-pointer transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+            className="inline-flex items-center gap-1 rounded-full border border-white/45 bg-white/38 px-2.5 py-1 text-[11px] font-medium text-zinc-700 cursor-pointer transition hover:bg-white/62 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back
@@ -2275,96 +2497,105 @@ function MasterPlanFiltersCard({
           <button
             type="button"
             onClick={onClosePanel ?? onReset}
-            className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 cursor-pointer text-xs font-medium text-zinc-600 transition hover:border-zinc-300 hover:bg-zinc-50 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+            className="rounded-full border border-white/55 bg-white/65 px-2.5 py-1 cursor-pointer text-[11px] font-medium text-zinc-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:bg-white/82 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
           >
             {onClosePanel ? "Close" : "Reset"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsDesktopFilterOpen((value) => !value)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/55 bg-white/62 text-zinc-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)] transition hover:bg-white/84 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300 dark:hover:bg-white/10"
+            aria-label={
+              isDesktopFilterOpen ? "Collapse filters" : "Expand filters"
+            }
+            aria-expanded={isDesktopFilterOpen}
+          >
+            {isDesktopFilterOpen ? (
+              <ChevronUp className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
           </button>
         </div>
       </div>
 
-      <div className={compact ? "space-y-4" : "space-y-5"}>
-        <FilterBlock label="Selected Tower">
-          <div className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-700 dark:bg-white/5 dark:text-zinc-200">
-            <Building2 className="h-4 w-4" />
-            {selectedTower}
-          </div>
-        </FilterBlock>
-
+      <div className={compact ? "space-y-3" : "space-y-4"}>
         <FilterBlock label="Search Unit">
-          <div className="group flex items-center gap-2 rounded-2xl border border-zinc-200/80 bg-zinc-50/80 px-3 py-3 shadow-sm transition focus-within:border-zinc-400 focus-within:bg-white dark:border-white/10 dark:bg-white/5 dark:focus-within:border-white/20 dark:focus-within:bg-white/10">
-            <Search className="h-4 w-4 text-zinc-500 transition group-focus-within:text-zinc-800 dark:group-focus-within:text-white" />
-            <input
-              value={search}
-              onChange={(e) => handleSearchInputChange(e.target.value)}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              enterKeyHint="search"
-              autoComplete="off"
-              placeholder="Search unit number"
-              className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
-            />
+          {searchControl}
+        </FilterBlock>
+
+        {isDesktopFilterOpen ? (
+          <>
+            <FilterBlock label="Selected Tower">
+              <FilterPillGroup
+                options={towerOptions}
+                value={selectedTower}
+                onChange={onTowerChange}
+                getLabel={(item) => item}
+              />
+            </FilterBlock>
+
+            <FilterBlock label="BHK">
+              <FilterPillGroup
+                options={bhkOptions}
+                value={bhk}
+                onChange={onBhkChange}
+                getLabel={(item) => (item === "All" ? "All" : `${item} BHK`)}
+              />
+            </FilterBlock>
+
+            <FilterBlock label="Floor">
+              <FilterDropdown
+                value={floor}
+                options={floorOptions}
+                onChange={onFloorChange}
+              />
+            </FilterBlock>
+
+            <FilterBlock label="Facing">
+              <FilterPillGroup
+                options={facingOptions}
+                value={facing}
+                onChange={onFacingChange}
+              />
+            </FilterBlock>
+
+            <FilterBlock label="Status">
+              <FilterPillGroup
+                options={statusOptions}
+                value={status}
+                onChange={onStatusChange}
+              />
+            </FilterBlock>
+
+            <FilterBlock label={`Min Area: ${minArea} sqft`}>
+              <input
+                type="range"
+                min={0}
+                max={1700}
+                step={50}
+                value={minArea}
+                onChange={(e) => onMinAreaChange(Number(e.target.value))}
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/70 accent-zinc-600 dark:bg-white/10 dark:accent-white"
+              />
+            </FilterBlock>
+          </>
+        ) : activeFilterCount > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {bhk !== "All" ? <FilterChip label={`${bhk} BHK`} /> : null}
+            {floor !== FLOOR_ALL_VALUE ? (
+              <FilterChip
+                label={
+                  floorOptions.find((option) => option.value === floor)?.label ??
+                  `Floor ${floor}`
+                }
+              />
+            ) : null}
+            {facing !== "All" ? <FilterChip label={facing} /> : null}
+            {status !== "All" ? <FilterChip label={status} /> : null}
+            {minArea > 0 ? <FilterChip label={`${minArea}+ sqft`} /> : null}
           </div>
-        </FilterBlock>
-
-        <FilterBlock label="BHK">
-          <GlassSelect
-            value={bhk}
-            onValueChange={(value) =>
-              onBhkChange(value as (typeof bhkOptions)[number])
-            }
-            placeholder="Select BHK"
-          >
-            {bhkOptions.map((item) => (
-              <GlassSelectItem key={item} value={item}>
-                {item === "All" ? "All" : `${item} BHK`}
-              </GlassSelectItem>
-            ))}
-          </GlassSelect>
-        </FilterBlock>
-
-        <FilterBlock label="Facing">
-          <GlassSelect
-            value={facing}
-            onValueChange={(value) =>
-              onFacingChange(value as (typeof facingOptions)[number])
-            }
-            placeholder="Select facing"
-          >
-            {facingOptions.map((item) => (
-              <GlassSelectItem key={item} value={item}>
-                {item}
-              </GlassSelectItem>
-            ))}
-          </GlassSelect>
-        </FilterBlock>
-
-        <FilterBlock label="Status">
-          <GlassSelect
-            value={status}
-            onValueChange={(value) =>
-              onStatusChange(value as (typeof statusOptions)[number])
-            }
-            placeholder="Select status"
-          >
-            {statusOptions.map((item) => (
-              <GlassSelectItem key={item} value={item}>
-                {item}
-              </GlassSelectItem>
-            ))}
-          </GlassSelect>
-        </FilterBlock>
-
-        <FilterBlock label={`Min Area: ${minArea} sqft`}>
-          <input
-            type="range"
-            min={0}
-            max={2500}
-            step={50}
-            value={minArea}
-            onChange={(e) => onMinAreaChange(Number(e.target.value))}
-            className="h-2 w-full cursor-pointer appearance-none rounded-full bg-zinc-200 dark:bg-white/10"
-          />
-        </FilterBlock>
+        ) : null}
       </div>
     </motion.div>
   );
@@ -2569,6 +2800,69 @@ function MasterPlanResultsCard({
   );
 }
 
+function FilterPillGroup<T extends string>({
+  options,
+  value,
+  onChange,
+  getLabel = (item) => item,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (value: T) => void;
+  getLabel?: (value: T) => string;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((item) => {
+        const isActive = value === item;
+
+        return (
+          <button
+            key={item}
+            type="button"
+            aria-pressed={isActive}
+            onClick={() => onChange(item)}
+            className={`inline-flex min-h-8 items-center justify-center rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition sm:text-[11px] ${
+              isActive
+                ? "border-white/80 bg-white/82 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_24px_rgba(15,23,42,0.10)] dark:border-white/75 dark:bg-white/82 dark:text-black"
+                : "border-white/45 bg-white/36 text-zinc-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] hover:border-white/70 hover:bg-white/58 dark:border-white/12 dark:bg-white/6 dark:text-zinc-300 dark:hover:border-white/24 dark:hover:bg-white/10"
+            }`}
+          >
+            {getLabel(item)}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FilterDropdown({
+  value,
+  options,
+  onChange,
+}: {
+  value: string;
+  options: FloorFilterOption[];
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-9 w-full appearance-none rounded-full border border-white/55 bg-white/56 px-3 pr-8 text-[11px] font-semibold text-zinc-700 outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.68),0_8px_18px_rgba(15,23,42,0.05)] transition focus:border-white/80 focus:bg-white/76 dark:border-white/10 dark:bg-white/7 dark:text-white"
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <span className="pointer-events-none absolute right-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rotate-45 border-b border-r border-zinc-500 dark:border-zinc-300" />
+    </div>
+  );
+}
+
 function FilterBlock({
   label,
   children,
@@ -2581,10 +2875,10 @@ function FilterBlock({
   className?: string;
 }) {
   return (
-    <div className={`${compact ? "space-y-2" : "space-y-2.5"} ${className}`}>
+    <div className={`${compact ? "space-y-1.5" : "space-y-2"} ${className}`}>
       <label
-        className={`block font-medium text-zinc-700 dark:text-zinc-300 ${
-          compact ? "text-[11px]" : "text-sm"
+        className={`block font-semibold text-zinc-600 dark:text-zinc-300 ${
+          compact ? "text-[9px] uppercase tracking-[0.16em]" : "text-xs"
         }`}
       >
         {label}
@@ -2594,31 +2888,9 @@ function FilterBlock({
   );
 }
 
-function CompactFilterSelect({
-  value,
-  onChange,
-  children,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-[16px] border border-zinc-200/80 bg-zinc-50/85 px-3 shadow-sm dark:border-white/10 dark:bg-white/5">
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full appearance-none bg-transparent text-sm text-zinc-900 outline-none dark:text-white"
-      >
-        {children}
-      </select>
-    </div>
-  );
-}
-
 function FilterChip({ label }: { label: string }) {
   return (
-    <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-medium text-zinc-600 dark:bg-white/8 dark:text-zinc-200">
+    <span className="rounded-full border border-white/45 bg-white/45 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:border-white/10 dark:bg-white/8 dark:text-zinc-200">
       {label}
     </span>
   );

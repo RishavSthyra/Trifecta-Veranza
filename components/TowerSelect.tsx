@@ -156,8 +156,8 @@ function TowerSelectPanel({
       <div
         className={`relative overflow-hidden border border-white/35 bg-white/18 shadow-[0_24px_80px_rgba(15,23,42,0.16)] backdrop-blur-[22px] ${
           compactDesktop
-            ? "rounded-[26px] p-2.5"
-            : "rounded-[30px] p-3 xl:p-3.5 2xl:rounded-[34px] 2xl:p-4"
+            ? "rounded-[22px] p-2"
+            : "rounded-[24px] p-2.5 xl:p-2.5 2xl:rounded-[26px] 2xl:p-3"
         }`}
       >
         <div className="pointer-events-none absolute inset-0 bg-linear-to-br from-white/35 via-white/10 to-transparent" />
@@ -166,20 +166,20 @@ function TowerSelectPanel({
         <div className="pointer-events-none absolute -left-16 bottom-4 h-32 w-32 rounded-full bg-violet-200/25 blur-3xl" />
 
         <div
-          className={`relative px-2 pt-1 ${
-            compactDesktop ? "mb-3" : "mb-4 xl:mb-4 2xl:mb-5"
+          className={`relative px-1.5 pt-0.5 ${
+            compactDesktop ? "mb-2.5" : "mb-3 2xl:mb-3.5"
           }`}
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-zinc-500/90">
+              <p className="text-[8px] font-semibold uppercase tracking-[0.3em] text-zinc-500/90 2xl:text-[9px]">
                 Master Plan
               </p>
               <h2
                 className={`mt-2 font-semibold tracking-[-0.03em] text-zinc-950 ${
                   compactDesktop
-                    ? "text-[1.2rem]"
-                    : "text-[1.42rem] xl:text-[1.5rem] 2xl:text-[1.8rem]"
+                    ? "text-[1.04rem]"
+                    : "text-[1.16rem] xl:text-[1.22rem] 2xl:text-[1.34rem]"
                 }`}
               >
                 Choose Your Tower
@@ -187,8 +187,8 @@ function TowerSelectPanel({
               <p
                 className={`mt-1.5 text-zinc-600 ${
                   compactDesktop
-                    ? "max-w-[18rem] text-[12px] leading-[1.35rem]"
-                    : "max-w-[24rem] text-[13px] leading-5 2xl:max-w-[28rem] 2xl:text-sm 2xl:leading-6"
+                    ? "max-w-[15.5rem] text-[10px] leading-4"
+                    : "max-w-[19rem] text-[11px] leading-[1.05rem] 2xl:max-w-[20rem] 2xl:text-[12px] 2xl:leading-[1.15rem]"
                 }`}
               >
                 Start with the tower, then we will open the matching inventory
@@ -200,10 +200,10 @@ function TowerSelectPanel({
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/45 bg-[linear-gradient(145deg,rgba(255,255,255,0.82),rgba(255,255,255,0.52))] text-zinc-700 shadow-[0_18px_38px_rgba(15,23,42,0.12)] backdrop-blur-xl transition hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.92),rgba(255,255,255,0.66))] hover:text-zinc-900"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/45 bg-[linear-gradient(145deg,rgba(255,255,255,0.82),rgba(255,255,255,0.52))] text-zinc-700 shadow-[0_12px_28px_rgba(15,23,42,0.12)] backdrop-blur-xl transition hover:bg-[linear-gradient(145deg,rgba(255,255,255,0.92),rgba(255,255,255,0.66))] hover:text-zinc-900 2xl:h-9 2xl:w-9"
                 aria-label="Close tower selection panel"
               >
-                <X className="h-4.5 w-4.5" />
+                <X className="h-3.5 w-3.5" />
               </button>
             ) : null}
 
@@ -224,7 +224,7 @@ function TowerSelectPanel({
           </div>
         </div>
 
-        <div className={compactDesktop ? "space-y-3" : "space-y-4 xl:space-y-4 2xl:space-y-6"}>
+        <div className={compactDesktop ? "space-y-2.5" : "space-y-3 2xl:space-y-3.5"}>
           {towerCards.map((towerCard) => {
             const isActive = selectedTower === towerCard.value;
 
@@ -254,15 +254,15 @@ function TowerSelectPanel({
                   <div
                     className={`grid grid-cols-[48%_52%] ${
                       compactDesktop
-                        ? "min-h-[124px]"
-                        : "min-h-[142px] xl:min-h-[150px] 2xl:min-h-[178px] 2xl:grid-cols-[48%_52%]"
+                        ? "min-h-[94px]"
+                        : "min-h-[106px] xl:min-h-[112px] 2xl:min-h-[124px] 2xl:grid-cols-[48%_52%]"
                     }`}
                   >
                     <div
                       className={`relative overflow-hidden bg-white to-transparent ${
                         compactDesktop
-                          ? "min-h-[120px] rounded-l-[24px]"
-                          : "min-h-[138px] rounded-l-[30px] xl:min-h-[146px] 2xl:min-h-[172px]"
+                          ? "min-h-[92px] rounded-l-[22px]"
+                          : "min-h-[104px] rounded-l-[24px] xl:min-h-[110px] 2xl:min-h-[122px]"
                       }`}
                     >
                       <Image
@@ -279,16 +279,16 @@ function TowerSelectPanel({
                     <div
                       className={`relative flex min-w-0 flex-col justify-center ${
                         compactDesktop
-                          ? "px-3 py-3"
-                          : "px-4 py-4 xl:px-4.5 2xl:px-6 2xl:py-5"
+                          ? "px-2.5 py-2.5"
+                          : "px-3 py-3 2xl:px-3.5 2xl:py-3.5"
                       }`}
                     >
-                      <div className={compactDesktop ? "max-w-[186px]" : "max-w-[240px] 2xl:max-w-[280px]"}>
+                      <div className={compactDesktop ? "max-w-[136px]" : "max-w-[170px] 2xl:max-w-[190px]"}>
                         <h3
                           className={`font-medium tracking-[-0.03em] text-zinc-950 ${
                             compactDesktop
-                              ? "text-[1.22rem]"
-                              : "text-[1.52rem] xl:text-[1.6rem] 2xl:text-[2rem] 2xl:leading-[1.02]"
+                              ? "text-[1rem]"
+                              : "text-[1.14rem] xl:text-[1.2rem] 2xl:text-[1.34rem] 2xl:leading-[1.05]"
                           }`}
                         >
                           {towerCard.value}
@@ -301,8 +301,8 @@ function TowerSelectPanel({
                         <p
                           className={`font-semibold uppercase tracking-[0.24em] text-zinc-400 transition group-hover:text-zinc-500 ${
                             compactDesktop
-                              ? "mt-3 text-[9px]"
-                              : "mt-5 text-[10px] 2xl:mt-7 2xl:text-[11px]"
+                              ? "mt-2 text-[7px]"
+                              : "mt-3 text-[8px] 2xl:mt-4 2xl:text-[9px]"
                           }`}
                         >
                           Tap to explore tower
@@ -313,7 +313,7 @@ function TowerSelectPanel({
 
                   {isActive ? (
                     <CheckCircle2
-                      className={`absolute ${compactDesktop ? "right-3 top-3 h-4.5 w-4.5" : "right-4 top-4 h-5 w-5"} ${towerCard.accentCheck}`}
+                      className={`absolute ${compactDesktop ? "right-2.5 top-2.5 h-4 w-4" : "right-3 top-3 h-4.5 w-4.5"} ${towerCard.accentCheck}`}
                     />
                   ) : null}
                 </button>
@@ -391,7 +391,7 @@ export default function TowerSelect({
         className="relative z-10 w-full px-4 py-6 md:px-6 lg:px-8"
         style={{ paddingTop: "max(env(safe-area-inset-top), 1.5rem)" }}
       >
-        <div className="ml-auto w-full max-w-[420px]">
+        <div className="ml-auto w-full max-w-[340px] 2xl:max-w-[360px]">
           <TowerSelectPanel
             isTopViewActive={isTopViewActive}
             onTopViewClick={onTopViewClick}

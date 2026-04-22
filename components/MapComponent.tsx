@@ -17,6 +17,8 @@ import {
   BriefcaseBusiness,
   Cross,
   Loader2,
+  ChevronDown,
+  ChevronUp,
   School,
   Store,
   Trees,
@@ -491,14 +493,14 @@ const CategoryFilterChip = memo(function CategoryFilterChip({
     <button
       type="button"
       onClick={() => onClick(category)}
-      className={`flex items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all ${
+      className={`flex min-h-12 items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition-all [@media(max-height:850px)]:min-h-10 [@media(max-height:850px)]:gap-1.5 [@media(max-height:850px)]:px-2 [@media(max-height:850px)]:py-1.5 ${
         active
           ? `${meta.panelClass} shadow-sm`
           : "border-slate-200 bg-white/70 hover:bg-slate-50"
       }`}
     >
       <div
-        className={`flex h-9 w-9 items-center justify-center rounded-full border ${
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border [@media(max-height:850px)]:h-7 [@media(max-height:850px)]:w-7 ${
           active ? "border-white/70 bg-white/70" : "border-slate-200 bg-slate-50"
         }`}
       >
@@ -509,7 +511,7 @@ const CategoryFilterChip = memo(function CategoryFilterChip({
         />
       </div>
       <div>
-        <p className="text-sm font-medium text-slate-900">
+        <p className="text-xs font-medium text-slate-900">
           {meta.label}
         </p>
       </div>
@@ -783,6 +785,7 @@ export function CustomStyleExample() {
   const [userRoute, setUserRoute] = useState<RouteData | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(true);
+  const [isDesktopCategoriesOpen, setIsDesktopCategoriesOpen] = useState(true);
   const [currentZoom, setCurrentZoom] = useState(15);
 
   const [selectedCategories, setSelectedCategories] = useState<PoiCategory[]>(
@@ -1420,13 +1423,13 @@ export function CustomStyleExample() {
 
         {/* Desktop side panel */}
         <div
-          className={`absolute right-4 top-4 z-20 hidden h-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] transition-all duration-500 xl:block ${
+          className={`absolute bottom-3 right-3 top-3 z-20 hidden max-w-[calc(100vw-1.5rem)] transition-all duration-500 xl:block 2xl:bottom-4 2xl:right-4 2xl:top-4 ${
             isFilterOpen
               ? "w-85 lg:w-92.5 translate-x-0"
               : "w-85 lg:w-92.5 translate-x-[calc(100%+10px)]"
           }`}
         >
-          <div className="relative h-full">
+          <div className="relative h-full min-h-0">
             {/* Left bulge handle */}
             <button
               type="button"
@@ -1441,14 +1444,14 @@ export function CustomStyleExample() {
               </div>
             </button>
 
-            <div className="flex h-full flex-col overflow-hidden rounded-[30px] border border-white/60 bg-white/72 text-slate-900 shadow-[0_10px_34px_rgba(15,23,42,0.14)] backdrop-blur-2xl">
-              <div className="border-b border-slate-200/80 p-4">
+            <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-[30px] border border-white/60 bg-white/72 text-slate-900 shadow-[0_10px_34px_rgba(15,23,42,0.14)] backdrop-blur-2xl">
+              <div className="shrink-0 border-b border-slate-200/80 p-4 [@media(max-height:850px)]:p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500">
+                    <p className="text-xs uppercase tracking-[0.28em] text-slate-500 [@media(max-height:850px)]:text-[10px]">
                       Nearby Filters
                     </p>
-                    <h3 className="mt-1 text-xl font-semibold text-slate-900">
+                    <h3 className="mt-1 text-xl font-semibold text-slate-900 [@media(max-height:850px)]:text-lg">
                       Famous Places
                     </h3>
                   </div>
@@ -1456,19 +1459,19 @@ export function CustomStyleExample() {
                   <button
                     type="button"
                     onClick={() => setIsFilterOpen(false)}
-                    className="rounded-xl border border-slate-200 bg-white/80 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800"
+                    className="rounded-xl border border-slate-200 bg-white/80 p-2 text-slate-500 transition hover:bg-slate-50 hover:text-slate-800 [@media(max-height:850px)]:p-1.5"
                   >
                     <X className="size-4" />
                   </button>
                 </div>
 
-                <div className="relative mt-4">
+                <div className="relative mt-4 [@media(max-height:850px)]:mt-3">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={search}
                     onChange={(e) => applySearchInput(e.target.value)}
                     placeholder="Search places, companies, schools..."
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white/85 pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-300"
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white/85 pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-cyan-300 [@media(max-height:850px)]:h-9"
                   />
                   {search && (
                     <button
@@ -1482,31 +1485,66 @@ export function CustomStyleExample() {
                 </div>
               </div>
 
-              <div className="border-b border-slate-200/80 p-4">
-                <p className="mb-3 text-sm font-medium text-slate-800">
-                  Categories
-                </p>
-
-                <div className="grid grid-cols-2 gap-2">
-                  {CATEGORY_ORDER.map(
-                    (category) => {
-                      const active = selectedCategories.includes(category);
-
-                      return (
-                        <CategoryFilterChip
-                          key={category}
-                          active={active}
-                          category={category}
-                          onClick={toggleCategory}
-                        />
-                      );
-                    },
-                  )}
+              <div className="shrink-0 border-b border-slate-200/80 p-4 [@media(max-height:850px)]:p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-800 [@media(max-height:850px)]:text-xs">
+                    Categories
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setIsDesktopCategoriesOpen((currentValue) => !currentValue)
+                    }
+                    className="inline-flex h-8 items-center gap-1 rounded-full border border-slate-200 bg-white/75 px-2.5 text-xs font-medium text-slate-600 transition hover:bg-white"
+                    aria-expanded={isDesktopCategoriesOpen}
+                    aria-label={
+                      isDesktopCategoriesOpen
+                        ? "Collapse categories"
+                        : "Expand categories"
+                    }
+                  >
+                    {isDesktopCategoriesOpen ? (
+                      <ChevronUp className="size-3.5" />
+                    ) : (
+                      <ChevronDown className="size-3.5" />
+                    )}
+                    {isDesktopCategoriesOpen ? "Hide" : "Show"}
+                  </button>
                 </div>
+
+                {isDesktopCategoriesOpen ? (
+                  <div className="mt-3 grid grid-cols-2 gap-1.5 [@media(max-height:850px)]:mt-2">
+                    {CATEGORY_ORDER.map(
+                      (category) => {
+                        const active = selectedCategories.includes(category);
+
+                        return (
+                          <CategoryFilterChip
+                            key={category}
+                            active={active}
+                            category={category}
+                            onClick={toggleCategory}
+                          />
+                        );
+                      },
+                    )}
+                  </div>
+                ) : selectedCategories.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {selectedCategories.map((category) => (
+                      <span
+                        key={category}
+                        className="rounded-full border border-slate-200 bg-white/65 px-2 py-1 text-[10px] font-medium text-slate-600"
+                      >
+                        {categoryMeta[category].label}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
-              <div className="flex-1 overflow-hidden p-4">
-                <div className="mb-3 flex items-center justify-between">
+              <div className="min-h-0 flex-1 overflow-hidden p-4 pb-2 [@media(max-height:850px)]:p-3 [@media(max-height:850px)]:pb-2">
+                <div className="mb-3 flex shrink-0 items-center justify-between">
                   <p className="text-sm font-medium text-slate-800">
                     Featured & Nearby
                   </p>
@@ -1525,7 +1563,7 @@ export function CustomStyleExample() {
                   </button>
                 </div>
 
-                <div className="h-full space-y-2 overflow-y-auto pr-1">
+                <div className="h-[calc(100%-3rem)] min-h-0 space-y-2 overflow-y-auto pr-1">
                   {visiblePois.map(
                     (poi) => {
                       const meta = categoryMeta[poi.category];
@@ -1537,7 +1575,7 @@ export function CustomStyleExample() {
                           key={poi.id}
                           type="button"
                           onClick={() => handlePoiMarkerClick(poi)}
-                          className={`w-full rounded-3xl border p-4 text-left transition-all ${
+                          className={`w-full rounded-3xl border p-4 text-left transition-all [@media(max-height:850px)]:rounded-2xl [@media(max-height:850px)]:p-3 ${
                             isSelected
                               ? "border-cyan-300 bg-cyan-50 shadow-sm"
                               : "border-slate-200 bg-white/75 hover:bg-slate-50"
@@ -1598,8 +1636,8 @@ export function CustomStyleExample() {
                 </div>
               </div>
 
-              <div className="border-t border-slate-200/80 p-4">
-                <div className="mb-2 grid grid-cols-2 gap-2">
+              <div className="shrink-0 border-t border-slate-200/80 p-4 [@media(max-height:850px)]:p-3">
+                <div className="mb-2 grid grid-cols-2 gap-2 [@media(max-height:850px)]:mb-1.5">
                   <button
                     type="button"
                     onClick={() =>
@@ -1609,7 +1647,7 @@ export function CustomStyleExample() {
                         duration: 1200,
                       })
                     }
-                    className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-sm text-slate-800 transition hover:bg-slate-50"
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-sm text-slate-800 transition hover:bg-slate-50 [@media(max-height:850px)]:py-2 [@media(max-height:850px)]:text-xs"
                   >
                     <MapPinned className="size-4" />
                     Project
@@ -1618,21 +1656,21 @@ export function CustomStyleExample() {
                   <button
                     type="button"
                     onClick={resetFilters}
-                    className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-sm text-slate-800 transition hover:bg-slate-50"
+                    className="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white/80 px-3 py-3 text-sm text-slate-800 transition hover:bg-slate-50 [@media(max-height:850px)]:py-2 [@media(max-height:850px)]:text-xs"
                   >
                     <X className="size-4" />
                     Reset
                   </button>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white/70 p-3">
+                <div className="rounded-2xl border border-slate-200 bg-white/70 p-3 [@media(max-height:850px)]:hidden">
                   <p className="text-xs uppercase tracking-wide text-slate-500">
                     Map Style
                   </p>
                   <select
                     value={style}
                     onChange={(e) => setStyle(e.target.value as StyleKey)}
-                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none"
+                    className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none [@media(max-height:850px)]:py-1.5 [@media(max-height:850px)]:text-xs"
                   >
                     <option value="default">Default (Carto)</option>
                     <option value="openstreetmap">OpenStreetMap</option>
@@ -1640,11 +1678,11 @@ export function CustomStyleExample() {
                   </select>
                 </div>
 
-                <div className="mt-3 rounded-2xl border border-slate-200 bg-white/70 p-3">
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-white/70 p-3 [@media(max-height:850px)]:hidden">
                   <p className="text-xs uppercase tracking-wide text-slate-500">
                     Route Mode
                   </p>
-                  <p className="mt-1 text-sm text-slate-700">
+                  <p className="mt-1 text-sm text-slate-700 [@media(max-height:850px)]:text-xs">
                     Click any POI to show an animated route from the project
                     center.
                   </p>

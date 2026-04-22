@@ -4,8 +4,10 @@ import {
   Suspense,
   memo,
   startTransition,
+  type MouseEvent as ReactMouseEvent,
   type MutableRefObject,
   type TouchEvent as ReactTouchEvent,
+  type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
   useMemo,
@@ -440,6 +442,20 @@ function wrapFrame(frame: number) {
 
 function wrapProgress(progress: number) {
   return ((progress % 1) + 1) % 1;
+}
+
+function getWheelPixelDelta(event: WheelEvent | ReactWheelEvent<Element>) {
+  const scale =
+    event.deltaMode === 1
+      ? 16
+      : event.deltaMode === 2
+        ? window.innerWidth
+        : 1;
+
+  return {
+    x: event.deltaX * scale,
+    y: event.deltaY * scale,
+  };
 }
 
 function frameToProgress(frame: number) {
@@ -2355,6 +2371,7 @@ const TowerScene = memo(function TowerScene({
     null,
   );
   const activeTowerCode = towerTypeToCode(selectedTower) ?? "A";
+  const interactiveTowerScope = useMemo<TowerType | null>(() => null, []);
   const preparedTowerA = useMemo(
     () =>
       getPreparedTowerScene(
@@ -2488,20 +2505,20 @@ const TowerScene = memo(function TowerScene({
     return next;
   }, [preparedTowerA.apartments, preparedTowerB.apartments]);
   const activeApartments = useMemo(() => {
-    if (selectedTower === "Tower A") {
+    if (interactiveTowerScope === "Tower A") {
       return preparedTowerA.apartments;
     }
 
-    if (selectedTower === "Tower B") {
+    if (interactiveTowerScope === "Tower B") {
       return preparedTowerB.apartments;
     }
 
     return combinedApartments;
   }, [
     combinedApartments,
+    interactiveTowerScope,
     preparedTowerA.apartments,
     preparedTowerB.apartments,
-    selectedTower,
   ]);
   const activeHotspot = useMemo(
     () => getNearestMasterPlanHotspot(currentFrame),
@@ -2518,14 +2535,20 @@ const TowerScene = memo(function TowerScene({
       const apartmentIds = new Set<string>();
 
       activeApartments.forEach((_, apartmentId) => {
-        if (!isApartmentIdAllowedAtHotspot(apartmentId, hotspotKey, selectedTower)) {
+        if (
+          !isApartmentIdAllowedAtHotspot(
+            apartmentId,
+            hotspotKey,
+            interactiveTowerScope,
+          )
+        ) {
           return;
         }
 
         const inventoryApartment = findInventoryApartmentInIndex(
           apartmentIndex,
           apartmentId,
-          selectedTower,
+          interactiveTowerScope,
         );
 
         if (inventoryApartment && inventoryApartment.floor > 0) {
@@ -2537,7 +2560,7 @@ const TowerScene = memo(function TowerScene({
     });
 
     return next;
-  }, [activeApartments, apartmentIndex, selectedTower]);
+  }, [activeApartments, apartmentIndex, interactiveTowerScope]);
   const inventoryBackedApartmentIds = useMemo(
     () => inventoryBackedApartmentIdsByHotspot.get(activeHotspot) ?? EMPTY_APARTMENT_IDS,
     [activeHotspot, inventoryBackedApartmentIdsByHotspot],
@@ -2551,20 +2574,20 @@ const TowerScene = memo(function TowerScene({
     [preparedTowerA.pickableMeshes, preparedTowerB.pickableMeshes],
   );
   const hoverPickableMeshes = useMemo(() => {
-    if (selectedTower === "Tower A") {
+    if (interactiveTowerScope === "Tower A") {
       return preparedTowerA.pickableMeshes;
     }
 
-    if (selectedTower === "Tower B") {
+    if (interactiveTowerScope === "Tower B") {
       return preparedTowerB.pickableMeshes;
     }
 
     return combinedPickableMeshes;
   }, [
     combinedPickableMeshes,
+    interactiveTowerScope,
     preparedTowerA.pickableMeshes,
     preparedTowerB.pickableMeshes,
-    selectedTower,
   ]);
   const hotspotPickMap = useMemo(
     () =>
@@ -2725,11 +2748,11 @@ const TowerScene = memo(function TowerScene({
       isApartmentIdAllowedAtHotspot(
         hoveredApartmentId,
         activeHotspot,
-        selectedTower,
+        interactiveTowerScope,
       )
         ? hoveredApartmentId
         : null,
-    [activeHotspot, hoveredApartmentId, selectedTower],
+    [activeHotspot, hoveredApartmentId, interactiveTowerScope],
   );
   const activeHoveredApartmentId =
     allowHover ? hotspotHoveredApartmentId : null;
@@ -2958,6 +2981,7 @@ export default function MasterPlanFrameHoverStage({
   const dragFrameRef = useRef<number | null>(null);
   const hoverCooldownTimeoutRef = useRef<number | null>(null);
   const hoverClearTimeoutRef = useRef<number | null>(null);
+  const wheelSettleTimeoutRef = useRef<number | null>(null);
   const hasObservedUserScrubRef = useRef(false);
   const displayedFrameRef = useRef(wrapFrame(currentFrame));
   const displayedFrameStateRef = useRef(wrapFrame(currentFrame));
@@ -3610,6 +3634,13 @@ export default function MasterPlanFrameHoverStage({
     setIsSettling(false);
   }, []);
 
+  const stopWheelSettle = useCallback(() => {
+    if (wheelSettleTimeoutRef.current !== null) {
+      window.clearTimeout(wheelSettleTimeoutRef.current);
+      wheelSettleTimeoutRef.current = null;
+    }
+  }, []);
+
   const animateToProgress = useCallback(
     (
       targetProgress: number,
@@ -3682,6 +3713,89 @@ export default function MasterPlanFrameHoverStage({
       stopDragLoop,
       stopMotionAnimation,
       syncDisplayedFrameState,
+      syncSnapVisibility,
+      syncVideoTime,
+    ],
+  );
+
+  const finishWheelScrub = useCallback(() => {
+    wheelSettleTimeoutRef.current = null;
+    setIsDragging(false);
+
+    const releaseFrame = progressToFrame(displayProgressRef.current);
+    const snappedFrame = getNearestSnapFrame(releaseFrame);
+    const targetProgress = frameToProgress(snappedFrame);
+    const totalFrames =
+      Math.abs(
+        getShortestProgressDelta(displayProgressRef.current, targetProgress),
+      ) * TOTAL_FRAMES;
+    const duration = Math.min(
+      SNAP_ANIMATION_MAX_DURATION_MS,
+      Math.max(
+        SNAP_ANIMATION_MIN_DURATION_MS,
+        totalFrames * SNAP_ANIMATION_MS_PER_FRAME,
+      ),
+    );
+
+    animateToProgress(targetProgress, duration, () => {
+      startHoverCooldown();
+      onSetFrame(snappedFrame);
+    });
+  }, [animateToProgress, onSetFrame, startHoverCooldown]);
+
+  const handleStageWheel = useCallback(
+    (event: ReactWheelEvent<HTMLDivElement>) => {
+      if (!dragEnabled) {
+        return;
+      }
+
+      const wheelDelta = getWheelPixelDelta(event);
+      const horizontalDelta =
+        Math.abs(wheelDelta.x) >= Math.abs(wheelDelta.y) * 0.55
+          ? wheelDelta.x
+          : event.shiftKey
+            ? wheelDelta.y
+            : 0;
+
+      if (Math.abs(horizontalDelta) < 0.5) {
+        return;
+      }
+
+      event.preventDefault();
+      hasObservedUserScrubRef.current = true;
+      clearHoverCooldown();
+      clearHoveredApartment();
+      stopWheelSettle();
+      stopDragLoop();
+      stopMotionAnimation();
+      setIsDragging(true);
+      lastPassiveVideoSyncFrameRef.current = null;
+      lastPassiveVideoSyncTimeRef.current = 0;
+
+      const nextProgress = wrapProgress(
+        displayProgressRef.current -
+          horizontalDelta / (dragConfig.pixelsPerFrame * TOTAL_FRAMES),
+      );
+
+      dragTargetProgressRef.current = nextProgress;
+      commitProgress(nextProgress);
+      syncVideoTime(videoRef.current, nextProgress, { force: true });
+      syncSnapVisibility(progressToFrame(nextProgress), "dragging");
+      invalidateCanvas();
+
+      wheelSettleTimeoutRef.current = window.setTimeout(finishWheelScrub, 140);
+    },
+    [
+      clearHoverCooldown,
+      clearHoveredApartment,
+      commitProgress,
+      dragConfig.pixelsPerFrame,
+      dragEnabled,
+      finishWheelScrub,
+      invalidateCanvas,
+      stopDragLoop,
+      stopMotionAnimation,
+      stopWheelSettle,
       syncSnapVisibility,
       syncVideoTime,
     ],
@@ -4060,11 +4174,138 @@ export default function MasterPlanFrameHoverStage({
   ]);
 
   useEffect(() => {
+    if (!dragEnabled) {
+      return;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const dragState = dragStateRef.current;
+
+      if (!dragState || dragState.pointerId !== -1) {
+        return;
+      }
+
+      const deltaX = event.clientX - dragState.startX;
+
+      if (!dragState.didDrag && Math.abs(deltaX) < DRAG_THRESHOLD_PX) {
+        return;
+      }
+
+      if (!dragState.didDrag) {
+        dragState.didDrag = true;
+        hasObservedUserScrubRef.current = true;
+        clearHoverCooldown();
+        setIsDragging(true);
+        syncSnapVisibility(displayedFrameRef.current, "dragging");
+        lastDisplayedFrameCommitTimeRef.current = 0;
+        lastDragVideoSyncFrameRef.current = null;
+        lastDragVideoSyncTimeRef.current = 0;
+        lastPassiveVideoSyncFrameRef.current = null;
+        lastPassiveVideoSyncTimeRef.current = 0;
+        stopDragLoop();
+        stopMotionAnimation();
+        clearHoveredApartment();
+      }
+
+      event.preventDefault();
+      const elapsedMs = Math.max(event.timeStamp - dragState.lastTimestamp, 1);
+      const rawDeltaX = event.clientX - dragState.lastClientX;
+      const maxDeltaX = dragConfig.maxPointerPixelsPerMs * elapsedMs;
+      const clampedIncrement = Math.max(
+        -maxDeltaX,
+        Math.min(maxDeltaX, rawDeltaX),
+      );
+      const pendingDeltaLimit =
+        maxDeltaX * (isStartupInteractionPending ? 1.35 : 2.4);
+      pendingPointerDeltaXRef.current = clampNumber(
+        pendingPointerDeltaXRef.current + clampedIncrement,
+        -pendingDeltaLimit,
+        pendingDeltaLimit,
+      );
+      dragState.lastClientX = event.clientX;
+      dragState.lastTimestamp = event.timeStamp;
+      startDragLoop();
+    };
+
+    const handleMouseEnd = () => {
+      const dragState = dragStateRef.current;
+
+      if (!dragState || dragState.pointerId !== -1) {
+        return;
+      }
+
+      applyPendingDragDelta(dragState);
+
+      dragStateRef.current = null;
+      setIsDragging(false);
+      stopDragLoop();
+      pendingPointerDeltaXRef.current = 0;
+
+      if (!dragState.didDrag) {
+        return;
+      }
+
+      const releaseFrame = progressToFrame(dragTargetProgressRef.current);
+      const dragDirection =
+        dragState.clampedDeltaX === 0
+          ? 0
+          : dragState.clampedDeltaX > 0
+            ? -1
+            : 1;
+      const snappedFrame =
+        dragDirection === 0
+          ? getNearestSnapFrame(releaseFrame)
+          : getDirectionalSnapFrame(releaseFrame, dragDirection);
+      const targetProgress = frameToProgress(snappedFrame);
+      dragTargetProgressRef.current = targetProgress;
+      const totalFrames =
+        Math.abs(
+          getShortestProgressDelta(displayProgressRef.current, targetProgress),
+        ) * TOTAL_FRAMES;
+      const duration = Math.min(
+        SNAP_ANIMATION_MAX_DURATION_MS,
+        Math.max(
+          SNAP_ANIMATION_MIN_DURATION_MS,
+          totalFrames * SNAP_ANIMATION_MS_PER_FRAME,
+        ),
+      );
+
+      animateToProgress(targetProgress, duration, () => {
+        startHoverCooldown();
+        onSetFrame(snappedFrame);
+      });
+    };
+
+    window.addEventListener("mousemove", handleMouseMove, { passive: false });
+    window.addEventListener("mouseup", handleMouseEnd);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseEnd);
+    };
+  }, [
+    applyPendingDragDelta,
+    animateToProgress,
+    clearHoverCooldown,
+    clearHoveredApartment,
+    dragConfig.maxPointerPixelsPerMs,
+    dragEnabled,
+    isStartupInteractionPending,
+    onSetFrame,
+    startDragLoop,
+    startHoverCooldown,
+    stopDragLoop,
+    stopMotionAnimation,
+    syncSnapVisibility,
+  ]);
+
+  useEffect(() => {
     return () => {
       cancelPendingHoverClear();
       clearHoverCooldown();
       pendingPointerDeltaXRef.current = 0;
       lastTooltipPointerRef.current = null;
+      stopWheelSettle();
       stopDragLoop();
       stopMotionAnimation();
       stopScheduledProgress();
@@ -4075,6 +4316,7 @@ export default function MasterPlanFrameHoverStage({
   }, [
     cancelPendingHoverClear,
     clearHoverCooldown,
+    stopWheelSettle,
     stopDragLoop,
     stopMotionAnimation,
     stopScheduledProgress,
@@ -4129,6 +4371,7 @@ export default function MasterPlanFrameHoverStage({
     () => getNearestMasterPlanHotspot(trackingFrame),
     [trackingFrame],
   );
+  const interactiveTowerScope = useMemo<TowerType | null>(() => null, []);
   const apartmentIndex = useMemo(
     () => buildInventoryApartmentIndex(apartments),
     [apartments],
@@ -4136,7 +4379,7 @@ export default function MasterPlanFrameHoverStage({
   const hoveredInventoryCandidate = findInventoryApartmentInIndex(
     apartmentIndex,
     hoveredApartmentId,
-    selectedTower,
+    interactiveTowerScope,
   );
   const hotspotHoveredApartmentId =
     hoveredApartmentId &&
@@ -4144,7 +4387,7 @@ export default function MasterPlanFrameHoverStage({
     isApartmentIdAllowedAtHotspot(
       hoveredApartmentId,
       activeHotspot,
-      selectedTower,
+      interactiveTowerScope,
     )
       ? hoveredApartmentId
       : null;
@@ -4155,18 +4398,18 @@ export default function MasterPlanFrameHoverStage({
       findInventoryApartmentInIndex(
         apartmentIndex,
         apartmentId,
-        selectedTower,
+        interactiveTowerScope,
       )?.status ?? null,
-    [apartmentIndex, selectedTower],
+    [apartmentIndex, interactiveTowerScope],
   );
   const hoveredApartment = useMemo(
-    () => formatApartmentLabel(activeHoveredApartmentId, selectedTower),
-    [activeHoveredApartmentId, selectedTower],
+    () => formatApartmentLabel(activeHoveredApartmentId, interactiveTowerScope),
+    [activeHoveredApartmentId, interactiveTowerScope],
   );
   const hoveredInventoryApartment = findInventoryApartmentInIndex(
     apartmentIndex,
     activeHoveredApartmentId,
-    selectedTower,
+    interactiveTowerScope,
   );
   const hoveredFlatLabel = (
     hoveredInventoryApartment?.flatNumber ||
@@ -4190,12 +4433,12 @@ export default function MasterPlanFrameHoverStage({
         findInventoryApartmentInIndex(
           apartmentIndex,
           apartmentMeshId,
-          selectedTower,
+          interactiveTowerScope,
         ),
         apartmentMeshId,
       );
     },
-    [apartmentIndex, onApartmentSelect, selectedTower],
+    [apartmentIndex, interactiveTowerScope, onApartmentSelect],
   );
 
   useEffect(() => {
@@ -4556,6 +4799,45 @@ export default function MasterPlanFrameHoverStage({
     mobileGestureRef.current = createDefaultMobileStageGestureState();
   }, []);
 
+  const beginScrubInteraction = useCallback(
+    (clientX: number, timeStamp: number, pointerId: number) => {
+      if (!dragEnabled) {
+        return;
+      }
+
+      clearHoverCooldown();
+      stopMotionAnimation();
+      stopWheelSettle();
+      stopDragLoop();
+      pendingPointerDeltaXRef.current = 0;
+      lastDragVideoSyncFrameRef.current = null;
+      lastDragVideoSyncTimeRef.current = 0;
+      syncVideoTime(videoRef.current, displayProgressRef.current, {
+        force: true,
+      });
+      invalidateCanvas();
+      dragTargetProgressRef.current = displayProgressRef.current;
+      dragStateRef.current = {
+        clampedDeltaX: 0,
+        didDrag: false,
+        lastClientX: clientX,
+        lastTimestamp: timeStamp,
+        pointerId,
+        startProgress: displayProgressRef.current,
+        startX: clientX,
+      };
+    },
+    [
+      clearHoverCooldown,
+      dragEnabled,
+      invalidateCanvas,
+      stopDragLoop,
+      stopMotionAnimation,
+      stopWheelSettle,
+      syncVideoTime,
+    ],
+  );
+
   useEffect(() => {
     if (!dragStateRef.current && !isSettlingRef.current) {
       syncVideoTime(videoRef.current, displayProgressRef.current, { force: true });
@@ -4582,7 +4864,7 @@ export default function MasterPlanFrameHoverStage({
   return (
     <section
       ref={sectionRef}
-      className="absolute inset-0 overflow-hidden bg-black"
+      className="absolute inset-0 select-none overflow-hidden bg-black [touch-action:none] [-webkit-user-drag:none] [-webkit-user-select:none]"
     >
       <div
         className={`absolute inset-0 bg-cover bg-center transition-opacity duration-300 ${
@@ -4624,10 +4906,18 @@ export default function MasterPlanFrameHoverStage({
             />
 
             <div
+              onWheelCapture={handleStageWheel}
               onTouchStartCapture={handleStageTouchStart}
               onTouchMoveCapture={handleStageTouchMove}
               onTouchEndCapture={handleStageTouchEnd}
               onTouchCancelCapture={handleStageTouchCancel}
+              onMouseDownCapture={(event: ReactMouseEvent<HTMLDivElement>) => {
+                if (event.button !== 0 || dragStateRef.current) {
+                  return;
+                }
+
+                beginScrubInteraction(event.clientX, event.timeStamp, -1);
+              }}
               onPointerDownCapture={(event) => {
                 if (
                   event.pointerType === "touch" &&
@@ -4647,26 +4937,11 @@ export default function MasterPlanFrameHoverStage({
                   return;
                 }
 
-                clearHoverCooldown();
-                stopMotionAnimation();
-                stopDragLoop();
-                pendingPointerDeltaXRef.current = 0;
-                lastDragVideoSyncFrameRef.current = null;
-                lastDragVideoSyncTimeRef.current = 0;
-                syncVideoTime(videoRef.current, displayProgressRef.current, {
-                  force: true,
-                });
-                invalidateCanvas();
-                dragTargetProgressRef.current = displayProgressRef.current;
-                dragStateRef.current = {
-                  clampedDeltaX: 0,
-                  didDrag: false,
-                  lastClientX: event.clientX,
-                  lastTimestamp: event.timeStamp,
-                  pointerId: event.pointerId,
-                  startProgress: displayProgressRef.current,
-                  startX: event.clientX,
-                };
+                beginScrubInteraction(
+                  event.clientX,
+                  event.timeStamp,
+                  event.pointerId,
+                );
               }}
               onPointerUpCapture={(event) => {
                 if (
