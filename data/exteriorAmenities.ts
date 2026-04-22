@@ -230,13 +230,12 @@ startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0180", {
     coordinateKey: "Bussiness Lounge",
     description:
       "A composed lounge-side exterior pocket connected to the entry and clubhouse edge.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior6_F0020", {
-  yaw: -104.8365,
-  pitch: -7.1619,
-  angle: -104.8365,
-  viewPitch: -7.1619,
+startingPano: startingPano("LS_BP_panoPath_Exterior6_F0020", {
+  yaw: -112.1653,
+  pitch: -0.4468,
+  angle: -112.1653,
+  viewPitch: -0.4468,
 }),
-
     nodeIds: ids(
       pano("LS_BP_panoPath_Exterior_Entry_F0179"),
       range("LS_BP_panoPath_Exterior6_F", 19, 21),
@@ -250,13 +249,12 @@ startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0180", {
       "https://cdn.sthyra.com/images/amenities-compressed/preview/CampFire.avif",
     description:
       "A warm outdoor gathering setting for evening conversations and relaxed community moments.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior34_F0101", {
-  yaw: 127.0665,
-  pitch: -0.0022,
-  angle: 127.0665,
-  viewPitch: -0.0022,
+startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0181", {
+  yaw: 94.7766,
+  pitch: -2.522,
+  angle: 94.7766,
+  viewPitch: -2.522,
 }),
-
     nodeIds: ids(
       pano("LS_BP_panoPath_Exterior_Entry_F0181"),
       pano("LS_BP_panoPath_Exterior0_F0152"),
@@ -273,13 +271,12 @@ startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0180", {
       "https://cdn.sthyra.com/images/amenities-compressed/preview/Zen%20garden.avif",
     description:
       "A quiet garden sequence with meditative planting, soft paths, and calm pause points.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior6_F0024", {
-  yaw: -45.4812,
-  pitch: -9.8624,
-  angle: -45.4812,
-  viewPitch: -9.8624,
+startingPano: startingPano("LS_BP_panoPath_Exterior6_F0024", {
+  yaw: -51.7306,
+  pitch: -0.4398,
+  angle: -51.7306,
+  viewPitch: -0.4398,
 }),
-
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior_Entry_F", 182, 183),
       range("LS_BP_panoPath_Exterior0_F", 152, 154),
@@ -291,11 +288,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0180", {
     name: "Meditation Deck",
     description:
       "A calm deck zone placed along the deeper garden route for slower, quieter use.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0186", {
-  yaw: -97.7822,
-  pitch: -7.9389,
-  angle: -97.7822,
-  viewPitch: -7.9389,
+startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0186", {
+  yaw: -101.2601,
+  pitch: 1.0588,
+  angle: -101.2601,
+  viewPitch: 1.0588,
 }),
 
     nodeIds: ids(
@@ -321,11 +318,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0180", {
     name: "Water Cascade",
     description:
       "A water-feature zone with connected entry path and garden-side viewing stops.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior17_F0139", {
-  yaw: 56.4829,
-  pitch: -6.5697,
-  angle: 56.4829,
-  viewPitch: -6.5697,
+startingPano: startingPano("LS_BP_panoPath_Exterior17_F0139", {
+  yaw: 50.7612,
+  pitch: 1.1965,
+  angle: 50.7612,
+  viewPitch: 1.1965,
 }),
 
     nodeIds: ids(
@@ -339,11 +336,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0180", {
     name: "Pergola Sitting",
     description:
       "A pergola seating pocket placed near the water cascade and garden circulation.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0191", {
-  yaw: 114.1592,
-  pitch: -9.3486,
-  angle: 114.1592,
-  viewPitch: -9.3486,
+startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0191", {
+  yaw: 104.8923,
+  pitch: 0.1533,
+  angle: 104.8923,
+  viewPitch: 0.1533,
 }),
 
     nodeIds: ids(range("LS_BP_panoPath_Exterior_Entry_F", 189, 191)),
@@ -356,11 +353,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0180", {
       "https://cdn.sthyra.com/images/amenities-compressed/preview/Picnic%20Lawn.avif",
     description:
       "A relaxed lawn setting for casual picnics, family pauses, and open-air downtime.",
-   startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0155", {
-  yaw: -165.4287,
-  pitch: 1.4535,
-  angle: -165.4287,
-  viewPitch: 1.4535,
+startingPano: startingPano("LS_BP_panoPath_Exterior29_F0092", {
+  yaw: -114.0372,
+  pitch: 2.6674,
+  angle: -114.0372,
+  viewPitch: 2.6674,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior_Entry_F", 192, 193),
@@ -374,11 +371,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0180", {
     coordinateKey: "ButterflyGarden",
     description:
       "A colorful planting zone with a gentle garden route and nature-focused pauses.",
-startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
-  yaw: -26.998,
-  pitch: -2.4186,
-  angle: -26.998,
-  viewPitch: -2.4186,
+startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0155", {
+  yaw: -33.2426,
+  pitch: -0.9569,
+  angle: -33.2426,
+  viewPitch: -0.9569,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior_Entry_F", 194, 196),
@@ -393,11 +390,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     coordinateKey: "FlowerGarden",
     description:
       "A bloom-forward garden area with exterior approach views and nearby picnic-lawn context.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0158", {
-  yaw: -25.155,
-  pitch: -8.7503,
-  angle: -25.155,
-  viewPitch: -8.7503,
+startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0158", {
+  yaw: -24.3114,
+  pitch: -3.1615,
+  angle: -24.3114,
+  viewPitch: -3.1615,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior_Entry_F", 197, 198),
@@ -412,11 +409,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
       "https://cdn.sthyra.com/images/amenities-compressed/preview/Children%20Play%20Area.avif",
     description:
       "A playful outdoor zone for children with connected approach and park-side pano stops.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior7_F0028", {
-  yaw: -63.5707,
-  pitch: -4.2737,
-  angle: -63.5707,
-  viewPitch: -4.2737,
+ startingPano: startingPano("LS_BP_panoPath_Exterior7_F0029", {
+  yaw: -133.7128,
+  pitch: 3.5027,
+  angle: -133.7128,
+  viewPitch: 3.5027,
 }),
     nodeIds: ids(
       pano("LS_BP_panoPath_Exterior_Entry_F0199"),
@@ -430,11 +427,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     description:
       "The outer gate-entry approach before the route moves into the main community landscape.",
     primaryNodeId: pano("LS_BP_panoPath_Exterior_GateEntry_F0000"),
-    startingPano: startingPano("LS_BP_panoPath_Exterior_GateEntry_F0000", {
-  yaw: -19.1407,
-  pitch: 4.2086,
-  angle: -19.1407,
-  viewPitch: 4.2086,
+startingPano: startingPano("LS_BP_panoPath_Exterior_GateEntry_F0000", {
+  yaw: 0.1728,
+  pitch: 3.0224,
+  angle: 0.1728,
+  viewPitch: 3.0224,
 }),
     nodeIds: ids(range("LS_BP_panoPath_Exterior_GateEntry_F", 0, 4)),
   },
@@ -444,11 +441,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     coordinateKey: "Culbhouse",
     description:
       "The clubhouse arrival side with gate-entry approach views and the clubhouse exterior stop.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior_Entry_F0168", {
-  yaw: 88.691,
-  pitch: 14.4664,
-  angle: 88.691,
-  viewPitch: 14.4664,
+startingPano: startingPano("LS_BP_panoPath_Exterior_GateEntry_F0003", {
+  yaw: -4.1312,
+  pitch: 9.0861,
+  angle: -4.1312,
+  viewPitch: 9.0861,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior_GateEntry_F", 5, 8),
@@ -463,11 +460,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
       "https://cdn.sthyra.com/images/amenities-compressed/preview/Play%20Lawn.avif",
     description:
       "A broad active lawn sequence connected to the tower walk and surrounding play edges.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior_TowerA_Walk_F0112", {
-  yaw: -74.4564,
-  pitch: -5.3871,
-  angle: -74.4564,
-  viewPitch: -5.3871,
+startingPano: startingPano("LS_BP_panoPath_Exterior26_F0086", {
+  yaw: -30.1539,
+  pitch: -1.9873,
+  angle: -30.1539,
+  viewPitch: -1.9873,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior_TowerA_Walk_F", 111, 113),
@@ -482,11 +479,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     coordinateKey: "TraditionalGameZone",
     description:
       "A social activity area with tower-walk access and multiple interactive landscape stops.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior37_F0135", {
-  yaw: 96.8175,
-  pitch: -14.4577,
-  angle: 96.8175,
-  viewPitch: -14.4577,
+startingPano: startingPano("LS_BP_panoPath_Exterior26_F0085", {
+  yaw: 173.4943,
+  pitch: -4.938,
+  angle: 173.4943,
+  viewPitch: -4.938,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior_TowerA_Walk_F", 114, 115),
@@ -532,11 +529,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     coordinateKey: "SkatingRing",
     description:
       "A smooth active loop for skating, connected to the tower walk movement route.",
-   startingPano: startingPano("LS_BP_panoPath_Exterior18_F0061", {
-  yaw: -7.4928,
-  pitch: -6.0024,
-  angle: -7.4928,
-  viewPitch: -6.0024,
+startingPano: startingPano("LS_BP_panoPath_Exterior18_F0061", {
+  yaw: 0.0471,
+  pitch: -3.928,
+  angle: 0.0471,
+  viewPitch: -3.928,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior_TowerA_Walk_F", 119, 120),
@@ -551,11 +548,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
       "https://cdn.sthyra.com/images/amenities-compressed/preview/Tenis%20Court.avif",
     description:
       "A court cluster for futsal and tennis with adjoining sports-court pano stops.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior25_F0084", {
-  yaw: 173.7533,
-  pitch: -5.6811,
-  angle: 173.7533,
-  viewPitch: -5.6811,
+startingPano: startingPano("LS_BP_panoPath_Exterior25_F0084", {
+  yaw: -178.386,
+  pitch: -0.8288,
+  angle: -178.386,
+  viewPitch: -0.8288,
 }),
     nodeIds: ids(
       pano("LS_BP_panoPath_Exterior_TowerA_Walk_F0121"),
@@ -572,11 +569,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
       "https://cdn.sthyra.com/images/amenities-compressed/preview/Outdoor%20Gym.avif",
     description:
       "An open-air fitness area with tower walk access and dedicated gym-equipment stops.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior16_F0059", {
-  yaw: 10.9564,
-  pitch: -4.5815,
-  angle: 10.9564,
-  viewPitch: -4.5815,
+startingPano: startingPano("LS_BP_panoPath_Exterior16_F0059", {
+  yaw: 1.5365,
+  pitch: -3.706,
+  angle: 1.5365,
+  viewPitch: -3.706,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior_TowerA_Walk_F", 122, 123),
@@ -589,11 +586,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     coordinateKey: "RockGarden",
     description:
       "A textured landscape pocket with rock-garden views and a tower-walk connection.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior15_F0056", {
-  yaw: -73.3967,
-  pitch: -9.1896,
-  angle: -73.3967,
-  viewPitch: -9.1896,
+startingPano: startingPano("LS_BP_panoPath_Exterior15_F0056", {
+  yaw: -75.7992,
+  pitch: -0.0776,
+  angle: -75.7992,
+  viewPitch: -0.0776,
 }),
     nodeIds: ids(
       pano("LS_BP_panoPath_Exterior_TowerA_Walk_F0124"),
@@ -609,11 +606,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     description:
       "A bodyweight training and sand-pit activity area with a dedicated tower-walk start.",
     primaryNodeId: pano("LS_BP_panoPath_Exterior_TowerA_Walk_F0125"),
-   startingPano: startingPano("LS_BP_panoPath_Exterior14_F0054", {
-  yaw: 135.4006,
-  pitch: -6.9678,
-  angle: 135.4006,
-  viewPitch: -6.9678,
+startingPano: startingPano("LS_BP_panoPath_Exterior14_F0054", {
+  yaw: 134.9134,
+  pitch: -1.0132,
+  angle: 134.9134,
+  viewPitch: -1.0132,
 }),
     nodeIds: ids(
       pano("LS_BP_panoPath_Exterior_TowerA_Walk_F0125"),
@@ -649,11 +646,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
       "https://cdn.sthyra.com/images/amenities-compressed/preview/Outdoor%20Party%20Lawn.avif",
     description:
       "A celebration lawn sequence with surrounding party-lawn and amphitheater-side context.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior9_F0036", {
-  yaw: -3.5682,
-  pitch: -3.2752,
-  angle: -3.5682,
-  viewPitch: -3.2752,
+startingPano: startingPano("LS_BP_panoPath_Exterior10_F0039", {
+  yaw: 143.4252,
+  pitch: -6.4153,
+  angle: 143.4252,
+  viewPitch: -6.4153,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior4_F", 9, 12),
@@ -667,7 +664,12 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     name: "Community Gathering",
     description:
       "A shared social route through gathering spaces, garden connections, and community edges.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior43_F0148"),
+    startingPano: startingPano("LS_BP_panoPath_Exterior43_F0147", {
+  yaw: 28.6085,
+  pitch: -3.1341,
+  angle: 28.6085,
+  viewPitch: -3.1341,
+}),
     nodeIds: ids(
       pano("LS_BP_panoPath_Exterior4_F0013"),
       range("LS_BP_panoPath_Exterior5_F", 14, 17),
@@ -700,11 +702,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
       "https://cdn.sthyra.com/images/amenities-compressed/preview/Mini%20Cricket%20Stadium.avif",
     description:
       "A compact cricket zone for practice, games, and active community play.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior20_F0069", {
-  yaw: -123.1643,
-  pitch: -5.4226,
-  angle: -123.1643,
-  viewPitch: -5.4226,
+startingPano: startingPano("LS_BP_panoPath_Exterior20_F0069", {
+  yaw: -165.298,
+  pitch: -1.2788,
+  angle: -165.298,
+  viewPitch: -1.2788,
 }),
     nodeIds: ids(range("LS_BP_panoPath_Exterior20_F", 67, 69)),
   },
@@ -714,7 +716,12 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     coordinateKey: "PickleBallcourt",
     description:
       "A dedicated pickleball court sequence with adjacent court-side viewpoints.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior24_F0078"),
+    startingPano: startingPano("LS_BP_panoPath_Exterior24_F0078", {
+  yaw: 1.589,
+  pitch: 1.4195,
+  angle: 1.589,
+  viewPitch: 1.4195,
+}),
     nodeIds: ids(
       pano("LS_BP_panoPath_Exterior23_F0077"),
       range("LS_BP_panoPath_Exterior24_F", 78, 79),
@@ -726,7 +733,12 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     coordinateKey: "Tennikoit Court",
     description:
       "A tennikoit play area with court-side stops and surrounding outdoor activity context.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior28_F0081"),
+    startingPano: startingPano("LS_BP_panoPath_Exterior28_F0081", {
+  yaw: -0.0449,
+  pitch: 1.4155,
+  angle: -0.0449,
+  viewPitch: 1.4155,
+}),
     nodeIds: ids(
       pano("LS_BP_panoPath_Exterior27_F0080"),
       range("LS_BP_panoPath_Exterior28_F", 81, 82),
@@ -737,11 +749,11 @@ startingPano: startingPano("LS_BP_panoPath_Exterior2_1_F0156", {
     name: "Tree House",
     description:
       "A playful tree-house zone with connected garden and tower-side exterior stops.",
-    startingPano: startingPano("LS_BP_panoPath_Exterior33_F0100", {
-  yaw: 163.2179,
-  pitch: -5.1828,
-  angle: 163.2179,
-  viewPitch: -5.1828,
+startingPano: startingPano("LS_BP_panoPath_Exterior32_F0097", {
+  yaw: 11.2577,
+  pitch: -1.6304,
+  angle: 11.2577,
+  viewPitch: -1.6304,
 }),
     nodeIds: ids(
       range("LS_BP_panoPath_Exterior32_F", 97, 98),

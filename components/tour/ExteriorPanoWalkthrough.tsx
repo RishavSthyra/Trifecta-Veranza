@@ -85,7 +85,7 @@ const uiFont = Manrope({
   weight: ["500", "600", "700"],
 });
 
-const DEFAULT_ZOOM = 44;
+const DEFAULT_ZOOM = 0;
 const MIN_PITCH = -Math.PI / 2 + 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.08;
 const EXTERIOR_SPHERE_RESOLUTION = 128;
@@ -922,9 +922,7 @@ export default function ExteriorPanoWalkthrough({
         : initialNode
           ? clamp(degToRad(initialNode.pitch), MIN_PITCH, MAX_PITCH)
           : 0;
-      const initialZoom = prefersCoarsePointerRef.current
-        ? initialAmenity?.startingPano.viewZoom ?? DEFAULT_ZOOM - 3
-        : initialAmenity?.startingPano.viewZoom ?? DEFAULT_ZOOM;
+      const initialZoom = initialAmenity?.startingPano.viewZoom ?? DEFAULT_ZOOM;
       const initialTileOnlyPanorama = withoutBasePreview(initialResolved.panorama);
 
       localViewer = new Viewer({
@@ -1274,7 +1272,7 @@ export default function ExteriorPanoWalkthrough({
           MIN_PITCH,
           MAX_PITCH,
         );
-        const targetZoom = options.viewZoom ?? viewer.getZoomLevel();
+        const targetZoom = options.viewZoom ?? DEFAULT_ZOOM;
 
         autorotatePluginRef.current?.stop();
         viewer.rotate({
@@ -1316,7 +1314,7 @@ export default function ExteriorPanoWalkthrough({
           MIN_PITCH,
           MAX_PITCH,
         );
-        const targetZoom = options.viewZoom ?? viewer.getZoomLevel();
+        const targetZoom = options.viewZoom ?? DEFAULT_ZOOM;
         const targetYaw =
           options.viewYawDegrees === undefined
             ? preserveViewYawBetweenNodes(
@@ -1520,7 +1518,7 @@ export default function ExteriorPanoWalkthrough({
           currentPosition.yaw,
         );
         const targetPitch = clamp(currentPosition.pitch, MIN_PITCH, MAX_PITCH);
-        const targetZoom = viewer.getZoomLevel();
+        const targetZoom = DEFAULT_ZOOM;
         let navigated = false;
 
         for (const candidate of rankedCandidates) {

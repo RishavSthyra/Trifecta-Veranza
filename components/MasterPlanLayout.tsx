@@ -2437,8 +2437,8 @@ function MasterPlanFiltersCard({
               <input
                 type="range"
                 min={0}
-                max={1700}
-                step={50}
+                max={1745}
+                step={45}
                 value={minArea}
                 onChange={(e) => onMinAreaChange(Number(e.target.value))}
                 className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/70 accent-zinc-600 dark:bg-white/10 dark:accent-white"
@@ -2572,8 +2572,8 @@ function MasterPlanFiltersCard({
               <input
                 type="range"
                 min={0}
-                max={1700}
-                step={50}
+                max={1745}
+                step={5}
                 value={minArea}
                 onChange={(e) => onMinAreaChange(Number(e.target.value))}
                 className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/70 accent-zinc-600 dark:bg-white/10 dark:accent-white"
