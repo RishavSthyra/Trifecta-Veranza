@@ -11,6 +11,8 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowUp,
+  Check,
+  Clipboard,
   Maximize2,
   Menu,
   Minimize2,
@@ -46,6 +48,7 @@ import {
   normalizePlanar,
   perpendicularRight,
   subVec3,
+  wrapAngleRad,
   type Vec3,
 } from "@/lib/exterior-tour/math";
 import {
@@ -96,6 +99,7 @@ const AUTOROTATE_IDLE_MS = 4000;
 const TRAIL_ADVANCE_MS = 15000;
 const DIRECTIONS: NavigationDirection[] = ["forward", "left", "right", "backward"];
 const VIEW_DIRECTION_ALIGNMENT_FLOOR = 0.08;
+const EXTERIOR_PANO_DEV_TOOL_ENABLED = process.env.NODE_ENV !== "production";
 const DESKTOP_WARMUP_PROFILE = {
   activeFocusLimit: 220,
   activeFocusConcurrency: 24,
@@ -163,6 +167,21 @@ function createLoadState(
   detailProgress = 0,
 ): PanoLoadState {
   return { phase, message, detailProgress };
+}
+
+function radToDeg(value: number) {
+  return (value * 180) / Math.PI;
+}
+
+function roundDebugDegrees(value: number) {
+  const rounded = Number(value.toFixed(4));
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+function formatDebugNumber(value: number) {
+  return Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(4).replace(/\.?0+$/, "");
 }
 
 function scheduleIdle(callback: () => void) {
@@ -552,6 +571,14 @@ export default function ExteriorPanoWalkthrough({
   const [minimapOffset, setMinimapOffset] = useState({ x: 0, y: 0 });
   const [isMinimapDragging, setIsMinimapDragging] = useState(false);
   const [copiedDebugPanoId, setCopiedDebugPanoId] = useState<string | null>(null);
+  const [copiedDebugSnippetPanoId, setCopiedDebugSnippetPanoId] = useState<
+    string | null
+  >(null);
+  const [liveDebugView, setLiveDebugView] = useState<ViewSnapshot>({
+    yaw: 0,
+    pitch: 0,
+    zoom: DEFAULT_ZOOM,
+  });
   const minimapDragRef = useRef<{
     pointerId: number | null;
     lastX: number;
@@ -849,13 +876,22 @@ export default function ExteriorPanoWalkthrough({
       }
 
       const initialNode = graph.byId[initialResolved.nodeId];
-      const initialYaw = initialNode ? degToRad(initialNode.yaw) : 0;
-      const initialPitch = initialNode
-        ? clamp(degToRad(initialNode.pitch), MIN_PITCH, MAX_PITCH)
-        : 0;
+      const initialAmenity = exteriorAmenities.find(
+        (amenity) => amenity.startingPano.nodeId === initialResolved.nodeId,
+      );
+      const initialYaw = initialAmenity
+        ? degToRad(initialAmenity.startingPano.viewYaw)
+        : initialNode
+          ? degToRad(initialNode.yaw)
+          : 0;
+      const initialPitch = initialAmenity
+        ? clamp(degToRad(initialAmenity.startingPano.viewPitch), MIN_PITCH, MAX_PITCH)
+        : initialNode
+          ? clamp(degToRad(initialNode.pitch), MIN_PITCH, MAX_PITCH)
+          : 0;
       const initialZoom = prefersCoarsePointerRef.current
-        ? DEFAULT_ZOOM - 3
-        : DEFAULT_ZOOM;
+        ? initialAmenity?.startingPano.viewZoom ?? DEFAULT_ZOOM - 3
+        : initialAmenity?.startingPano.viewZoom ?? DEFAULT_ZOOM;
       const initialTileOnlyPanorama = withoutBasePreview(initialResolved.panorama);
 
       localViewer = new Viewer({
@@ -941,6 +977,13 @@ export default function ExteriorPanoWalkthrough({
           yaw: position.yaw,
           pitch: position.pitch,
         };
+        if (EXTERIOR_PANO_DEV_TOOL_ENABLED) {
+          setLiveDebugView((current) => ({
+            ...current,
+            yaw: position.yaw,
+            pitch: position.pitch,
+          }));
+        }
       });
 
       localViewer.addEventListener("zoom-updated", ({ zoomLevel }) => {
@@ -948,16 +991,26 @@ export default function ExteriorPanoWalkthrough({
           ...viewRef.current,
           zoom: zoomLevel,
         };
+        if (EXTERIOR_PANO_DEV_TOOL_ENABLED) {
+          setLiveDebugView((current) => ({
+            ...current,
+            zoom: zoomLevel,
+          }));
+        }
       });
 
       localViewer.addEventListener("ready", () => {
         const readyPosition = localViewer?.getPosition();
-
-        viewRef.current = {
+        const readyView = {
           yaw: readyPosition?.yaw ?? 0,
           pitch: readyPosition?.pitch ?? 0,
           zoom: localViewer?.getZoomLevel() ?? DEFAULT_ZOOM,
         };
+
+        viewRef.current = readyView;
+        if (EXTERIOR_PANO_DEV_TOOL_ENABLED) {
+          setLiveDebugView(readyView);
+        }
       });
     })();
 
@@ -971,7 +1024,7 @@ export default function ExteriorPanoWalkthrough({
         autorotatePluginRef.current = null;
       }
     };
-  }, [graph.order, initialRequestedNodeId, resolvePano]);
+  }, [graph.byId, graph.order, initialRequestedNodeId, resolvePano]);
 
   useEffect(() => {
     if (!activeNode) {
@@ -1156,13 +1209,57 @@ export default function ExteriorPanoWalkthrough({
       targetId: string,
       options: {
         recordHistory?: boolean;
+        viewYawDegrees?: number;
+        viewPitchDegrees?: number;
+        viewZoom?: number;
       } = {},
     ) => {
-      if (isTransitioning || targetId === activeNodeIdRef.current) {
+      if (isTransitioning) {
         return;
       }
 
       const viewer = viewerRef.current;
+      if (targetId === activeNodeIdRef.current) {
+        const hasRequestedView =
+          options.viewYawDegrees !== undefined ||
+          options.viewPitchDegrees !== undefined ||
+          options.viewZoom !== undefined;
+
+        if (!viewer || !hasRequestedView) {
+          return;
+        }
+
+        const currentPosition = viewer.getPosition();
+        const targetYaw =
+          options.viewYawDegrees === undefined
+            ? currentPosition.yaw
+            : degToRad(options.viewYawDegrees);
+        const targetPitch = clamp(
+          options.viewPitchDegrees === undefined
+            ? currentPosition.pitch
+            : degToRad(options.viewPitchDegrees),
+          MIN_PITCH,
+          MAX_PITCH,
+        );
+        const targetZoom = options.viewZoom ?? viewer.getZoomLevel();
+
+        autorotatePluginRef.current?.stop();
+        viewer.rotate({
+          yaw: targetYaw,
+          pitch: targetPitch,
+        });
+        viewer.zoom(targetZoom);
+        viewRef.current = {
+          yaw: targetYaw,
+          pitch: targetPitch,
+          zoom: targetZoom,
+        };
+        if (EXTERIOR_PANO_DEV_TOOL_ENABLED) {
+          setLiveDebugView(viewRef.current);
+        }
+        return;
+      }
+
       const fromNode = graph.byId[activeNodeIdRef.current];
       const targetNode = graph.byId[targetId];
       if (!viewer || !fromNode || !targetNode) {
@@ -1178,13 +1275,22 @@ export default function ExteriorPanoWalkthrough({
       try {
         const target = await resolvePano(targetId, { previewPriority: "high" });
         const currentPosition = viewer.getPosition();
-        const targetPitch = clamp(currentPosition.pitch, MIN_PITCH, MAX_PITCH);
-        const targetZoom = viewer.getZoomLevel();
-        const targetYaw = preserveViewYawBetweenNodes(
-          fromNode,
-          targetNode,
-          currentPosition.yaw,
+        const targetPitch = clamp(
+          options.viewPitchDegrees === undefined
+            ? currentPosition.pitch
+            : degToRad(options.viewPitchDegrees),
+          MIN_PITCH,
+          MAX_PITCH,
         );
+        const targetZoom = options.viewZoom ?? viewer.getZoomLevel();
+        const targetYaw =
+          options.viewYawDegrees === undefined
+            ? preserveViewYawBetweenNodes(
+                fromNode,
+                targetNode,
+                currentPosition.yaw,
+              )
+            : degToRad(options.viewYawDegrees);
 
         const panoramaOptions = {
           position: {
@@ -1216,6 +1322,9 @@ export default function ExteriorPanoWalkthrough({
             pitch: targetPitch,
             zoom: targetZoom,
           };
+          if (EXTERIOR_PANO_DEV_TOOL_ENABLED) {
+            setLiveDebugView(viewRef.current);
+          }
 
           if (options.recordHistory !== false) {
             pushNavigationHistory(fromNode.id);
@@ -1241,6 +1350,16 @@ export default function ExteriorPanoWalkthrough({
       }
     },
     [graph, isTransitioning, pushNavigationHistory, resolvePano],
+  );
+
+  const jumpToAmenity = useCallback(
+    (amenity: ExteriorAmenity) =>
+      jumpToNode(amenity.startingPano.nodeId, {
+        viewYawDegrees: amenity.startingPano.viewYaw,
+        viewPitchDegrees: amenity.startingPano.viewPitch,
+        viewZoom: amenity.startingPano.viewZoom,
+      }),
+    [jumpToNode],
   );
 
   const handleMinimapWheel = useCallback(
@@ -1411,6 +1530,9 @@ export default function ExteriorPanoWalkthrough({
               pitch: targetPitch,
               zoom: targetZoom,
             };
+            if (EXTERIOR_PANO_DEV_TOOL_ENABLED) {
+              setLiveDebugView(viewRef.current);
+            }
 
             pushNavigationHistory(fromNode.id);
             setVisitedTrailNodeIds((current) => {
@@ -1466,6 +1588,9 @@ export default function ExteriorPanoWalkthrough({
                 pitch: targetPitch,
                 zoom: targetZoom,
               };
+              if (EXTERIOR_PANO_DEV_TOOL_ENABLED) {
+                setLiveDebugView(viewRef.current);
+              }
 
               pushNavigationHistory(fromNode.id);
               setVisitedTrailNodeIds((current) => {
@@ -1702,6 +1827,28 @@ export default function ExteriorPanoWalkthrough({
     void jumpToNode(previousNodeId, { recordHistory: false });
   }, [historyDepth, isTransitioning, jumpToNode, resetTrailProgress]);
 
+  const liveDebugYawDegrees = roundDebugDegrees(
+    radToDeg(wrapAngleRad(liveDebugView.yaw)),
+  );
+  const liveDebugPitchDegrees = roundDebugDegrees(radToDeg(liveDebugView.pitch));
+  const liveDebugSnippet = useMemo(() => {
+    if (!activeNode) {
+      return "";
+    }
+
+    const yaw = formatDebugNumber(liveDebugYawDegrees);
+    const pitch = formatDebugNumber(liveDebugPitchDegrees);
+
+    return [
+      `startingPano: startingPano("${activeNode.panoId}", {`,
+      `  yaw: ${yaw},`,
+      `  pitch: ${pitch},`,
+      `  angle: ${yaw},`,
+      `  viewPitch: ${pitch},`,
+      `}),`,
+    ].join("\n");
+  }, [activeNode, liveDebugPitchDegrees, liveDebugYawDegrees]);
+
   const copyDebugPanoId = useCallback(async () => {
     if (!activeNode) {
       return;
@@ -1719,6 +1866,24 @@ export default function ExteriorPanoWalkthrough({
       console.error("Failed to copy exterior pano id:", error);
     }
   }, [activeNode]);
+
+  const copyDebugStartingPano = useCallback(async () => {
+    if (!activeNode || !liveDebugSnippet) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(liveDebugSnippet);
+      setCopiedDebugSnippetPanoId(activeNode.panoId);
+      globalThis.setTimeout(() => {
+        setCopiedDebugSnippetPanoId((current) =>
+          current === activeNode.panoId ? null : current,
+        );
+      }, 1000);
+    } catch (error) {
+      console.error("Failed to copy exterior starting pano snippet:", error);
+    }
+  }, [activeNode, liveDebugSnippet]);
 
   if (!activeNode) {
     return (
@@ -1919,7 +2084,7 @@ export default function ExteriorPanoWalkthrough({
                   compact
                   onClick={() => {
                     setIsMobileAmenitiesOpen(false);
-                    void jumpToNode(amenity.primaryNodeId);
+                    void jumpToAmenity(amenity);
                   }}
                 />
               ))}
@@ -2030,7 +2195,7 @@ export default function ExteriorPanoWalkthrough({
                         title={amenity.name}
                         onClick={() => {
                           setIsMobileAmenitiesOpen(false);
-                          void jumpToNode(amenity.primaryNodeId);
+                          void jumpToAmenity(amenity);
                         }}
                         className={`absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/30 transition hover:scale-110 ${
                           activeAmenityId === amenity.id
@@ -2080,6 +2245,67 @@ export default function ExteriorPanoWalkthrough({
           />
         </div>
       </div>
+
+      {EXTERIOR_PANO_DEV_TOOL_ENABLED ? (
+        <div
+          className={`${uiFont.className} pointer-events-none absolute inset-x-0 bottom-[8.65rem] z-30 hidden justify-center px-3 text-white md:flex`}
+        >
+          <div className="pointer-events-auto w-[min(42rem,calc(100vw-1.5rem))] rounded-[1rem] border border-emerald-300/24 bg-black/58 p-3 shadow-[0_18px_48px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-100/72">
+                  Dev pano angles
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copyDebugPanoId()}
+                  className="mt-1 block max-w-full truncate text-left text-xs font-semibold text-white/82 transition hover:text-white"
+                  title="Copy pano name"
+                >
+                  {activeNode.panoId}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => void copyDebugStartingPano()}
+                className="flex h-9 shrink-0 items-center gap-2 rounded-full border border-white/16 bg-white/10 px-3 text-[11px] font-bold uppercase tracking-[0.16em] text-white/86 transition hover:border-white/30 hover:bg-white/16 active:scale-[0.98]"
+              >
+                {copiedDebugSnippetPanoId === activeNode.panoId ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Clipboard className="h-3.5 w-3.5" />
+                )}
+                {copiedDebugSnippetPanoId === activeNode.panoId ? "Copied" : "Copy"}
+              </button>
+            </div>
+
+            <div className="mt-3 grid grid-cols-4 gap-2 text-center text-[11px] font-semibold">
+              {[
+                ["yaw", liveDebugYawDegrees],
+                ["pitch", liveDebugPitchDegrees],
+                ["angle", liveDebugYawDegrees],
+                ["viewPitch", liveDebugPitchDegrees],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="rounded-[0.7rem] border border-white/10 bg-white/[0.07] px-2 py-1.5"
+                >
+                  <div className="text-[9px] uppercase tracking-[0.18em] text-white/42">
+                    {label}
+                  </div>
+                  <div className="mt-0.5 tabular-nums text-white/88">
+                    {formatDebugNumber(value as number)}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <pre className="mt-3 max-h-28 overflow-auto whitespace-pre-wrap rounded-[0.8rem] border border-white/10 bg-black/42 p-3 text-[11px] leading-5 text-emerald-50/88">
+              {liveDebugSnippet}
+            </pre>
+          </div>
+        </div>
+      ) : null}
 
       <div
         className={`${uiFont.className} pointer-events-none absolute inset-x-0 bottom-[5.8rem] z-30 flex justify-center px-3 text-[11px] font-semibold text-white/78 sm:bottom-[6.1rem] sm:text-xs`}
@@ -2291,7 +2517,7 @@ export default function ExteriorPanoWalkthrough({
                     type="button"
                     aria-label={`Go to ${amenity.name}`}
                     title={amenity.name}
-                    onClick={() => void jumpToNode(amenity.primaryNodeId)}
+                    onClick={() => void jumpToAmenity(amenity)}
                     className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/35 transition hover:scale-110 ${
                       isMinimapExpanded ? "h-2 w-2" : "h-1.5 w-1.5"
                     } ${
