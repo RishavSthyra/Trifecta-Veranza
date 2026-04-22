@@ -242,27 +242,27 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
           variants={container}
           initial="hidden"
           animate="show"
-          className="relative flex min-h-full flex-col px-4 py-4 sm:px-5 sm:py-5 md:h-full md:min-h-0 md:px-6 md:py-6 xl:px-5 xl:py-5 min-[1700px]:xl:px-7 min-[1700px]:xl:py-7"
+          className="relative flex min-h-full flex-col px-4 py-4 sm:px-5 sm:py-5 md:h-full md:min-h-0 md:px-6 md:py-6 xl:px-5 xl:py-5 [@media(min-width:1280px)_and_(max-width:1899px)]:px-4 [@media(min-width:1280px)_and_(max-width:1899px)]:py-4 min-[1700px]:xl:px-7 min-[1700px]:xl:py-7"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.75),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(216,201,178,0.18),transparent_28%)]" />
 
-          <div className="relative z-10 grid min-h-full grid-rows-[auto_auto_auto_auto_auto] gap-3 sm:gap-4 md:h-full md:min-h-0 md:grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] xl:gap-3.5">
+          <div className="relative z-10 grid min-h-full grid-rows-[auto_auto_auto_auto_auto] gap-3 sm:gap-4 md:h-full md:min-h-0 md:grid-rows-[auto_auto_auto_minmax(0,1fr)_auto] xl:gap-3.5 [@media(min-width:1280px)_and_(max-width:1899px)]:gap-2.5">
             <motion.div
               variants={fadeUp}
               className="flex items-start justify-between gap-3 sm:gap-4"
             >
               <div className="max-w-full md:max-w-[80%] xl:max-w-[82%]">
-                <p className="mb-1.5 text-[9px] uppercase tracking-[0.28em] text-neutral-500 sm:mb-2 sm:text-[10px] sm:tracking-[0.34em] xl:tracking-[0.38em]">
+                <p className="mb-1.5 text-[9px] uppercase tracking-[0.28em] text-neutral-500 sm:mb-2 sm:text-[10px] sm:tracking-[0.34em] xl:tracking-[0.38em] [@media(min-width:1280px)_and_(max-width:1899px)]:mb-1 [@media(min-width:1280px)_and_(max-width:1899px)]:text-[8px] [@media(min-width:1280px)_and_(max-width:1899px)]:tracking-[0.32em]">
                   Project Overview
                 </p>
 
-                <h2 className="max-w-[560px] text-[1.55rem] font-semibold leading-[0.98] tracking-[-0.04em] text-neutral-900 sm:text-[2rem] md:text-[2.15rem] xl:max-w-[620px] xl:text-[2.12rem] min-[1700px]:xl:text-[2.45rem]">
+                <h2 className="max-w-[560px] text-[1.55rem] font-semibold leading-[0.98] tracking-[-0.04em] text-neutral-900 sm:text-[2rem] md:text-[2.15rem] xl:max-w-[620px] xl:text-[2.12rem] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[1.72rem] min-[1700px]:xl:text-[2.45rem]">
                   Open to sky,
                   <br />
                   rooted in green.
                 </h2>
 
-                <p className="mt-2 max-w-[520px] text-[11px] leading-5 text-neutral-600 sm:mt-3 sm:text-[13px] sm:leading-6 md:text-sm xl:max-w-[560px] xl:text-sm">
+                <p className="mt-2 max-w-[520px] text-[11px] leading-5 text-neutral-600 sm:mt-3 sm:text-[13px] sm:leading-6 md:text-sm xl:max-w-[560px] xl:text-sm [@media(min-width:1280px)_and_(max-width:1899px)]:mt-2 [@media(min-width:1280px)_and_(max-width:1899px)]:text-[11px] [@media(min-width:1280px)_and_(max-width:1899px)]:leading-5">
                   A premium skyrise address designed around openness,
                   landscape, elevation, and a richer everyday living
                   experience.
@@ -271,7 +271,7 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
 
               <motion.div
                 whileHover={{ y: -2 }}
-                className="hidden rounded-full border border-[#d8cdbf] bg-white/70 px-3 py-1.5 text-[9px] uppercase tracking-[0.22em] text-neutral-600 shadow-sm backdrop-blur-sm md:flex xl:px-4 xl:py-2 xl:text-[10px] xl:tracking-[0.28em]"
+                className="hidden rounded-full border border-[#d8cdbf] bg-white/70 px-3 py-1.5 text-[9px] uppercase tracking-[0.22em] text-neutral-600 shadow-sm backdrop-blur-sm md:flex xl:px-4 xl:py-2 xl:text-[10px] xl:tracking-[0.28em] [@media(min-width:1280px)_and_(max-width:1899px)]:px-3 [@media(min-width:1280px)_and_(max-width:1899px)]:py-1.5 [@media(min-width:1280px)_and_(max-width:1899px)]:text-[8px]"
               >
                 <Sparkles className="mr-2 h-3.5 w-3.5" />
                 Veranza
@@ -280,7 +280,7 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
 
             <motion.div
               variants={fadeUp}
-              className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-3 xl:gap-4"
+              className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-3 xl:gap-4 [@media(min-width:1280px)_and_(max-width:1899px)]:grid-cols-1 [@media(min-width:1280px)_and_(max-width:1899px)]:gap-2"
             >
               {statCards.map((item) => (
                 <motion.div
@@ -288,19 +288,21 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                   variants={statReveal}
                   whileHover={{ y: -4, scale: 1.01 }}
                   transition={{ duration: 0.25 }}
-                  className="group rounded-[1rem] border border-[#ded6ca] bg-white/70 p-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] backdrop-blur-sm sm:rounded-[1.2rem] sm:p-3.5 xl:rounded-[1.4rem] xl:p-4"
+                  className="group rounded-[1rem] border border-[#ded6ca] bg-white/70 p-2.5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] backdrop-blur-sm sm:rounded-[1.2rem] sm:p-3.5 xl:rounded-[1.4rem] xl:p-4 [@media(min-width:1280px)_and_(max-width:1899px)]:flex [@media(min-width:1280px)_and_(max-width:1899px)]:items-center [@media(min-width:1280px)_and_(max-width:1899px)]:gap-3 [@media(min-width:1280px)_and_(max-width:1899px)]:rounded-[0.95rem] [@media(min-width:1280px)_and_(max-width:1899px)]:px-3 [@media(min-width:1280px)_and_(max-width:1899px)]:py-2"
                 >
-                  <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-full border border-[#e6dfd4] bg-[#f8f4ee] text-neutral-700 transition-transform duration-300 group-hover:scale-110 sm:mb-4 sm:h-8 sm:w-8 xl:mb-5 xl:h-9 xl:w-9">
+                  <div className="mb-2 flex h-7 w-7 items-center justify-center rounded-full border border-[#e6dfd4] bg-[#f8f4ee] text-neutral-700 transition-transform duration-300 group-hover:scale-110 sm:mb-4 sm:h-8 sm:w-8 xl:mb-5 xl:h-9 xl:w-9 [@media(min-width:1280px)_and_(max-width:1899px)]:mb-0 [@media(min-width:1280px)_and_(max-width:1899px)]:h-8 [@media(min-width:1280px)_and_(max-width:1899px)]:w-8 [@media(min-width:1280px)_and_(max-width:1899px)]:shrink-0">
                     {item.icon}
                   </div>
 
-                  <div className="text-[1.05rem] font-semibold leading-none tracking-[-0.05em] text-neutral-900 sm:text-[1.35rem] md:text-[1.45rem] xl:text-[1.75rem]">
-                    {item.title}
-                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[1.05rem] font-semibold leading-none tracking-[-0.05em] text-neutral-900 sm:text-[1.35rem] md:text-[1.45rem] xl:text-[1.75rem] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[1.05rem]">
+                      {item.title}
+                    </div>
 
-                  <p className="mt-1 max-w-[180px] text-[10px] leading-4 text-neutral-500 sm:mt-2 sm:text-[11px] sm:leading-5 xl:text-xs">
-                    {item.subtitle}
-                  </p>
+                    <p className="mt-1 max-w-[180px] text-[10px] leading-4 text-neutral-500 sm:mt-2 sm:text-[11px] sm:leading-5 xl:text-xs [@media(min-width:1280px)_and_(max-width:1899px)]:mt-0.5 [@media(min-width:1280px)_and_(max-width:1899px)]:max-w-none [@media(min-width:1280px)_and_(max-width:1899px)]:text-[10px] [@media(min-width:1280px)_and_(max-width:1899px)]:leading-4">
+                      {item.subtitle}
+                    </p>
+                  </div>
                 </motion.div>
               ))}
             </motion.div>
@@ -325,7 +327,7 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                     whileTap={{ scale: 0.98 }}
                     whileHover={{ y: -1 }}
                     onClick={() => setActiveView(key)}
-                    className={`rounded-full px-3 py-1.5 text-[9px] uppercase tracking-[0.18em] transition-all duration-300 sm:px-4 sm:py-2 sm:text-[10px] sm:tracking-[0.22em] xl:px-4 xl:py-2 xl:text-[10px] xl:tracking-[0.26em] ${
+                    className={`rounded-full px-3 py-1.5 text-[9px] uppercase tracking-[0.18em] transition-all duration-300 sm:px-4 sm:py-2 sm:text-[10px] sm:tracking-[0.22em] xl:px-4 xl:py-2 xl:text-[10px] xl:tracking-[0.26em] [@media(min-width:1280px)_and_(max-width:1899px)]:px-3 [@media(min-width:1280px)_and_(max-width:1899px)]:py-1.5 [@media(min-width:1280px)_and_(max-width:1899px)]:text-[8px] [@media(min-width:1280px)_and_(max-width:1899px)]:tracking-[0.2em] ${
                       isActive
                         ? "bg-neutral-900 text-white shadow-lg"
                         : "border border-[#ddd3c6] bg-white/70 text-neutral-600"
@@ -341,12 +343,12 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
               variants={fadeUp}
               className="flex min-h-0 flex-col overflow-hidden"
             >
-              <div className="mb-2 flex shrink-0 items-end justify-between gap-3 sm:gap-4">
+              <div className="mb-2 flex shrink-0 items-end justify-between gap-3 sm:gap-4 [@media(min-width:1280px)_and_(max-width:1899px)]:mb-1.5">
                 <div className="min-w-0">
-                  <p className="text-[9px] uppercase tracking-[0.22em] text-neutral-500 sm:text-[10px] sm:tracking-[0.26em] xl:tracking-[0.3em]">
+                  <p className="text-[9px] uppercase tracking-[0.22em] text-neutral-500 sm:text-[10px] sm:tracking-[0.26em] xl:tracking-[0.3em] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[8px]">
                     Signature Performance
                   </p>
-                  <h3 className="mt-1 text-sm font-medium tracking-[-0.03em] text-neutral-900 sm:text-[15px] md:text-base xl:text-lg">
+                  <h3 className="mt-1 text-sm font-medium tracking-[-0.03em] text-neutral-900 sm:text-[15px] md:text-base xl:text-lg [@media(min-width:1280px)_and_(max-width:1899px)]:text-[13px]">
                     {activeView === "lifestyle" &&
                       "Landscape-led living score"}
                     {activeView === "experience" &&
@@ -356,15 +358,15 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                   </h3>
                 </div>
 
-                <p className="hidden max-w-[220px] text-right text-[11px] leading-5 text-neutral-500 md:block xl:text-xs">
+                <p className="hidden max-w-[220px] text-right text-[11px] leading-5 text-neutral-500 md:block xl:text-xs [@media(min-width:1280px)_and_(max-width:1899px)]:max-w-[170px] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[10px] [@media(min-width:1280px)_and_(max-width:1899px)]:leading-4">
                   Interactive visual layer for the overview spread.
                 </p>
               </div>
 
-              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.2rem] border border-[#ddd4c8] bg-white/75 p-2.5 shadow-[0_15px_45px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:rounded-[1.5rem] sm:p-3.5 xl:h-[228px] xl:flex-none xl:rounded-[1.8rem] xl:p-4 min-[1700px]:xl:h-auto min-[1700px]:xl:flex-1">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-[1.2rem] border border-[#ddd4c8] bg-white/75 p-2.5 shadow-[0_15px_45px_rgba(0,0,0,0.05)] backdrop-blur-sm sm:rounded-[1.5rem] sm:p-3.5 xl:h-[228px] xl:flex-none xl:rounded-[1.8rem] xl:p-4 [@media(min-width:1280px)_and_(max-width:1899px)]:h-[255px] [@media(min-width:1280px)_and_(max-width:1899px)]:rounded-[1.25rem] [@media(min-width:1280px)_and_(max-width:1899px)]:p-3 min-[1700px]:xl:h-auto min-[1700px]:xl:flex-1">
                 <div
                   ref={chartWrapRef}
-                  className="h-full w-full min-h-[220px] min-w-0 sm:min-h-[240px] md:min-h-[260px] xl:min-h-[180px] min-[1700px]:xl:min-h-0"
+                  className="h-full w-full min-h-[220px] min-w-0 sm:min-h-[240px] md:min-h-[260px] xl:min-h-[180px] [@media(min-width:1280px)_and_(max-width:1899px)]:min-h-[220px] min-[1700px]:xl:min-h-0"
                 >
                   {ready && (
                     <ResponsiveContainer
@@ -387,12 +389,12 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                             <stop
                               offset="0%"
                               stopColor="#5f6f52"
-                              stopOpacity={0.28}
+                              stopOpacity={0.38}
                             />
                             <stop
                               offset="55%"
                               stopColor="#8f9779"
-                              stopOpacity={0.14}
+                              stopOpacity={0.18}
                             />
                             <stop
                               offset="100%"
@@ -433,7 +435,7 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
                           type="monotone"
                           dataKey="value"
                           stroke="#5f6f52"
-                          strokeWidth={3}
+                          strokeWidth={4}
                           fill="url(#overviewLineFill)"
                           isAnimationActive
                           animationDuration={1400}
@@ -455,22 +457,22 @@ const OverviewRightPage = forwardRef<HTMLDivElement, Props>(
 
             <motion.div
               variants={fadeUp}
-              className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2"
+              className="grid grid-cols-1 gap-3 sm:gap-4 md:grid-cols-2 [@media(min-width:1280px)_and_(max-width:1899px)]:gap-2.5"
             >
               <div>
-                <p className="text-[9px] uppercase tracking-[0.22em] text-neutral-500 sm:text-[10px] sm:tracking-[0.26em] xl:tracking-[0.3em]">
+                <p className="text-[9px] uppercase tracking-[0.22em] text-neutral-500 sm:text-[10px] sm:tracking-[0.26em] xl:tracking-[0.3em] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[8px]">
                   Residence Mix
                 </p>
-                <p className="mt-1.5 text-[12px] text-neutral-700 sm:mt-2 sm:text-sm">
+                <p className="mt-1.5 text-[12px] text-neutral-700 sm:mt-2 sm:text-sm [@media(min-width:1280px)_and_(max-width:1899px)]:mt-1 [@media(min-width:1280px)_and_(max-width:1899px)]:text-[11px]">
                   2 & 3 BHK expansive skyrise residences
                 </p>
               </div>
 
               <div className="text-left md:text-right">
-                <p className="text-[9px] uppercase tracking-[0.22em] text-neutral-500 sm:text-[10px] sm:tracking-[0.26em] xl:tracking-[0.3em]">
+                <p className="text-[9px] uppercase tracking-[0.22em] text-neutral-500 sm:text-[10px] sm:tracking-[0.26em] xl:tracking-[0.3em] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[8px]">
                   Positioning
                 </p>
-                <p className="mt-1.5 text-[12px] text-neutral-700 sm:mt-2 sm:text-sm">
+                <p className="mt-1.5 text-[12px] text-neutral-700 sm:mt-2 sm:text-sm [@media(min-width:1280px)_and_(max-width:1899px)]:mt-1 [@media(min-width:1280px)_and_(max-width:1899px)]:text-[11px]">
                   Designed for openness, elevation, and lifestyle depth
                 </p>
               </div>

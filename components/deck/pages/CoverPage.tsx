@@ -145,9 +145,9 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
         variants={containerVariants}
         initial="hidden"
         animate="show"
-        className="relative z-20 flex h-full flex-col justify-between px-5 pb-5 pt-8 sm:px-10 sm:pb-10 sm:pt-12 xl:px-7 xl:pb-7 xl:pt-9 min-[1700px]:xl:px-10 min-[1700px]:xl:pb-10 min-[1700px]:xl:pt-12"
+        className="relative z-20 flex h-full flex-col justify-between px-5 pb-5 pt-8 sm:px-10 sm:pb-10 sm:pt-12 xl:px-7 xl:pb-7 xl:pt-9 [@media(min-width:1280px)_and_(max-width:1899px)]:px-6 [@media(min-width:1280px)_and_(max-width:1899px)]:pt-8 min-[1700px]:xl:px-10 min-[1700px]:xl:pb-10 min-[1700px]:xl:pt-12"
       >
-        <div className="relative z-30 max-w-[54%] sm:max-w-[50%] lg:max-w-[74%] xl:max-w-[66%] min-[1700px]:xl:max-w-[72%] 2xl:max-w-[88%]">
+        <div className="relative z-30 max-w-[54%] sm:max-w-[50%] lg:max-w-[74%] xl:max-w-[76%] [@media(min-width:1280px)_and_(max-width:1899px)]:max-w-[82%] min-[1700px]:xl:max-w-[72%] 2xl:max-w-[88%]">
           <motion.p
             variants={textReveal}
             className={`mb-3 text-[10px] uppercase tracking-[0.42em] text-[#6f6457] sm:mb-4 sm:text-xs sm:tracking-[0.5em] ${bodyFont.className}`}
@@ -159,10 +159,10 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
             variants={titleContainer}
             initial="hidden"
             animate="show"
-            className={`${titleFont.className} max-w-[500px] font-semibold leading-[0.88] tracking-[-0.04em] text-[#1f1b16] text-[2rem] sm:max-w-[500px] sm:text-[3.3rem] lg:max-w-full lg:text-[2.4rem] xl:text-[2.7rem] min-[1700px]:xl:text-[3.7rem] 2xl:text-[4.5rem]`}
+            className={`${titleFont.className} max-w-[500px] font-semibold leading-[0.88] tracking-[-0.04em] text-[#1f1b16] text-[2rem] sm:max-w-[500px] sm:text-[3.3rem] lg:max-w-full lg:text-[2.4rem] xl:text-[2.52rem] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[2.18rem] min-[1700px]:xl:text-[3.45rem] 2xl:text-[4.2rem]`}
           >
             {titleLines.map((line) => (
-              <div key={line} className="flex flex-wrap overflow-hidden">
+              <div key={line} className="flex overflow-hidden whitespace-nowrap">
                 {line.split("").map((char, index) => (
                   <motion.span
                     key={`${line}-${index}`}
@@ -183,7 +183,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
 
           <motion.p
             variants={textReveal}
-            className={`mt-4 max-w-[290px] text-[11px] font-medium leading-[1.7] text-[#6d6256] sm:mt-5 sm:max-w-[360px] sm:text-[13px] lg:max-w-[390px] xl:max-w-[340px] xl:text-[12px] min-[1700px]:xl:max-w-[390px] min-[1700px]:xl:text-[13px] ${bodyFont.className}`}
+            className={`mt-4 max-w-[290px] text-[11px] font-medium leading-[1.7] text-[#6d6256] sm:mt-5 sm:max-w-[360px] sm:text-[13px] lg:max-w-[390px] xl:max-w-[340px] xl:text-[12px] [@media(min-width:1280px)_and_(max-width:1899px)]:mt-3 [@media(min-width:1280px)_and_(max-width:1899px)]:max-w-[320px] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[11px] min-[1700px]:xl:max-w-[390px] min-[1700px]:xl:text-[13px] ${bodyFont.className}`}
           >
             Curated spaces, elevated comfort, timeless metropolitan sophistication.
           </motion.p>
@@ -211,7 +211,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
             alt="Project cover"
             width={1280}
             height={1600}
-            className="relative z-10 h-[75%] w-auto max-w-none object-contain object-bottom xl:h-[68%] min-[1700px]:xl:h-[72%] 2xl:h-[75%]"
+            className="relative z-10 h-[75%] w-auto max-w-none object-contain object-bottom xl:h-[66%] [@media(min-width:1280px)_and_(max-width:1899px)]:h-[63%] min-[1700px]:xl:h-[72%] 2xl:h-[75%]"
           />
         </div>
       </motion.div>
