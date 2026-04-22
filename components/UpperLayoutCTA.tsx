@@ -276,7 +276,7 @@ export default function UpperLayoutCTA({
 
   if (shouldDockAtBottom) {
     return (
-      <div className="pointer-events-none fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),0.45rem)] z-50 px-2 pb-0">
+      <div className="pointer-events-none fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),1.25rem)] z-50 px-2 pb-0 sm:bottom-[max(env(safe-area-inset-bottom),1.5rem)]">
         <div className="flex items-end justify-start">
           <button
             type="button"

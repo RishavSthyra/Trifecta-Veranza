@@ -86,22 +86,40 @@ const DEFAULT_ZOOM = 44;
 const MIN_PITCH = -Math.PI / 2 + 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.08;
 const EXTERIOR_SPHERE_RESOLUTION = 128;
-const EXTERIOR_COARSE_SPHERE_RESOLUTION = 96;
+const EXTERIOR_COMPACT_SPHERE_RESOLUTION = 64;
 const EXTERIOR_MIN_FOV = 36;
 const EXTERIOR_MAX_FOV = 74;
 const RESOLVED_PANO_CACHE_LIMIT = 10;
-const ACTIVE_HQ_TILE_LIMIT = 220;
-const ACTIVE_HQ_TILE_CONCURRENCY = 24;
-const ACTIVE_SWEEP_TILE_LIMIT = 720;
-const ACTIVE_SWEEP_TILE_CONCURRENCY = 16;
-const TILE_WARM_LIMIT = 96;
-const TILE_WARM_CONCURRENCY = 18;
 const CACHE_MAX_ITEMS = 320;
 const CACHE_TTL_MS = 1000 * 60 * 10;
 const AUTOROTATE_IDLE_MS = 4000;
 const TRAIL_ADVANCE_MS = 15000;
 const DIRECTIONS: NavigationDirection[] = ["forward", "left", "right", "backward"];
 const VIEW_DIRECTION_ALIGNMENT_FLOOR = 0.08;
+const DESKTOP_WARMUP_PROFILE = {
+  activeFocusLimit: 220,
+  activeFocusConcurrency: 24,
+  activeSweepLimit: 720,
+  activeSweepConcurrency: 16,
+  neighborNodeLimit: 8,
+  neighborFocusLimit: 96,
+  neighborFocusConcurrency: 18,
+  neighborSweepLimit: 180,
+  neighborSweepConcurrency: 12,
+  transitionSpeed: 620,
+};
+const COMPACT_WARMUP_PROFILE = {
+  activeFocusLimit: 72,
+  activeFocusConcurrency: 8,
+  activeSweepLimit: 180,
+  activeSweepConcurrency: 6,
+  neighborNodeLimit: 4,
+  neighborFocusLimit: 28,
+  neighborFocusConcurrency: 5,
+  neighborSweepLimit: 44,
+  neighborSweepConcurrency: 4,
+  transitionSpeed: 420,
+};
 
 type SceneTone = "morning" | "golden" | "night";
 
@@ -221,6 +239,10 @@ function buildSweepTiles(
     .slice(0, limit);
 }
 
+function getWarmupProfile(isCompactExperience: boolean) {
+  return isCompactExperience ? COMPACT_WARMUP_PROFILE : DESKTOP_WARMUP_PROFILE;
+}
+
 function getViewForwardVector(node: ExteriorTourNode, yaw: number): Vec3 {
   const heading = Math.atan2(node.forward.y, node.forward.x) + yaw;
 
@@ -294,6 +316,21 @@ function getViewDirectionalCandidates(
 
       return a.distance - b.distance;
     });
+}
+
+function getNavigationDirectionFromPoint(
+  clientX: number,
+  clientY: number,
+  rect: DOMRect,
+): NavigationDirection {
+  const relativeX = (clientX - rect.left) / Math.max(rect.width, 1) - 0.5;
+  const relativeY = (clientY - rect.top) / Math.max(rect.height, 1) - 0.5;
+
+  if (Math.abs(relativeX) > Math.abs(relativeY)) {
+    return relativeX < 0 ? "left" : "right";
+  }
+
+  return relativeY < 0 ? "forward" : "backward";
 }
 
 function withoutBasePreview(panorama: ExteriorPanoramaSource) {
@@ -533,6 +570,23 @@ export default function ExteriorPanoWalkthrough({
   const autorotatePluginRef = useRef<AutorotatePlugin | null>(null);
   const trailProgressFillRef = useRef<HTMLDivElement | null>(null);
   const nodeHistoryRef = useRef<string[]>([]);
+  const panoTapRef = useRef<{
+    pointerId: number | null;
+    startX: number;
+    startY: number;
+    lastTapAt: number;
+    lastTapX: number;
+    lastTapY: number;
+    lastDirection: NavigationDirection | null;
+  }>({
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    lastTapAt: 0,
+    lastTapX: 0,
+    lastTapY: 0,
+    lastDirection: null,
+  });
   const cacheRef = useRef(new Map<string, ResolvedPano>());
   const availabilityRef = useRef(new Map<string, "available" | "missing">());
   const availabilityPromiseRef = useRef(new Map<string, Promise<ResolvedPano>>());
@@ -544,6 +598,7 @@ export default function ExteriorPanoWalkthrough({
   const activeNodeIdRef = useRef(activeNodeId);
   activeNodeIdRef.current = activeNodeId;
   const prefersCoarsePointerRef = useRef(false);
+  const isCompactExperienceRef = useRef(false);
 
   const activeNode = graph.byId[activeNodeId];
   const sequential = useMemo(
@@ -759,6 +814,9 @@ export default function ExteriorPanoWalkthrough({
       prefersCoarsePointerRef.current =
         window.matchMedia?.("(pointer: coarse)").matches ||
         navigator.maxTouchPoints > 0;
+      isCompactExperienceRef.current =
+        window.matchMedia?.("(max-width: 1279px)").matches ||
+        prefersCoarsePointerRef.current;
       viewerHostRef.current!.style.touchAction = "none";
       // viewerHostRef.current!.style.webkitTapHighlightColor = "transparent";
 
@@ -803,8 +861,8 @@ export default function ExteriorPanoWalkthrough({
       localViewer = new Viewer({
         container: viewerHostRef.current,
         adapter: EquirectangularTilesAdapter.withConfig({
-          resolution: prefersCoarsePointerRef.current
-            ? EXTERIOR_COARSE_SPHERE_RESOLUTION
+          resolution: isCompactExperienceRef.current
+            ? EXTERIOR_COMPACT_SPHERE_RESOLUTION
             : EXTERIOR_SPHERE_RESOLUTION,
           showErrorTile: false,
           baseBlur: true,
@@ -893,9 +951,11 @@ export default function ExteriorPanoWalkthrough({
       });
 
       localViewer.addEventListener("ready", () => {
+        const readyPosition = localViewer?.getPosition();
+
         viewRef.current = {
-          yaw: localViewer?.getPosition().yaw ?? 0,
-          pitch: localViewer?.getPosition().pitch ?? 0,
+          yaw: readyPosition?.yaw ?? 0,
+          pitch: readyPosition?.pitch ?? 0,
           zoom: localViewer?.getZoomLevel() ?? DEFAULT_ZOOM,
         };
       });
@@ -922,6 +982,7 @@ export default function ExteriorPanoWalkthrough({
     const cancelIdle = scheduleIdle(() => {
       void (async () => {
         try {
+          const warmupProfile = getWarmupProfile(isCompactExperienceRef.current);
           const resolved = await resolvePano(activeNode.id, { previewPriority: "high" });
           if (cancelled || !resolved.meta) {
             return;
@@ -936,13 +997,13 @@ export default function ExteriorPanoWalkthrough({
               pitch: viewRef.current.pitch,
               zoom: viewRef.current.zoom,
             },
-            ACTIVE_HQ_TILE_LIMIT,
+            warmupProfile.activeFocusLimit,
           );
 
           await preloadTileBatch(
             assetStore,
             focusTiles,
-            ACTIVE_HQ_TILE_CONCURRENCY,
+            warmupProfile.activeFocusConcurrency,
             "high",
           );
 
@@ -955,13 +1016,13 @@ export default function ExteriorPanoWalkthrough({
             resolved.meta,
             cdnBaseUrl,
             new Set(focusTiles.map((tile) => tile.key)),
-            ACTIVE_SWEEP_TILE_LIMIT,
+            warmupProfile.activeSweepLimit,
           );
 
           await preloadTileBatch(
             assetStore,
             sweepTiles,
-            ACTIVE_SWEEP_TILE_CONCURRENCY,
+            warmupProfile.activeSweepConcurrency,
             "auto",
           );
         } catch {
@@ -982,6 +1043,7 @@ export default function ExteriorPanoWalkthrough({
       return;
     }
 
+    const warmupProfile = getWarmupProfile(isCompactExperienceRef.current);
     const warmupIds = [
       ...new Set(
         DIRECTIONS.flatMap((direction) =>
@@ -997,7 +1059,7 @@ export default function ExteriorPanoWalkthrough({
       ),
     ]
       .filter((nodeId): nodeId is string => Boolean(nodeId))
-      .slice(0, 8);
+      .slice(0, warmupProfile.neighborNodeLimit);
 
     if (warmupIds.length === 0) {
       return;
@@ -1032,21 +1094,31 @@ export default function ExteriorPanoWalkthrough({
                 pitch: 0,
                 zoom: viewRef.current.zoom,
               },
-              TILE_WARM_LIMIT,
+              warmupProfile.neighborFocusLimit,
             );
             const sweepTiles = buildSweepTiles(
               resolved.panoId,
               resolved.meta,
               cdnBaseUrl,
               new Set(warmTiles.map((tile) => tile.key)),
-              180,
+              warmupProfile.neighborSweepLimit,
             );
 
-            await preloadTileBatch(assetStore, warmTiles, TILE_WARM_CONCURRENCY, "high");
+            await preloadTileBatch(
+              assetStore,
+              warmTiles,
+              warmupProfile.neighborFocusConcurrency,
+              "high",
+            );
             if (cancelled) {
               return;
             }
-            await preloadTileBatch(assetStore, sweepTiles, 12, "auto");
+            await preloadTileBatch(
+              assetStore,
+              sweepTiles,
+              warmupProfile.neighborSweepConcurrency,
+              "auto",
+            );
           }
         }),
       );
@@ -1097,6 +1169,7 @@ export default function ExteriorPanoWalkthrough({
         return;
       }
 
+      const warmupProfile = getWarmupProfile(isCompactExperienceRef.current);
       autorotatePluginRef.current?.stop();
       setTransitionPulseKey((current) => (current + 1) % 10000);
       setIsTransitioning(true);
@@ -1122,7 +1195,7 @@ export default function ExteriorPanoWalkthrough({
           transition: {
             effect: "fade",
             rotation: false,
-            speed: prefersCoarsePointerRef.current ? 560 : 700,
+            speed: warmupProfile.transitionSpeed,
           },
           showLoader: false,
         } as const;
@@ -1274,13 +1347,15 @@ export default function ExteriorPanoWalkthrough({
         return;
       }
 
+      const warmupProfile = getWarmupProfile(isCompactExperienceRef.current);
       autorotatePluginRef.current?.stop();
       setTransitionPulseKey((current) => (current + 1) % 10000);
       setIsTransitioning(true);
       setLoadState(createLoadState("preview", "Switching panorama"));
+ 
+      const currentPosition = viewer.getPosition();
 
       try {
-        const currentPosition = viewer.getPosition();
         const rankedCandidates = getViewDirectionalCandidates(
           graph,
           activeNodeIdRef.current,
@@ -1321,7 +1396,7 @@ export default function ExteriorPanoWalkthrough({
               transition: {
                 effect: "fade",
                 rotation: false,
-                speed: prefersCoarsePointerRef.current ? 560 : 700,
+                speed: warmupProfile.transitionSpeed,
               },
               showLoader: false,
             } as const;
@@ -1377,7 +1452,7 @@ export default function ExteriorPanoWalkthrough({
                 transition: {
                   effect: "fade",
                   rotation: false,
-                  speed: prefersCoarsePointerRef.current ? 560 : 700,
+                  speed: warmupProfile.transitionSpeed,
                 },
                 showLoader: false,
               });
@@ -1430,6 +1505,94 @@ export default function ExteriorPanoWalkthrough({
     },
     [graph, isTransitioning, pushNavigationHistory, resolvePano],
   );
+
+  useEffect(() => {
+    const host = viewerHostRef.current;
+    if (!host) {
+      return;
+    }
+
+    const handleDoubleClick = (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = host.getBoundingClientRect();
+      const direction = getNavigationDirectionFromPoint(
+        event.clientX,
+        event.clientY,
+        rect,
+      );
+
+      void navigateTo(direction);
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType === "mouse") {
+        return;
+      }
+
+      panoTapRef.current.pointerId = event.pointerId;
+      panoTapRef.current.startX = event.clientX;
+      panoTapRef.current.startY = event.clientY;
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      const tapState = panoTapRef.current;
+
+      if (
+        event.pointerType === "mouse" ||
+        tapState.pointerId !== event.pointerId
+      ) {
+        return;
+      }
+
+      tapState.pointerId = null;
+
+      const travel = Math.hypot(
+        event.clientX - tapState.startX,
+        event.clientY - tapState.startY,
+      );
+
+      if (travel > 14) {
+        return;
+      }
+
+      const rect = host.getBoundingClientRect();
+      const direction = getNavigationDirectionFromPoint(
+        event.clientX,
+        event.clientY,
+        rect,
+      );
+      const now = performance.now();
+      const isDoubleTap =
+        now - tapState.lastTapAt < 320 &&
+        Math.hypot(event.clientX - tapState.lastTapX, event.clientY - tapState.lastTapY) <
+          34 &&
+        tapState.lastDirection === direction;
+
+      tapState.lastTapAt = now;
+      tapState.lastTapX = event.clientX;
+      tapState.lastTapY = event.clientY;
+      tapState.lastDirection = direction;
+
+      if (isDoubleTap) {
+        event.preventDefault();
+        event.stopPropagation();
+        tapState.lastTapAt = 0;
+        void navigateTo(direction);
+      }
+    };
+
+    host.addEventListener("dblclick", handleDoubleClick);
+    host.addEventListener("pointerdown", handlePointerDown);
+    host.addEventListener("pointerup", handlePointerUp);
+
+    return () => {
+      host.removeEventListener("dblclick", handleDoubleClick);
+      host.removeEventListener("pointerdown", handlePointerDown);
+      host.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [navigateTo]);
 
   const resetTrailProgress = useCallback(() => {
     if (trailProgressFillRef.current) {
