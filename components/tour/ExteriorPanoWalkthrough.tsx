@@ -410,6 +410,78 @@ function AmenityCard({
   );
 }
 
+function CurrentAmenityPanel({
+  name,
+  description,
+  nodeIds,
+  activeNodeId,
+  progressIndex,
+  className = "",
+}: {
+  name: string;
+  description: string;
+  nodeIds: string[];
+  activeNodeId: string;
+  progressIndex: number;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`${uiFont.className} pointer-events-auto overflow-hidden rounded-[1.35rem] border border-white/14 bg-[rgba(18,18,17,0.34)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_54px_rgba(0,0,0,0.3)] backdrop-blur-[26px] ${className}`}
+    >
+      <div className="border-b border-white/10 px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-[9px] font-bold uppercase tracking-[0.28em] text-white/45">
+              Current amenity
+            </div>
+            <div className="mt-1 truncate text-base font-semibold leading-none tracking-[0.01em] text-white sm:text-lg">
+              {name}
+            </div>
+          </div>
+          <div className="shrink-0 rounded-full border border-white/14 bg-white/[0.08] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/64">
+            Live view
+          </div>
+        </div>
+
+        <p
+          className="mt-2 text-[11px] leading-5 text-white/56 sm:text-xs"
+          style={{
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 2,
+            overflow: "hidden",
+          }}
+        >
+          {description}
+        </p>
+      </div>
+
+      <div className="px-4 py-3">
+        <div className="flex w-full min-w-0 items-center gap-1 overflow-hidden">
+          {nodeIds.map((nodeId, index) => {
+            const isCurrent = nodeId === activeNodeId;
+            const isVisited = index <= progressIndex;
+
+            return (
+              <span
+                key={`${nodeId}-${index}`}
+                className={`h-1 min-w-0 flex-1 rounded-full transition-colors duration-300 ${
+                  isCurrent
+                    ? "bg-[#f6e7a6] shadow-[0_0_10px_rgba(246,231,166,0.35)]"
+                    : isVisited
+                      ? "bg-[#f6e7a6]/58"
+                      : "bg-white/16"
+                }`}
+              />
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ExteriorPanoWalkthrough({
   nodes,
   cdnBaseUrl,
@@ -1666,6 +1738,16 @@ export default function ExteriorPanoWalkthrough({
 
           <div className="custom-scrollbar mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
             <div className="space-y-3 pb-6">
+              <div className="xl:hidden">
+                <CurrentAmenityPanel
+                  name={activeAmenity?.name ?? "Exterior Trail"}
+                  description={activeAmenityDescription}
+                  nodeIds={activeAmenityNodeIds}
+                  activeNodeId={activeNodeId}
+                  progressIndex={activeAmenityProgressIndex}
+                />
+              </div>
+
               {visibleExteriorAmenities.map((amenity) => (
                 <AmenityCard
                   key={amenity.id}
@@ -1679,7 +1761,7 @@ export default function ExteriorPanoWalkthrough({
                 />
               ))}
 
-              <div className="pt-4 lg:hidden">
+              <div className="pt-4 xl:hidden">
               <div className={`${uiFont.className} text-[10px] uppercase tracking-[0.32em] text-white/42`}>
                 Minimap
               </div>
@@ -1725,6 +1807,57 @@ export default function ExteriorPanoWalkthrough({
                       className="h-full w-full opacity-92"
                       draggable={false}
                     />
+
+                    {minimapTrailPoints.length > 1 ? (
+                      <svg
+                        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                        aria-hidden
+                      >
+                        <polyline
+                          points={minimapTrailPolyline}
+                          fill="none"
+                          stroke="rgba(2,8,23,0.56)"
+                          strokeWidth={1.3}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeDasharray="0.2 1.35"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                        <polyline
+                          points={minimapTrailPolyline}
+                          fill="none"
+                          stroke="rgba(56,189,248,0.68)"
+                          strokeWidth={3.1}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeDasharray="0.2 1.35"
+                          vectorEffect="non-scaling-stroke"
+                          style={{ filter: "blur(2.2px)" }}
+                        />
+                        <polyline
+                          points={minimapTrailPolyline}
+                          fill="none"
+                          stroke="rgba(56,189,248,0.96)"
+                          strokeWidth={1.05}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeDasharray="0.2 1.35"
+                          vectorEffect="non-scaling-stroke"
+                        />
+                      </svg>
+                    ) : null}
+
+                    {minimapTrailPoints.length > 0 ? (
+                      <span
+                        className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/35 bg-[#dff6ff] shadow-[0_0_0_4px_rgba(56,189,248,0.22),0_0_14px_rgba(56,189,248,0.72)]"
+                        style={{
+                          left: `${minimapTrailPoints[minimapTrailPoints.length - 1].leftPercent * 100}%`,
+                          top: `${minimapTrailPoints[minimapTrailPoints.length - 1].topPercent * 100}%`,
+                        }}
+                      />
+                    ) : null}
 
                     {minimapDots.map((amenity) => (
                       <button
@@ -1800,64 +1933,20 @@ export default function ExteriorPanoWalkthrough({
       </div>
 
       <div
-        className={`${uiFont.className} pointer-events-none absolute left-3 right-[4.75rem] bottom-[8.45rem] z-30 sm:left-4 sm:right-auto sm:bottom-[8.6rem] sm:w-[min(22rem,calc(100vw-2rem))] lg:bottom-[8.7rem] xl:bottom-3 xl:left-4 xl:w-[20.5rem] 2xl:left-5 2xl:w-[22rem]`}
+        className="pointer-events-none absolute bottom-3 left-4 z-30 hidden w-[20.5rem] xl:block 2xl:left-5 2xl:w-[22rem]"
       >
-        <div className="pointer-events-auto overflow-hidden rounded-[1.35rem] border border-white/14 bg-[rgba(18,18,17,0.34)] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_54px_rgba(0,0,0,0.3)] backdrop-blur-[26px]">
-          <div className="border-b border-white/10 px-4 py-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-[9px] font-bold uppercase tracking-[0.28em] text-white/45">
-                  Current amenity
-                </div>
-                <div className="mt-1 truncate text-base font-semibold leading-none tracking-[0.01em] text-white sm:text-lg">
-                  {activeAmenity?.name ?? "Exterior Trail"}
-                </div>
-              </div>
-              <div className="shrink-0 rounded-full border border-white/14 bg-white/[0.08] px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-white/64">
-                Live view
-              </div>
-            </div>
-
-            <p
-              className="mt-2 text-[11px] leading-5 text-white/56 sm:text-xs"
-              style={{
-                display: "-webkit-box",
-                WebkitBoxOrient: "vertical",
-                WebkitLineClamp: 2,
-                overflow: "hidden",
-              }}
-            >
-              {activeAmenityDescription}
-            </p>
-          </div>
-
-          <div className="px-4 py-3">
-            <div className="flex w-full min-w-0 items-center gap-1 overflow-hidden">
-              {activeAmenityNodeIds.map((nodeId, index) => {
-                const isCurrent = nodeId === activeNodeId;
-                const isVisited = index <= activeAmenityProgressIndex;
-
-                return (
-                  <span
-                    key={`${nodeId}-${index}`}
-                    className={`h-1 min-w-0 flex-1 rounded-full transition-colors duration-300 ${
-                      isCurrent
-                        ? "bg-[#f6e7a6] shadow-[0_0_10px_rgba(246,231,166,0.35)]"
-                        : isVisited
-                          ? "bg-[#f6e7a6]/58"
-                          : "bg-white/16"
-                    }`}
-                  />
-                );
-              })}
-            </div>
-          </div>
-        </div>
+        <CurrentAmenityPanel
+          name={activeAmenity?.name ?? "Exterior Trail"}
+          description={activeAmenityDescription}
+          nodeIds={activeAmenityNodeIds}
+          activeNodeId={activeNodeId}
+          progressIndex={activeAmenityProgressIndex}
+        />
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-center px-3 sm:bottom-4">
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-end px-3 pl-[clamp(4.5rem,20vw,6.25rem)] sm:bottom-4 sm:pl-[6rem] sm:pr-4 md:justify-center md:px-3">
         <div
-          className={`${uiFont.className} pointer-events-auto flex w-[min(34rem,calc(100vw-1.5rem))] items-center gap-2.5 rounded-full border border-white/16 bg-[rgba(18,18,17,0.34)] px-3 py-2 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_52px_rgba(0,0,0,0.32)] backdrop-blur-[26px] sm:gap-3 sm:px-4 sm:py-2.5`}
+          className={`${uiFont.className} pointer-events-auto flex w-[min(34rem,calc(100vw-clamp(5rem,22vw,6.75rem)))] items-center gap-2.5 rounded-full border border-white/16 bg-[rgba(18,18,17,0.34)] px-3 py-2 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_52px_rgba(0,0,0,0.32)] backdrop-blur-[26px] sm:w-[min(34rem,calc(100vw-6rem))] sm:gap-3 sm:px-4 sm:py-2.5 md:w-[min(34rem,calc(100vw-1.5rem))]`}
         >
           <button
             type="button"
@@ -1920,7 +2009,7 @@ export default function ExteriorPanoWalkthrough({
         </div>
       </div>
 
-      <div className="pointer-events-auto absolute bottom-3 right-3 z-30 hidden lg:block">
+      <div className="pointer-events-auto absolute bottom-3 right-3 z-30 hidden xl:block">
         <div className="overflow-hidden rounded-[1.15rem] border border-white/12 bg-black/32 shadow-[0_20px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
           <div className={`${uiFont.className} flex h-9 items-center justify-between gap-3 border-b border-white/10 px-3 text-white`}>
             <div className="min-w-0">
