@@ -96,13 +96,13 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
           </motion.div>
 
           <motion.div variants={fadeUp} className="mt-2.5 xl:mt-2 min-[1700px]:xl:mt-3">
-            <div className="rounded-[0.8rem] border border-[#c8b18f]/25 bg-white/58 p-1.5 shadow-[0_8px_22px_rgba(91,78,73,0.08)] backdrop-blur-md">
+            <div className="rounded-[0.9rem] border border-[#c8b18f]/25 bg-white/58 p-2 shadow-[0_8px_22px_rgba(91,78,73,0.08)] backdrop-blur-md">
               <Image
                 src={qrCodeImage}
                 alt="Trifecta Veranza QR code"
-                width={72}
-                height={72}
-                className="h-14 w-14 object-contain sm:h-16 sm:w-16 xl:h-12 xl:w-12 min-[1700px]:xl:h-16 min-[1700px]:xl:w-16"
+                width={88}
+                height={88}
+                className="h-[4.15rem] w-[4.15rem] object-contain sm:h-[4.7rem] sm:w-[4.7rem] xl:h-[3.6rem] xl:w-[3.6rem] min-[1700px]:xl:h-[4.8rem] min-[1700px]:xl:w-[4.8rem]"
               />
             </div>
           </motion.div>

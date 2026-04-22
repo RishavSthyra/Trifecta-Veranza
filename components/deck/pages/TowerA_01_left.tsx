@@ -1,6 +1,13 @@
 "use client";
 
-import React, { forwardRef } from "react";
+import React, {
+  forwardRef,
+  useCallback,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
+} from "react";
 import Image, { type StaticImageData } from "next/image";
 import { motion } from "framer-motion";
 import { Compass, Building2, Ruler, Home } from "lucide-react";
@@ -86,6 +93,10 @@ const infoCard = {
   },
 };
 
+const FLOORPLAN_MIN_ZOOM = 1;
+const FLOORPLAN_MAX_ZOOM = 3;
+const FLOORPLAN_ZOOM_STEP = 0.16;
+
 const UnitPlanLeftPage = forwardRef<HTMLDivElement, Props>(
   (
     {
@@ -103,6 +114,146 @@ const UnitPlanLeftPage = forwardRef<HTMLDivElement, Props>(
     ref
   ) => {
     void _number;
+
+    const floorplanFrameRef = useRef<HTMLDivElement | null>(null);
+    const floorplanDragRef = useRef<{
+      pointerId: number | null;
+      startX: number;
+      startY: number;
+      startPanX: number;
+      startPanY: number;
+    }>({
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startPanX: 0,
+      startPanY: 0,
+    });
+    const [floorplanZoom, setFloorplanZoom] = useState(FLOORPLAN_MIN_ZOOM);
+    const [floorplanPan, setFloorplanPan] = useState({ x: 0, y: 0 });
+    const [floorplanTransformOrigin, setFloorplanTransformOrigin] = useState(
+      "50% 50%",
+    );
+    const [isFloorplanDragging, setIsFloorplanDragging] = useState(false);
+
+    const clampFloorplanPan = useCallback(
+      (zoomValue: number, panValue: { x: number; y: number }) => {
+        const frame = floorplanFrameRef.current;
+
+        if (!frame || zoomValue <= FLOORPLAN_MIN_ZOOM) {
+          return { x: 0, y: 0 };
+        }
+
+        const maxX = ((zoomValue - 1) * frame.clientWidth) / 2;
+        const maxY = ((zoomValue - 1) * frame.clientHeight) / 2;
+
+        return {
+          x: Math.min(Math.max(panValue.x, -maxX), maxX),
+          y: Math.min(Math.max(panValue.y, -maxY), maxY),
+        };
+      },
+      [],
+    );
+
+    const resetFloorplanZoom = useCallback(() => {
+      setFloorplanZoom(FLOORPLAN_MIN_ZOOM);
+      setFloorplanPan({ x: 0, y: 0 });
+      setFloorplanTransformOrigin("50% 50%");
+      setIsFloorplanDragging(false);
+      floorplanDragRef.current.pointerId = null;
+    }, []);
+
+    const handleFloorplanWheel = useCallback(
+      (event: ReactWheelEvent<HTMLDivElement>) => {
+        const frame = floorplanFrameRef.current;
+
+        if (!frame) {
+          return;
+        }
+
+        event.preventDefault();
+
+        const bounds = frame.getBoundingClientRect();
+        const relativeX = ((event.clientX - bounds.left) / bounds.width) * 100;
+        const relativeY = ((event.clientY - bounds.top) / bounds.height) * 100;
+
+        setFloorplanTransformOrigin(`${relativeX}% ${relativeY}%`);
+        setFloorplanZoom((currentZoom) => {
+          const nextZoom = Math.min(
+            FLOORPLAN_MAX_ZOOM,
+            Math.max(
+              FLOORPLAN_MIN_ZOOM,
+              currentZoom +
+                (event.deltaY < 0 ? FLOORPLAN_ZOOM_STEP : -FLOORPLAN_ZOOM_STEP),
+            ),
+          );
+
+          setFloorplanPan((currentPan) =>
+            clampFloorplanPan(nextZoom, currentPan),
+          );
+
+          return Number(nextZoom.toFixed(2));
+        });
+      },
+      [clampFloorplanPan],
+    );
+
+    const handleFloorplanPointerDown = useCallback(
+      (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (floorplanZoom <= FLOORPLAN_MIN_ZOOM) {
+          return;
+        }
+
+        floorplanDragRef.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          startPanX: floorplanPan.x,
+          startPanY: floorplanPan.y,
+        };
+        setIsFloorplanDragging(true);
+        event.currentTarget.setPointerCapture(event.pointerId);
+      },
+      [floorplanPan.x, floorplanPan.y, floorplanZoom],
+    );
+
+    const handleFloorplanPointerMove = useCallback(
+      (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (
+          floorplanDragRef.current.pointerId !== event.pointerId ||
+          floorplanZoom <= FLOORPLAN_MIN_ZOOM
+        ) {
+          return;
+        }
+
+        const deltaX = event.clientX - floorplanDragRef.current.startX;
+        const deltaY = event.clientY - floorplanDragRef.current.startY;
+
+        setFloorplanPan(
+          clampFloorplanPan(floorplanZoom, {
+            x: floorplanDragRef.current.startPanX + deltaX,
+            y: floorplanDragRef.current.startPanY + deltaY,
+          }),
+        );
+      },
+      [clampFloorplanPan, floorplanZoom],
+    );
+
+    const handleFloorplanPointerUp = useCallback(
+      (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (floorplanDragRef.current.pointerId !== event.pointerId) {
+          return;
+        }
+
+        floorplanDragRef.current.pointerId = null;
+        setIsFloorplanDragging(false);
+
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      },
+      [],
+    );
 
     return (
       <div
@@ -233,17 +384,53 @@ const UnitPlanLeftPage = forwardRef<HTMLDivElement, Props>(
               className="relative z-10 flex h-full w-full min-h-0 items-center justify-center"
             >
               <motion.div
-                whileHover={{ scale: 1.015, y: -4 }}
+                ref={floorplanFrameRef}
+                onWheel={handleFloorplanWheel}
+                onDoubleClick={resetFloorplanZoom}
+                onPointerDown={handleFloorplanPointerDown}
+                onPointerMove={handleFloorplanPointerMove}
+                onPointerUp={handleFloorplanPointerUp}
+                onPointerCancel={handleFloorplanPointerUp}
+                whileHover={
+                  floorplanZoom <= FLOORPLAN_MIN_ZOOM
+                    ? { scale: 1.015, y: -4 }
+                    : undefined
+                }
                 transition={{ duration: 0.3 }}
-                className="relative h-[240px] w-[92%] sm:h-[300px] sm:w-[90%] md:h-[380px] md:w-[88%] lg:h-[80%] lg:w-[84%] xl:h-[74%] xl:w-[88%] [@media(min-width:1280px)_and_(max-width:1899px)]:h-[70%] [@media(min-width:1280px)_and_(max-width:1899px)]:w-[90%] min-[1700px]:xl:h-[82%] min-[1700px]:xl:w-[82%]"
+                className={`relative h-[240px] w-[92%] overflow-hidden sm:h-[300px] sm:w-[90%] md:h-[380px] md:w-[88%] lg:h-[80%] lg:w-[84%] xl:h-[74%] xl:w-[88%] [@media(min-width:1280px)_and_(max-width:1899px)]:h-[70%] [@media(min-width:1280px)_and_(max-width:1899px)]:w-[90%] min-[1700px]:xl:h-[82%] min-[1700px]:xl:w-[82%] ${
+                  floorplanZoom > FLOORPLAN_MIN_ZOOM
+                    ? isFloorplanDragging
+                      ? "cursor-grabbing"
+                      : "cursor-grab"
+                    : "cursor-zoom-in"
+                }`}
+                style={{
+                  touchAction:
+                    floorplanZoom > FLOORPLAN_MIN_ZOOM ? "none" : "pan-y",
+                }}
               >
-                <Image
-                  src={image2D}
-                  alt={`${series} 2D unit floor plan`}
-                  fill
-                  priority
-                  className="object-contain drop-shadow-[0_18px_35px_rgba(0,0,0,0.10)]"
-                />
+                <motion.div
+                  animate={{
+                    scale: floorplanZoom,
+                    x: floorplanPan.x,
+                    y: floorplanPan.y,
+                  }}
+                  transition={
+                    isFloorplanDragging
+                      ? { duration: 0 }
+                      : { type: "spring", stiffness: 240, damping: 28 }
+                  }
+                  style={{ transformOrigin: floorplanTransformOrigin }}
+                  className="absolute inset-0"
+                >
+                  <Image
+                    src={image2D}
+                    alt={`${series} 2D unit floor plan`}
+                    fill
+                    priority
+                    className="pointer-events-none object-contain drop-shadow-[0_18px_35px_rgba(0,0,0,0.10)]"
+                  />
+                </motion.div>
               </motion.div>
             </motion.div>
           </div>

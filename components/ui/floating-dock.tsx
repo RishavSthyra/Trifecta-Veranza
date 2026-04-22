@@ -208,8 +208,8 @@ function IconContainer({
         className={cn(
           "relative flex aspect-square items-center justify-center rounded-full border transition",
           active
-            ? "border-[#e7d7b3]/28 bg-[linear-gradient(180deg,#2d2418_0%,#17120b_100%)] shadow-[0_18px_40px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,246,224,0.14)]"
-            : "border-transparent bg-neutral-900",
+            ? "border-white bg-white text-black shadow-[0_12px_28px_rgba(255,255,255,0.14)]"
+            : "border-white/10 bg-neutral-900 text-white",
         )}
       >
         <AnimatePresence>

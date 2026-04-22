@@ -143,31 +143,31 @@ export default function RouteChrome() {
     const baseItems = [
       {
         title: "Home",
-        icon: <BiHome className="h-full w-full text-neutral-100" />,
+        icon: <BiHome className="h-full w-full" />,
         href: "/",
         active: isDockRouteActive(pathname, "/"),
       },
       {
         title: "Project Overview",
-        icon: <FiGrid className="h-full w-full text-neutral-100" />,
+        icon: <FiGrid className="h-full w-full" />,
         href: "/project-overview",
         active: isDockRouteActive(pathname, "/project-overview"),
       },
       {
         title: "Master Plan",
-        icon: <RiBuilding2Line className="h-full w-full text-neutral-100" />,
+        icon: <RiBuilding2Line className="h-full w-full" />,
         href: "/master-plan",
         active: isDockRouteActive(pathname, "/master-plan"),
       },
       {
         title: "Walkthrough",
-        icon: <Footprints className="h-full w-full text-neutral-100" />,
+        icon: <Footprints className="h-full w-full" />,
         href: "/exterior-walkthrough",
         active: isDockRouteActive(pathname, "/exterior-walkthrough"),
       },
       {
         title: "Map",
-        icon: <IoMapOutline className="h-full w-full text-neutral-100" />,
+        icon: <IoMapOutline className="h-full w-full" />,
         href: "/area-map",
         active: isDockRouteActive(pathname, "/area-map"),
       },
@@ -180,13 +180,13 @@ export default function RouteChrome() {
     return [
       {
         title: "Call",
-        icon: <Phone className="h-full w-full text-neutral-100" />,
+        icon: <Phone className="h-full w-full" />,
         href: "tel:+91-8088004411",
         active: false,
       },
       {
         title: "Brochure",
-        icon: <Download className="h-full w-full text-neutral-100" />,
+        icon: <Download className="h-full w-full" />,
         href: "/Veranza Floorplan_ E-Brochure_V3_02-03-26 (2).pdf",
         active: false,
       },

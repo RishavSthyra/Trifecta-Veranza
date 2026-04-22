@@ -178,7 +178,7 @@ export default function UpperLayoutCTA({
       action: "link",
       isHighlight: false,
       icon: (
-        <FiPhone className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+        <FiPhone className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
       ),
     },
     {
@@ -187,7 +187,7 @@ export default function UpperLayoutCTA({
       action: "link",
       isHighlight: false,
       icon: (
-        <FiDownload className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+        <FiDownload className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
       ),
     },
     {
@@ -195,7 +195,7 @@ export default function UpperLayoutCTA({
       action: "quote-modal",
       isHighlight: false,
       icon: (
-        <FiDollarSign className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+        <FiDollarSign className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
       ),
     },
   ];
@@ -207,7 +207,7 @@ export default function UpperLayoutCTA({
       action: "link",
       isHighlight: isQuickRouteActive(pathname ?? "", "/"),
       icon: (
-        <FiHome className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+        <FiHome className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
       ),
     });
   }
@@ -224,7 +224,7 @@ export default function UpperLayoutCTA({
         action: "link",
         isHighlight: isQuickRouteActive(pathname ?? "", "/"),
         icon: (
-          <BiHome className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+          <BiHome className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
         ),
       },
       {
@@ -233,7 +233,7 @@ export default function UpperLayoutCTA({
         action: "link",
         isHighlight: isQuickRouteActive(pathname ?? "", "/project-overview"),
         icon: (
-          <FiGrid className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+          <FiGrid className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
         ),
       },
       {
@@ -242,7 +242,7 @@ export default function UpperLayoutCTA({
         action: "link",
         isHighlight: isQuickRouteActive(pathname ?? "", "/master-plan"),
         icon: (
-          <RiBuilding2Line className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+          <RiBuilding2Line className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
         ),
       },
       {
@@ -251,7 +251,7 @@ export default function UpperLayoutCTA({
         action: "link",
         isHighlight: isQuickRouteActive(pathname ?? "", "/area-map"),
         icon: (
-          <IoMapOutline className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+          <IoMapOutline className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
         ),
       },
       {
@@ -260,7 +260,7 @@ export default function UpperLayoutCTA({
         action: "link",
         isHighlight: isQuickRouteActive(pathname ?? "", "/exterior-walkthrough"),
         icon: (
-          <Footprints className="h-[0.95rem] w-[0.95rem] xl:h-4 xl:w-4 2xl:h-[1.05rem] 2xl:w-[1.05rem]" />
+          <Footprints className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
         ),
       },
     ].filter((button) => !(isMasterPlanRoute && button.name === "Home"));
@@ -269,6 +269,7 @@ export default function UpperLayoutCTA({
   const buttons = [...primaryButtons, ...routeButtons];
   const shouldShowLabels = !mergeRouteLinks && !shouldDockAtBottom;
   const shouldEnableRailDrag = shouldDockAtBottom;
+  const isDesktopTopRail = !shouldDockAtBottom;
 
   if (shouldHideCompactDesktopRail) {
     return null;
@@ -396,7 +397,7 @@ export default function UpperLayoutCTA({
         className={`pointer-events-none fixed inset-x-0 z-50 flex justify-center px-2 md:px-0 ${
           shouldDockAtBottom
             ? "bottom-[max(env(safe-area-inset-bottom),0.85rem)]"
-            : "top-3 md:top-0"
+            : "top-3 md:top-4"
         }`}
       >
       <motion.div
@@ -407,42 +408,18 @@ export default function UpperLayoutCTA({
         <motion.div
           layout
           transition={spring}
-          className={`relative max-w-full overflow-visible rounded-full border border-white/20 bg-black px-2 py-2 shadow-[0_20px_90px_rgba(0,0,0,0.8)] backdrop-blur-xl sm:px-2.5 sm:py-2.5 ${
+          className={`relative max-w-full overflow-hidden rounded-full border shadow-[0_14px_42px_rgba(0,0,0,0.34)] backdrop-blur-2xl ${
+            isDesktopTopRail
+              ? "border-white/12 bg-black/72 px-1.5 py-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.28)]"
+              : "border-white/18 bg-black/42 px-2 py-2 shadow-[0_14px_42px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.16)] sm:px-2.5 sm:py-2.5"
+          } ${
             shouldDockAtBottom
               ? "md:px-5 md:py-3"
-              : "sm:rounded-t-[56px] sm:px-7 sm:py-2.5 xl:rounded-t-[64px] xl:px-10 xl:py-3 2xl:rounded-t-[75px] 2xl:px-16 2xl:py-4"
+              : isDesktopTopRail
+                ? ""
+                : "sm:px-3 sm:py-2.5 xl:px-3.5 xl:py-2.5 2xl:px-4 2xl:py-3"
           }`}
         >
-          {/* Right Wave */}
-          <svg
-            width="130"
-            height="58"
-            viewBox="0 0 130 58"
-            className={`absolute -right-[84px] top-0 hidden h-11 w-24 xl:-right-[92px] xl:h-12 xl:w-[104px] 2xl:-right-[113px] 2xl:-top-1 2xl:h-[58px] 2xl:w-[130px] ${
-              shouldDockAtBottom ? "" : "lg:block"
-            }`}
-          >
-            <path
-              d="M0,58 L0,0 L130,0 A130,58 0 0,0 0,58 Z"
-              className="fill-black shadow-[0_20px_50px_rgba(0,0,0,0.7)]"
-            />
-          </svg>
-
-
-          <svg
-            width="130"
-            height="58"
-            viewBox="0 0 130 58"
-            className={`absolute -left-[84px] top-0 hidden h-11 w-24 xl:-left-[92px] xl:h-12 xl:w-[104px] 2xl:-left-[113px] 2xl:-top-1 2xl:h-[58px] 2xl:w-[130px] ${
-              shouldDockAtBottom ? "" : "lg:block"
-            }`}
-          >
-            <path
-              d="M130,58 L130,0 L0,0 A130,58 0 0,1 130,58 Z"
-              className="fill-black shadow-[0_20px_50px_rgba(0,0,0,0.7)]"
-            />
-          </svg>
-
           <motion.div
             ref={scrollerRef}
             layout
@@ -451,11 +428,15 @@ export default function UpperLayoutCTA({
             onPointerMove={handleScrollerPointerMove}
             onPointerUp={handleScrollerPointerUp}
             onPointerCancel={handleScrollerPointerUp}
-            className={`flex max-w-[calc(100vw-2rem)] items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-1.5 2xl:gap-2 ${
+            className={`flex max-w-[calc(100vw-2rem)] items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+              isDesktopTopRail ? "gap-1 sm:gap-1.5" : "gap-1 sm:gap-1.5 2xl:gap-2"
+            } ${
               shouldEnableRailDrag
                 ? "cursor-grab touch-pan-x active:cursor-grabbing"
                 : ""
-            } ${shouldDockAtBottom ? "md:max-w-[calc(100vw-2rem)]" : "md:max-w-none"} md:gap-2`}
+            } ${shouldDockAtBottom ? "md:max-w-[calc(100vw-2rem)]" : "md:max-w-none"} ${
+              isDesktopTopRail ? "md:gap-1.5" : "md:gap-2"
+            }`}
           >
             {buttons.map((button) => {
               const isHovered = shouldShowLabels && hovered === button.name;
@@ -473,18 +454,42 @@ export default function UpperLayoutCTA({
                       <motion.div
                         layout
                         transition={spring}
-                        className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[0.95rem] border text-[9px] font-medium xl:text-[10px] 2xl:rounded-xl 2xl:text-xs ${
-                          button.isHighlight
-                            ? "bg-white text-zinc-900 shadow-md"
-                            : "border-white/10 bg-white/10 text-white"
+                        className={`inline-flex shrink-0 items-center justify-center overflow-hidden border font-medium transition ${
+                          isDesktopTopRail
+                            ? `h-8 w-8 min-w-8 rounded-[0.9rem] ${
+                                button.isHighlight
+                                  ? "border-white bg-white text-black shadow-[0_8px_18px_rgba(255,255,255,0.12)]"
+                                  : "border-white/14 bg-white/[0.04] hover:border-white/28 hover:bg-white/[0.08]"
+                              }`
+                            : `rounded-[1rem] text-[9px] shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] xl:text-[10px] 2xl:rounded-[1.05rem] 2xl:text-xs ${
+                                button.isHighlight
+                                  ? "border-white/50 bg-white/90 text-zinc-900 shadow-[0_10px_24px_rgba(0,0,0,0.16)]"
+                                  : "border-white/12 bg-white/[0.08] text-white/92 hover:border-white/24 hover:bg-white/[0.14]"
+                              }`
                         }`}
                         animate={{
-                          paddingLeft: isHovered ? 14 : mergeRouteLinks ? 8 : 9,
-                          paddingRight: isHovered ? 14 : mergeRouteLinks ? 8 : 9,
+                          paddingLeft: isDesktopTopRail
+                            ? 0
+                            : isHovered
+                              ? 14
+                              : mergeRouteLinks
+                                ? 8
+                                : 9,
+                          paddingRight: isDesktopTopRail
+                            ? 0
+                            : isHovered
+                              ? 14
+                              : mergeRouteLinks
+                                ? 8
+                                : 9,
                         }}
                       >
                         <motion.span
-                          className="flex h-6 w-4 items-center justify-center sm:h-7 sm:w-[1.05rem] xl:h-8 xl:w-5 2xl:h-10 2xl:w-6"
+                          className={`flex items-center justify-center ${
+                            isDesktopTopRail
+                              ? `${button.isHighlight ? "text-black" : "text-white"} h-3.5 w-3.5`
+                              : "h-6 w-4 sm:h-7 sm:w-[1.05rem] xl:h-8 xl:w-5 2xl:h-10 2xl:w-6"
+                          }`}
                           animate={{ scale: isHovered ? 1.08 : 1 }}
                           transition={spring}
                         >
@@ -512,18 +517,42 @@ export default function UpperLayoutCTA({
                       layout
                       transition={spring}
                       onClick={onQuoteClick}
-                      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[0.95rem] border text-[9px] font-medium xl:text-[10px] 2xl:rounded-xl 2xl:text-xs ${
-                        button.isHighlight
-                          ? "bg-white text-zinc-900 shadow-md"
-                          : "border-white/10 bg-white/10 text-white"
+                      className={`inline-flex shrink-0 items-center justify-center overflow-hidden border font-medium transition ${
+                        isDesktopTopRail
+                          ? `h-8 w-8 min-w-8 rounded-[0.9rem] ${
+                              button.isHighlight
+                                ? "border-white bg-white text-black shadow-[0_8px_18px_rgba(255,255,255,0.12)]"
+                                : "border-white/14 bg-white/[0.04] hover:border-white/28 hover:bg-white/[0.08]"
+                            }`
+                          : `rounded-[1rem] text-[9px] shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] xl:text-[10px] 2xl:rounded-[1.05rem] 2xl:text-xs ${
+                              button.isHighlight
+                                ? "border-white/50 bg-white/90 text-zinc-900 shadow-[0_10px_24px_rgba(0,0,0,0.16)]"
+                                : "border-white/12 bg-white/[0.08] text-white/92 hover:border-white/24 hover:bg-white/[0.14]"
+                            }`
                       }`}
                       animate={{
-                        paddingLeft: isHovered ? 14 : mergeRouteLinks ? 8 : 9,
-                        paddingRight: isHovered ? 14 : mergeRouteLinks ? 8 : 9,
+                        paddingLeft: isDesktopTopRail
+                          ? 0
+                          : isHovered
+                            ? 14
+                            : mergeRouteLinks
+                              ? 8
+                              : 9,
+                        paddingRight: isDesktopTopRail
+                          ? 0
+                          : isHovered
+                            ? 14
+                            : mergeRouteLinks
+                              ? 8
+                              : 9,
                       }}
                     >
                       <motion.span
-                        className="flex h-6 w-4 items-center justify-center sm:h-7 sm:w-[1.05rem] xl:h-8 xl:w-5 2xl:h-10 2xl:w-6"
+                        className={`flex items-center justify-center ${
+                          isDesktopTopRail
+                            ? `${button.isHighlight ? "text-black" : "text-white"} h-3.5 w-3.5`
+                            : "h-6 w-4 sm:h-7 sm:w-[1.05rem] xl:h-8 xl:w-5 2xl:h-10 2xl:w-6"
+                        }`}
                         animate={{ scale: isHovered ? 1.08 : 1 }}
                         transition={spring}
                       >
