@@ -7,7 +7,7 @@ import {
   type Ref,
   type VideoHTMLAttributes,
 } from "react";
-import Hls from "hls.js";
+import Hls, { type ErrorData } from "hls.js";
 
 type CloudinaryHlsVideoProps = Omit<
   VideoHTMLAttributes<HTMLVideoElement>,
@@ -76,6 +76,24 @@ const CloudinaryHlsVideo = forwardRef<HTMLVideoElement, CloudinaryHlsVideoProps>
     forwardedRef,
   ) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
+    const hlsRef = useRef<Hls | null>(null);
+    const loadedHlsSrcRef = useRef<string | null>(null);
+
+    useEffect(() => {
+      return () => {
+        const video = videoRef.current;
+        hlsRef.current?.destroy();
+        hlsRef.current = null;
+        loadedHlsSrcRef.current = null;
+
+        if (video) {
+          video.pause();
+          video.removeAttribute("src");
+          video.src = "";
+          video.load();
+        }
+      };
+    }, []);
 
     useEffect(() => {
       const video = videoRef.current;
@@ -83,8 +101,14 @@ const CloudinaryHlsVideo = forwardRef<HTMLVideoElement, CloudinaryHlsVideoProps>
 
       const hlsSrc = toCloudinaryHlsUrl(src);
       const directSrc = fallbackSrc ?? src;
+      const releaseHls = () => {
+        hlsRef.current?.destroy();
+        hlsRef.current = null;
+        loadedHlsSrcRef.current = null;
+      };
 
       const loadDirectSource = () => {
+        releaseHls();
         if (video.src === directSrc) return;
 
         video.src = directSrc;
@@ -97,6 +121,7 @@ const CloudinaryHlsVideo = forwardRef<HTMLVideoElement, CloudinaryHlsVideoProps>
       }
 
       if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        releaseHls();
         video.src = hlsSrc;
         video.load();
         return;
@@ -107,17 +132,21 @@ const CloudinaryHlsVideo = forwardRef<HTMLVideoElement, CloudinaryHlsVideoProps>
         return;
       }
 
-      const hls = new Hls({
-        enableWorker: true,
-        capLevelToPlayerSize: true,
-        maxDevicePixelRatio: 2,
-        abrEwmaDefaultEstimate: preferHighQualityStart ? 12_000_000 : 2_000_000,
-        abrEwmaDefaultEstimateMax: preferHighQualityStart
-          ? 20_000_000
-          : 8_000_000,
-      });
+      const hls =
+        hlsRef.current ??
+        new Hls({
+          enableWorker: true,
+          capLevelToPlayerSize: true,
+          maxDevicePixelRatio: 2,
+          abrEwmaDefaultEstimate: preferHighQualityStart ? 12_000_000 : 2_000_000,
+          abrEwmaDefaultEstimateMax: preferHighQualityStart
+            ? 20_000_000
+            : 8_000_000,
+        });
 
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hlsRef.current = hls;
+
+      const handleManifestParsed = () => {
         if (!preferHighQualityStart) {
           return;
         }
@@ -134,20 +163,31 @@ const CloudinaryHlsVideo = forwardRef<HTMLVideoElement, CloudinaryHlsVideoProps>
           hls.levels[preferredStartLevel]?.bitrate ?? 0,
           hls.abrEwmaDefaultEstimate,
         );
-      });
+      };
 
-      hls.loadSource(hlsSrc);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.ERROR, (_event, data) => {
+      const handleHlsError = (_event: string, data: ErrorData) => {
         if (!data.fatal) return;
 
-        hls.destroy();
+        releaseHls();
         loadDirectSource();
-      });
+      };
+
+      hls.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed);
+      hls.on(Hls.Events.ERROR, handleHlsError);
+
+      if (loadedHlsSrcRef.current !== hlsSrc) {
+        hls.stopLoad();
+        hls.loadSource(hlsSrc);
+        loadedHlsSrcRef.current = hlsSrc;
+      }
+
+      if (hls.media !== video) {
+        hls.attachMedia(video);
+      }
 
       return () => {
-        hls.destroy();
+        hls.off(Hls.Events.MANIFEST_PARSED, handleManifestParsed);
+        hls.off(Hls.Events.ERROR, handleHlsError);
       };
     }, [fallbackSrc, preferHighQualityStart, src]);
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import pLimit from "p-limit";
 import poidata from "@/data/poi.json";
 import { Map as MapView,
   MapMarker,
@@ -114,9 +115,16 @@ const POI_CLUSTER_SWITCH_ZOOM = 12.8;
 const POI_CLUSTER_RADIUS = 58;
 const ROUTE_ANIMATION_DURATION = 2600;
 const ROUTE_ANIMATION_WINDOW_SIZE = 30;
-const PROVISIONAL_ROUTE_CACHE: Record<number, RouteData> = Object.fromEntries(
-  pois.map((poi) => [poi.id, buildProvisionalRoute(poi)]),
-) as Record<number, RouteData>;
+const provisionalRouteCache = new Map<number, RouteData>();
+
+type IdleWindow = Window &
+  typeof globalThis & {
+    cancelIdleCallback?: (handle: number) => void;
+    requestIdleCallback?: (
+      callback: IdleRequestCallback,
+      options?: IdleRequestOptions,
+    ) => number;
+  };
 
 function formatDuration(seconds: number) {
   const mins = Math.round(seconds / 60);
@@ -213,6 +221,17 @@ function buildProvisionalRoute(poi: Poi): RouteData {
   };
 }
 
+function getProvisionalRoute(poi: Poi) {
+  const cached = provisionalRouteCache.get(poi.id);
+  if (cached) {
+    return cached;
+  }
+
+  const route = buildProvisionalRoute(poi);
+  provisionalRouteCache.set(poi.id, route);
+  return route;
+}
+
 function buildUserFallbackRoute(location: UserLocation): RouteData {
   return {
     id: -1,
@@ -251,21 +270,117 @@ function buildAccuracyPolygon(
   return coordinates;
 }
 
+function isLngLatCoordinate(value: unknown): value is [number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length >= 2 &&
+    typeof value[0] === "number" &&
+    typeof value[1] === "number" &&
+    Number.isFinite(value[0]) &&
+    Number.isFinite(value[1])
+  );
+}
+
+function parseRouteCoordinates(value: unknown): [number, number][] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const coordinates = value.map((coordinate) => {
+    if (!isLngLatCoordinate(coordinate)) {
+      return null;
+    }
+
+    return [coordinate[0], coordinate[1]] as [number, number];
+  });
+
+  return coordinates.every(Boolean) ? (coordinates as [number, number][]) : null;
+}
+
+function abortableDelay(ms: number, signal: AbortSignal) {
+  if (signal.aborted) {
+    return Promise.reject(new DOMException("Aborted", "AbortError"));
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const abort = () => {
+      globalThis.clearTimeout(timeoutId);
+      signal.removeEventListener("abort", abort);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    const timeoutId = globalThis.setTimeout(() => {
+      signal.removeEventListener("abort", abort);
+      resolve();
+    }, ms);
+
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
+
+function waitForIdle(signal: AbortSignal, timeout = 700) {
+  if (signal.aborted) {
+    return Promise.reject(new DOMException("Aborted", "AbortError"));
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const hostWindow =
+      typeof window === "undefined" ? null : (window as IdleWindow);
+    let idleId: number | null = null;
+    let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+
+    const cleanup = () => {
+      signal.removeEventListener("abort", abort);
+      if (idleId !== null) {
+        hostWindow?.cancelIdleCallback?.(idleId);
+      }
+      if (timeoutId !== null) {
+        globalThis.clearTimeout(timeoutId);
+      }
+    };
+    const finish = () => {
+      cleanup();
+      resolve();
+    };
+    const abort = () => {
+      cleanup();
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+
+    signal.addEventListener("abort", abort, { once: true });
+
+    if (hostWindow && typeof hostWindow.requestIdleCallback === "function") {
+      idleId = hostWindow.requestIdleCallback(finish, { timeout });
+      return;
+    }
+
+    timeoutId = globalThis.setTimeout(finish, 0);
+  });
+}
+
 async function fetchRouteBetweenPoints({
   from,
   to,
   id,
   name,
   timeout = 12000,
+  signal,
 }: {
   from: { lng: number; lat: number };
   to: { lng: number; lat: number };
   id: number;
   name: string;
   timeout?: number;
+  signal?: AbortSignal;
 }): Promise<RouteData | null> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeout);
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeout);
+  const abortFromCaller = () => controller.abort();
+
+  if (signal?.aborted) {
+    controller.abort();
+  } else {
+    signal?.addEventListener("abort", abortFromCaller, { once: true });
+  }
 
   try {
     const response = await fetch(
@@ -282,8 +397,9 @@ async function fetchRouteBetweenPoints({
 
     const data = await response.json();
     const route = data?.routes?.[0];
+    const coordinates = parseRouteCoordinates(route?.geometry?.coordinates);
 
-    if (!route?.geometry?.coordinates) {
+    if (!coordinates) {
       console.warn("Invalid route:", name);
       return null;
     }
@@ -291,9 +407,15 @@ async function fetchRouteBetweenPoints({
     return {
       id,
       name,
-      coordinates: route.geometry.coordinates as [number, number][],
-      duration: route.duration as number,
-      distance: route.distance as number,
+      coordinates,
+      duration:
+        typeof route.duration === "number" && Number.isFinite(route.duration)
+          ? route.duration
+          : 0,
+      distance:
+        typeof route.distance === "number" && Number.isFinite(route.distance)
+          ? route.distance
+          : 0,
     };
   } catch (err) {
     if ((err as Error)?.name !== "AbortError") {
@@ -301,7 +423,8 @@ async function fetchRouteBetweenPoints({
     }
     return null;
   } finally {
-    window.clearTimeout(timeoutId);
+    signal?.removeEventListener("abort", abortFromCaller);
+    globalThis.clearTimeout(timeoutId);
   }
 }
 
@@ -323,6 +446,10 @@ function getRouteCacheKey(poi: Poi) {
 
 function loadRouteCache() {
   try {
+    if (typeof sessionStorage === "undefined") {
+      return {} as Record<string, RouteData>;
+    }
+
     const raw = sessionStorage.getItem(ROUTE_CACHE_KEY);
     if (!raw) return {} as Record<string, RouteData>;
     return JSON.parse(raw) as Record<string, RouteData>;
@@ -333,10 +460,23 @@ function loadRouteCache() {
 
 function saveRouteCache(cache: Record<string, RouteData>) {
   try {
+    if (typeof sessionStorage === "undefined") {
+      return;
+    }
+
     sessionStorage.setItem(ROUTE_CACHE_KEY, JSON.stringify(cache));
   } catch {
     // ignore storage failures
   }
+}
+
+async function loadRouteCacheDuringIdle(signal: AbortSignal) {
+  await waitForIdle(signal);
+  if (signal.aborted) {
+    return {} as Record<string, RouteData>;
+  }
+
+  return loadRouteCache();
 }
 
 const categoryMeta: Record<
@@ -772,11 +912,14 @@ export function CustomStyleExample() {
   const suppressNextMapClearRef = useRef(false);
   const userRouteRequestRef = useRef(0);
   const currentZoomRef = useRef(15);
+  const hasSyncedViewportRef = useRef(false);
+  const mountedRef = useRef(false);
+  const userRouteAbortRef = useRef<AbortController | null>(null);
+  const routeCacheRef = useRef<Record<string, RouteData>>({});
+  const routeCacheWriteChainRef = useRef<Promise<void>>(Promise.resolve());
 
   const [style, setStyle] = useState<StyleKey>("default");
-  const [routes, setRoutes] = useState<RouteData[]>(
-    () => Object.values(PROVISIONAL_ROUTE_CACHE),
-  );
+  const [routes, setRoutes] = useState<RouteData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUserRouteLoading, setIsUserRouteLoading] = useState(false);
   const [selectedPoiId, setSelectedPoiId] = useState<number | null>(null);
@@ -796,6 +939,54 @@ export function CustomStyleExample() {
   const deferredSearch = useDeferredValue(search);
   const selectedStyle = styles[style];
   const is3D = style === "openstreetmap3d";
+  const poiIndexes = useMemo(() => {
+    const byCategory = new Map<PoiCategory, Poi[]>(
+      CATEGORY_ORDER.map((category) => [
+        category,
+        pois.filter((poi) => poi.category === category),
+      ]),
+    );
+    const clusterFeatureById = new Map<
+      number,
+      GeoJSON.Feature<GeoJSON.Point, ClusterPoiProperties>
+    >(
+      pois.map((poi) => [
+        poi.id,
+        {
+          type: "Feature",
+          properties: {
+            poiId: poi.id,
+            name: poi.name,
+            category: poi.category,
+          },
+          geometry: {
+            type: "Point",
+            coordinates: [poi.lng, poi.lat],
+          },
+        },
+      ]),
+    );
+
+    return {
+      byCategory,
+      clusterFeatureById,
+    };
+  }, []);
+  const enqueueRouteCacheSave = useCallback((signal: AbortSignal) => {
+    const snapshot = { ...routeCacheRef.current };
+
+    routeCacheWriteChainRef.current = routeCacheWriteChainRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        await waitForIdle(signal, 1200);
+        if (!signal.aborted) {
+          saveRouteCache(snapshot);
+        }
+      })
+      .catch(() => undefined);
+
+    return routeCacheWriteChainRef.current;
+  }, []);
 
   useEffect(() => {
     mapRef.current?.easeTo?.({
@@ -803,125 +994,123 @@ export function CustomStyleExample() {
       duration: 500,
     });
   }, [is3D]);
-  useEffect(() => {
-    let cancelled = false;
-    const timeoutIds: number[] = [];
 
-    async function fetchRouteForPoi(poi: Poi): Promise<RouteData | null> {
-      return fetchRouteBetweenPoints({
-        from: { lng: centerPlace.lng, lat: centerPlace.lat },
-        to: { lng: poi.lng, lat: poi.lat },
-        id: poi.id,
-        name: poi.name,
-        timeout: ROUTE_REQUEST_TIMEOUT,
-      });
-    }
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      userRouteAbortRef.current?.abort();
+      userRouteAbortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const limit = pLimit(MAX_CONCURRENT_ROUTE_REQUESTS);
 
     async function runQueue() {
-      setIsLoading(true);
+      await waitForIdle(controller.signal).catch(() => undefined);
+      if (controller.signal.aborted) {
+        return;
+      }
 
-      const cache = loadRouteCache();
+      setIsLoading(true);
+      routeCacheRef.current = await loadRouteCacheDuringIdle(controller.signal);
+      if (controller.signal.aborted) {
+        return;
+      }
+
       const initialResults: RouteData[] = [];
       const uncachedPois: Poi[] = [];
 
       for (const poi of pois) {
         const cacheKey = getRouteCacheKey(poi);
-        const cached = cache[cacheKey];
+        const cached = routeCacheRef.current[cacheKey];
         if (cached) {
           initialResults.push(cached);
           continue;
         }
 
-        const provisionalRoute = PROVISIONAL_ROUTE_CACHE[poi.id];
-        if (provisionalRoute) {
-          initialResults.push(provisionalRoute);
-        }
-
+        initialResults.push(getProvisionalRoute(poi));
         uncachedPois.push(poi);
       }
 
-      if (!cancelled) {
+      if (!controller.signal.aborted && mountedRef.current) {
         setRoutes(initialResults);
       }
 
       if (uncachedPois.length === 0) {
-        if (!cancelled) setIsLoading(false);
+        if (!controller.signal.aborted && mountedRef.current) {
+          setIsLoading(false);
+        }
         return;
       }
 
-      let nextIndex = 0;
-      let activeCount = 0;
-      let startedCount = 0;
+      const tasks = uncachedPois.map((poi, index) =>
+        limit(async () => {
+          await abortableDelay(index * ROUTE_REQUEST_SPACING, controller.signal);
 
-      await new Promise<void>((resolve) => {
-        const launchNext = () => {
-          if (cancelled) {
-            resolve();
+          const result = await fetchRouteBetweenPoints({
+            from: { lng: centerPlace.lng, lat: centerPlace.lat },
+            to: { lng: poi.lng, lat: poi.lat },
+            id: poi.id,
+            name: poi.name,
+            timeout: ROUTE_REQUEST_TIMEOUT,
+            signal: controller.signal,
+          });
+
+          if (!result || controller.signal.aborted || !mountedRef.current) {
             return;
           }
 
-          if (nextIndex >= uncachedPois.length && activeCount === 0) {
-            resolve();
-            return;
-          }
+          const cacheKey = getRouteCacheKey(poi);
+          routeCacheRef.current = {
+            ...routeCacheRef.current,
+            [cacheKey]: result,
+          };
+          void enqueueRouteCacheSave(controller.signal);
+          setRoutes((prev) => upsertRouteById(prev, result));
+        }),
+      );
 
-          while (
-            activeCount < MAX_CONCURRENT_ROUTE_REQUESTS &&
-            nextIndex < uncachedPois.length
-          ) {
-            const poi = uncachedPois[nextIndex++];
-            const startDelay = startedCount * ROUTE_REQUEST_SPACING;
-            startedCount += 1;
-            activeCount += 1;
+      await Promise.allSettled(tasks);
 
-            const timeoutId = window.setTimeout(async () => {
-              const result = await fetchRouteForPoi(poi);
-
-              if (result && !cancelled) {
-                const cacheKey = getRouteCacheKey(poi);
-                cache[cacheKey] = result;
-                saveRouteCache(cache);
-
-                setRoutes((prev) => upsertRouteById(prev, result));
-              }
-
-              activeCount -= 1;
-              launchNext();
-            }, startDelay);
-
-            timeoutIds.push(timeoutId);
-          }
-        };
-
-        launchNext();
-      });
-
-      if (!cancelled) {
+      if (!controller.signal.aborted && mountedRef.current) {
         setIsLoading(false);
       }
     }
 
-    runQueue();
+    void runQueue();
 
     return () => {
-      cancelled = true;
-      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
+      controller.abort();
     };
-  }, []);
+  }, [enqueueRouteCacheSave]);
 
   const filteredPois = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
+    const selectedCategorySet = new Set(selectedCategories);
+    const categoryPois =
+      selectedCategories.length === CATEGORY_ORDER.length
+        ? pois
+        : selectedCategories.flatMap(
+            (category) => poiIndexes.byCategory.get(category) ?? [],
+          );
 
-    return pois.filter((poi) => {
-      const matchesCategory = selectedCategories.includes(poi.category);
+    if (!q) {
+      return categoryPois;
+    }
+
+    return categoryPois.filter((poi) => {
+      const matchesCategory = selectedCategorySet.has(poi.category);
       const matchesSearch =
-        !q ||
         poi.name.toLowerCase().includes(q) ||
         categoryMeta[poi.category].label.toLowerCase().includes(q);
 
       return matchesCategory && matchesSearch;
     });
-  }, [deferredSearch, selectedCategories]);
+  }, [deferredSearch, poiIndexes.byCategory, selectedCategories]);
 
   const visiblePois = filteredPois;
   const clusterData = useMemo<
@@ -929,20 +1118,18 @@ export function CustomStyleExample() {
   >(
     () => ({
       type: "FeatureCollection",
-      features: visiblePois.map((poi) => ({
-        type: "Feature",
-        properties: {
-          poiId: poi.id,
-          name: poi.name,
-          category: poi.category,
-        },
-        geometry: {
-          type: "Point",
-          coordinates: [poi.lng, poi.lat],
-        },
-      })),
+      features: visiblePois
+        .map((poi) => poiIndexes.clusterFeatureById.get(poi.id))
+        .filter(
+          (
+            feature,
+          ): feature is GeoJSON.Feature<
+            GeoJSON.Point,
+            ClusterPoiProperties
+          > => Boolean(feature),
+        ),
     }),
-    [visiblePois],
+    [poiIndexes.clusterFeatureById, visiblePois],
   );
   const routeLookup = useMemo(
     () => new Map(routes.map((route) => [route.id, route] as const)),
@@ -975,6 +1162,7 @@ export function CustomStyleExample() {
 
   const handlePoiMarkerClick = useCallback((poi: Poi) => {
     userRouteRequestRef.current += 1;
+    userRouteAbortRef.current?.abort();
     setUserRoute(null);
     setIsUserRouteLoading(false);
     suppressNextMapClearRef.current = true;
@@ -990,6 +1178,7 @@ export function CustomStyleExample() {
 
   const resetFilters = useCallback(() => {
     userRouteRequestRef.current += 1;
+    userRouteAbortRef.current?.abort();
     setSelectedPoiId(null);
     setRoutePoiId(null);
     setUserLocation(null);
@@ -1011,6 +1200,7 @@ export function CustomStyleExample() {
 
   const stopAllRouteAnimations = useCallback(() => {
     userRouteRequestRef.current += 1;
+    userRouteAbortRef.current?.abort();
     setRoutePoiId(null);
     setSelectedPoiId(null);
     setUserRoute(null);
@@ -1019,6 +1209,7 @@ export function CustomStyleExample() {
 
   const handleViewRoute = useCallback((poi: Poi) => {
     userRouteRequestRef.current += 1;
+    userRouteAbortRef.current?.abort();
     setUserRoute(null);
     setIsUserRouteLoading(false);
     suppressNextMapClearRef.current = true;
@@ -1044,6 +1235,7 @@ export function CustomStyleExample() {
       if (!poi) return;
 
       userRouteRequestRef.current += 1;
+      userRouteAbortRef.current?.abort();
       setUserRoute(null);
       setIsUserRouteLoading(false);
       suppressNextMapClearRef.current = true;
@@ -1059,9 +1251,12 @@ export function CustomStyleExample() {
     [visiblePois],
   );
 
-  const handleUserLocate = async (coords: UserLocation) => {
+  const handleUserLocate = useCallback(async (coords: UserLocation) => {
     const requestId = userRouteRequestRef.current + 1;
     userRouteRequestRef.current = requestId;
+    userRouteAbortRef.current?.abort();
+    const controller = new AbortController();
+    userRouteAbortRef.current = controller;
 
     suppressNextMapClearRef.current = true;
     setSelectedPoiId(null);
@@ -1100,9 +1295,14 @@ export function CustomStyleExample() {
       id: -1,
       name: "Your Route to Trifecta Veranza",
       timeout: ROUTE_REQUEST_TIMEOUT,
+      signal: controller.signal,
     });
 
-    if (userRouteRequestRef.current !== requestId) {
+    if (
+      controller.signal.aborted ||
+      !mountedRef.current ||
+      userRouteRequestRef.current !== requestId
+    ) {
       return;
     }
 
@@ -1111,7 +1311,10 @@ export function CustomStyleExample() {
     }
 
     setIsUserRouteLoading(false);
-  };
+    if (userRouteAbortRef.current === controller) {
+      userRouteAbortRef.current = null;
+    }
+  }, [isMobileFiltersOpen]);
 
   
   const selectedPoi =
@@ -1158,6 +1361,14 @@ export function CustomStyleExample() {
   const showClusters = currentZoom < POI_CLUSTER_SWITCH_ZOOM;
   const handleViewportChange = useCallback((viewport: { zoom: number }) => {
     const nextZoom = viewport.zoom;
+
+    if (!hasSyncedViewportRef.current) {
+      hasSyncedViewportRef.current = true;
+      currentZoomRef.current = nextZoom;
+      setCurrentZoom(nextZoom);
+      return;
+    }
+
     const wasClustered = currentZoomRef.current < POI_CLUSTER_SWITCH_ZOOM;
     const willCluster = nextZoom < POI_CLUSTER_SWITCH_ZOOM;
 

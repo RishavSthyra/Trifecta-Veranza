@@ -82,7 +82,7 @@ const ClosingPage = forwardRef<HTMLDivElement, Props>(({ number }, ref) => {
             Trifecta Projects
           </motion.p>
 
-          <motion.div variants={logoReveal} className="mt-5 w-full max-w-[680px] sm:max-w-[740px] xl:mt-4 xl:max-w-[540px] min-[1700px]:xl:max-w-[700px]">
+          <motion.div variants={logoReveal} className="mt-5 w-full max-w-170 sm:max-w-[740px] xl:mt-4 xl:max-w-[540px] min-[1700px]:xl:max-w-[700px]">
             <div className="relative mx-auto aspect-[5.4/2.1] w-full max-w-[660px]">
               <Image
                 src="/Logo_Trifect_Veranza.png"

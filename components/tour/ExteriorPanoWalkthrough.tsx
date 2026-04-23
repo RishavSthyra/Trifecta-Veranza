@@ -224,6 +224,12 @@ function scheduleIdle(callback: () => void) {
   return () => globalThis.clearTimeout(id);
 }
 
+function waitForIdle() {
+  return new Promise<void>((resolve) => {
+    scheduleIdle(resolve);
+  });
+}
+
 async function preloadTileBatch(
   assetStore: PanoAssetStore,
   tiles: PanoTileDescriptor[],
@@ -241,6 +247,10 @@ async function preloadTileBatch(
         const tile = tiles[currentIndex];
         if (!tile) {
           return;
+        }
+
+        if (currentIndex > 0 && currentIndex % workerCount === 0) {
+          await waitForIdle();
         }
 
         await assetStore.preloadTile(tile, fetchPriority);
@@ -1221,18 +1231,24 @@ export default function ExteriorPanoWalkthrough({
   ]);
 
   const pushNavigationHistory = useCallback((nodeId: string) => {
-    const history = nodeHistoryRef.current;
-    const latest = history[history.length - 1];
+    try {
+      const history = nodeHistoryRef.current;
+      const latest = history[history.length - 1];
 
-    if (latest !== nodeId) {
-      history.push(nodeId);
+      if (latest !== nodeId) {
+        history.push(nodeId);
+      }
+
+      while (history.length > 40) {
+        history.shift();
+      }
+
+      setHistoryDepth(history.length);
+    } catch (error) {
+      console.warn("Failed to update exterior pano navigation history:", error);
+      nodeHistoryRef.current = [];
+      setHistoryDepth(0);
     }
-
-    while (history.length > 40) {
-      history.shift();
-    }
-
-    setHistoryDepth(history.length);
   }, []);
 
   const jumpToNode = useCallback(
@@ -1246,7 +1262,7 @@ export default function ExteriorPanoWalkthrough({
       } = {},
     ) => {
       if (isTransitioning || navigationLockRef.current) {
-        return;
+        return false;
       }
 
       const viewer = viewerRef.current;
@@ -1257,7 +1273,7 @@ export default function ExteriorPanoWalkthrough({
           options.viewZoom !== undefined;
 
         if (!viewer || !hasRequestedView) {
-          return;
+          return false;
         }
 
         const currentPosition = viewer.getPosition();
@@ -1288,13 +1304,13 @@ export default function ExteriorPanoWalkthrough({
         if (EXTERIOR_PANO_DEV_TOOL_ENABLED) {
           setLiveDebugView(viewRef.current);
         }
-        return;
+        return true;
       }
 
       const fromNode = graph.byId[activeNodeIdRef.current];
       const targetNode = graph.byId[targetId];
       if (!viewer || !fromNode || !targetNode) {
-        return;
+        return false;
       }
 
       const warmupProfile = getWarmupProfile(isCompactExperienceRef.current);
@@ -1372,11 +1388,15 @@ export default function ExteriorPanoWalkthrough({
           startTransition(() => {
             setActiveNodeId(targetId);
           });
+
+          return true;
         }
+        return false;
       } catch (error) {
         console.error("Exterior amenity jump failed:", error);
         viewer.hideError();
         setLoadState(createLoadState("error", "Panorama unavailable"));
+        return false;
       } finally {
         globalThis.setTimeout(() => {
           navigationLockRef.current = false;
@@ -1901,15 +1921,24 @@ export default function ExteriorPanoWalkthrough({
       return;
     }
 
-    const previousNodeId = nodeHistoryRef.current.pop();
-    setHistoryDepth(nodeHistoryRef.current.length);
+    const previousNodeId = nodeHistoryRef.current.at(-1);
 
     if (!previousNodeId) {
       return;
     }
 
     resetTrailProgress();
-    void jumpToNode(previousNodeId, { recordHistory: false });
+    void jumpToNode(previousNodeId, { recordHistory: false }).then((completed) => {
+      if (!completed) {
+        return;
+      }
+
+      const latestNodeId = nodeHistoryRef.current.at(-1);
+      if (latestNodeId === previousNodeId) {
+        nodeHistoryRef.current.pop();
+        setHistoryDepth(nodeHistoryRef.current.length);
+      }
+    });
   }, [historyDepth, isTransitioning, jumpToNode, resetTrailProgress]);
 
   const liveDebugYawDegrees = roundDebugDegrees(
@@ -1984,43 +2013,6 @@ export default function ExteriorPanoWalkthrough({
       className={`relative isolate h-full w-full overflow-hidden rounded-[2.25rem] border border-white/10 bg-[linear-gradient(180deg,#040608_0%,#05070a_50%,#040608_100%)] text-white shadow-[0_30px_80px_rgba(0,0,0,0.35)] ${className ?? ""}`}
     >
       <div className="sr-only">{subtitle}</div>
-      <style>{`
-        @keyframes exteriorStepFlash {
-          0% {
-            opacity: 0;
-            transform: scale(0.98);
-            filter: blur(10px);
-          }
-          18% {
-            opacity: 1;
-            transform: scale(1.02);
-            filter: blur(0);
-          }
-          48% {
-            opacity: 0.72;
-            transform: scale(1.04);
-          }
-          100% {
-            opacity: 0;
-            transform: scale(1.08);
-            filter: blur(14px);
-          }
-        }
-
-        @keyframes exteriorStepFocus {
-          0% {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(0.42);
-          }
-          26% {
-            opacity: 0.7;
-          }
-          100% {
-            opacity: 0;
-            transform: translate(-50%, -50%) scale(1.35);
-          }
-        }
-      `}</style>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(255,255,255,0.08),transparent_24%),radial-gradient(circle_at_80%_12%,rgba(207,193,167,0.08),transparent_20%)]" />
 
       <div className="absolute inset-0 overflow-hidden rounded-[2.25rem]">

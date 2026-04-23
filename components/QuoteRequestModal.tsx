@@ -173,7 +173,13 @@ export default function QuoteRequestModal({
       );
     }, modalRef);
 
-    return () => context.revert();
+    return () => {
+      try {
+        context.revert();
+      } catch (error) {
+        console.warn("Quote modal animation cleanup failed:", error);
+      }
+    };
   }, [currentStep, isOpen, submitState]);
 
   useEffect(() => {
@@ -213,7 +219,12 @@ export default function QuoteRequestModal({
     return () => {
       button.removeEventListener("pointermove", onPointerMove);
       button.removeEventListener("pointerleave", onPointerLeave);
-      gsap.set(button, { x: 0, y: 0 });
+      try {
+        gsap.killTweensOf(button);
+        gsap.set(button, { x: 0, y: 0 });
+      } catch (error) {
+        console.warn("Quote modal button animation cleanup failed:", error);
+      }
     };
   }, [isOpen]);
 

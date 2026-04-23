@@ -46,7 +46,7 @@ export default function GlassSelect({
               exit={{ opacity: 0, y: 6, scale: 0.98 }}
               transition={{ duration: 0.18, ease: "easeOut" }}
               className="
-                z-[100] min-w-[var(--radix-select-trigger-width)] overflow-hidden
+                z-100 min-w-(--radix-select-trigger-width) overflow-hidden
                 rounded-[24px] border border-white/50 bg-white/60
                 p-2 shadow-[0_20px_60px_rgba(15,23,42,0.18)]
                 backdrop-blur-2xl

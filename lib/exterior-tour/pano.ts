@@ -8,13 +8,30 @@ import type {
 } from "@/lib/exterior-tour/types";
 
 export type ExteriorPanoramaSource = string | EquirectangularTilesPanorama;
+const joinedPanoPathCache = new Map<string, string>();
 
 function ensureTrailingSlash(value: string) {
   return value.endsWith("/") ? value : `${value}/`;
 }
 
 function joinPanoPath(baseUrl: string, path: string) {
-  return `${ensureTrailingSlash(baseUrl)}${path.replace(/^\/+/, "")}`;
+  const key = `${baseUrl}|${path}`;
+  const cached = joinedPanoPathCache.get(key);
+  if (cached) {
+    return cached;
+  }
+
+  const joined = `${ensureTrailingSlash(baseUrl)}${path.replace(/^\/+/, "")}`;
+  joinedPanoPathCache.set(key, joined);
+
+  if (joinedPanoPathCache.size > 2000) {
+    const oldestKey = joinedPanoPathCache.keys().next().value;
+    if (oldestKey) {
+      joinedPanoPathCache.delete(oldestKey);
+    }
+  }
+
+  return joined;
 }
 
 function loadImage(src: string, fetchPriority: "high" | "low" | "auto" = "auto") {

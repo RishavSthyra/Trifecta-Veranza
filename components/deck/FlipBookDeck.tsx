@@ -465,7 +465,7 @@ export default function FlipBookDeck() {
                 >
                   <span className="pointer-events-none absolute -inset-2 rounded-full border border-[#f7ddd7]/35 opacity-55 animate-ping" />
                   <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
-                    <span className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-[#ffe8df]/80 to-transparent" />
+                    <span className="absolute inset-x-5 top-0 h-px bg-linear-to-r from-transparent via-[#ffe8df]/80 to-transparent" />
                     <span className="absolute inset-0 -translate-x-full bg-[linear-gradient(105deg,transparent_0%,rgba(255,237,224,0.34)_45%,transparent_72%)] transition duration-1000 group-hover:translate-x-full" />
                   </span>
                   <span className="relative whitespace-nowrap">Enter Masterplan</span>
@@ -499,7 +499,7 @@ export default function FlipBookDeck() {
       <AnimatePresence>
         {isEnteringMasterPlan ? (
           <motion.div
-            className="pointer-events-none fixed inset-0 z-[120] overflow-hidden bg-[#1f1a12]"
+            className="pointer-events-none fixed inset-0 z-120 overflow-hidden bg-[#1f1a12]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 1 }}

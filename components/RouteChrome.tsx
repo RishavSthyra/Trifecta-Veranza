@@ -40,6 +40,19 @@ function shouldUseMergedChrome() {
   );
 }
 
+function shouldUseCompactDesktopCtas(pathname: string) {
+  if (typeof window === "undefined" || pathname !== "/master-plan") {
+    return false;
+  }
+
+  return (
+    window.matchMedia("(min-width: 1280px) and (max-width: 1699px)").matches &&
+    window.matchMedia("(pointer: fine)").matches &&
+    !window.matchMedia("(pointer: coarse)").matches &&
+    !window.matchMedia("(any-pointer: coarse)").matches
+  );
+}
+
 export default function RouteChrome() {
   const pathname = usePathname();
   const [isMasterPlanFlatOpen, setIsMasterPlanFlatOpen] = useState(false);
@@ -47,7 +60,7 @@ export default function RouteChrome() {
     shouldUseMergedChrome,
   );
   const [shouldAddCompactDesktopCtasToDock, setShouldAddCompactDesktopCtasToDock] =
-    useState(false);
+    useState(() => shouldUseCompactDesktopCtas(pathname));
   const isAdminRoute = pathname.startsWith("/admin");
   const isExteriorWalkthroughRoute =
     pathname === "/exterios-walkthrough" ||
@@ -113,13 +126,7 @@ export default function RouteChrome() {
     const anyCoarsePointerMedia = window.matchMedia("(any-pointer: coarse)");
 
     const syncCompactDesktopCtas = () => {
-      setShouldAddCompactDesktopCtasToDock(
-        pathname === "/master-plan" &&
-          compactDesktopMedia.matches &&
-          finePointerMedia.matches &&
-          !coarsePointerMedia.matches &&
-          !anyCoarsePointerMedia.matches,
-      );
+      setShouldAddCompactDesktopCtasToDock(shouldUseCompactDesktopCtas(pathname));
     };
 
     syncCompactDesktopCtas();

@@ -106,6 +106,7 @@ export default function HomePageClient() {
     const abortController = new AbortController();
     let heroProgressAnimationFrame: number | null = null;
     let heroProgressInterval: number | null = null;
+    let preloadAnimationFrame: number | null = null;
     let disposed = false;
 
     const updateLoaderProgress = (nextProgress: number) => {
@@ -144,6 +145,30 @@ export default function HomePageClient() {
       createdLinks.push(link);
     };
 
+    const appendPreloadLinksPaced = (
+      links: Array<{
+        href: string;
+        as: "fetch" | "image" | "video";
+        crossOrigin?: "anonymous";
+      }>,
+    ) => {
+      let index = 0;
+
+      const appendNext = () => {
+        if (disposed || index >= links.length) {
+          preloadAnimationFrame = null;
+          return;
+        }
+
+        const link = links[index];
+        index += 1;
+        appendPreloadLink(link.href, link.as, link.crossOrigin);
+        preloadAnimationFrame = window.requestAnimationFrame(appendNext);
+      };
+
+      preloadAnimationFrame = window.requestAnimationFrame(appendNext);
+    };
+
     const warmVideoSource = (src: string) => {
       const video = document.createElement("video");
       video.preload = "auto";
@@ -156,23 +181,21 @@ export default function HomePageClient() {
       return video;
     };
 
-    appendPreloadLink(
-      "https://cdn.sthyra.com/images/first_frame_again.png",
-      "image",
-    );
-    appendPreloadLink(
-      HERO_VIDEO_URL,
-      "video",
-      "anonymous",
-    );
-    appendPreloadLink(
-      ENTRY_VIDEO_URL,
-      "video",
-      "anonymous",
-    );
-    appendPreloadLink(MASTER_PLAN_SCRUB_HQ_VIDEO_PATH, "video", "anonymous");
-    appendPreloadLink("/models/forglb.glb", "fetch");
-    appendPreloadLink("/models/forglb%20-%20Copy.glb", "fetch");
+    appendPreloadLinksPaced([
+      {
+        href: "https://cdn.sthyra.com/images/first_frame_again.png",
+        as: "image",
+      },
+      { href: HERO_VIDEO_URL, as: "video", crossOrigin: "anonymous" },
+      { href: ENTRY_VIDEO_URL, as: "video", crossOrigin: "anonymous" },
+      {
+        href: MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
+        as: "video",
+        crossOrigin: "anonymous",
+      },
+      { href: "/models/forglb.glb", as: "fetch" },
+      { href: "/models/forglb%20-%20Copy.glb", as: "fetch" },
+    ]);
 
     warmVideoSource(ENTRY_VIDEO_URL);
     warmVideoSource(MASTER_PLAN_SCRUB_HQ_VIDEO_PATH);
@@ -181,6 +204,12 @@ export default function HomePageClient() {
 
     const reportHeroProgressFromMediaElement = () => {
       updateLoaderProgress(getVideoLoadProgress(warmHeroVideoFromMediaElement) * 100);
+    };
+
+    const publishHeroVideoSource = () => {
+      if (!disposed) {
+        setHeroVideoSrc(HERO_VIDEO_URL);
+      }
     };
 
     const handleHeroWarmMediaProgress = () => {
@@ -203,6 +232,11 @@ export default function HomePageClient() {
       handleHeroWarmMediaProgress,
     );
     warmHeroVideoFromMediaElement.addEventListener(
+      "canplay",
+      publishHeroVideoSource,
+      { once: true },
+    );
+    warmHeroVideoFromMediaElement.addEventListener(
       "progress",
       handleHeroWarmMediaProgress,
     );
@@ -220,82 +254,7 @@ export default function HomePageClient() {
     }, 250);
 
     void warmHeroVideoFromMediaElement.play().catch(() => undefined);
-
-    const warmHeroVideoBytes = async () => {
-      try {
-        const response = await fetch(HERO_VIDEO_URL, {
-          cache: "force-cache",
-          mode: "cors",
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error(`Hero video request failed with ${response.status}`);
-        }
-
-        if (!response.body) {
-          setHeroVideoSrc(HERO_VIDEO_URL);
-          return;
-        }
-
-        const reader = response.body.getReader();
-        const totalBytes = Number(response.headers.get("content-length")) || 0;
-        const chunks: ArrayBuffer[] = [];
-        let receivedBytes = 0;
-
-        while (!disposed) {
-          const { done, value } = await reader.read();
-
-          if (done) {
-            break;
-          }
-
-          if (!value) {
-            continue;
-          }
-
-          const chunkBuffer =
-            value.buffer instanceof ArrayBuffer
-              ? value.buffer.slice(
-                  value.byteOffset,
-                  value.byteOffset + value.byteLength,
-                )
-              : new Uint8Array(value).buffer;
-
-          chunks.push(chunkBuffer);
-          receivedBytes += value.byteLength;
-
-          if (totalBytes > 0) {
-            updateLoaderProgress((receivedBytes / totalBytes) * 98);
-          } else {
-            reportHeroProgressFromMediaElement();
-          }
-        }
-
-        if (disposed) {
-          return;
-        }
-
-        const heroBlob = new Blob(chunks, {
-          type: response.headers.get("content-type") || "video/mp4",
-        });
-        const heroObjectUrl = URL.createObjectURL(heroBlob);
-
-        if (heroObjectUrlRef.current) {
-          URL.revokeObjectURL(heroObjectUrlRef.current);
-        }
-
-        heroObjectUrlRef.current = heroObjectUrl;
-        setProgress((currentProgress) => Math.max(currentProgress, 98));
-        setHeroVideoSrc(heroObjectUrl);
-      } catch {
-        if (!disposed) {
-          setHeroVideoSrc(HERO_VIDEO_URL);
-        }
-      }
-    };
-
-    void warmHeroVideoBytes();
+    publishHeroVideoSource();
 
     const warmMasterPlanAssets = () => {
       const frameUrls = getMasterPlanFramePreloadSequence(1, 10).map((frame) =>
@@ -341,6 +300,9 @@ export default function HomePageClient() {
       if (heroProgressAnimationFrame !== null) {
         window.cancelAnimationFrame(heroProgressAnimationFrame);
       }
+      if (preloadAnimationFrame !== null) {
+        window.cancelAnimationFrame(preloadAnimationFrame);
+      }
       if (heroProgressInterval !== null) {
         window.clearInterval(heroProgressInterval);
       }
@@ -351,6 +313,10 @@ export default function HomePageClient() {
       warmHeroVideoFromMediaElement.removeEventListener(
         "loadeddata",
         handleHeroWarmMediaProgress,
+      );
+      warmHeroVideoFromMediaElement.removeEventListener(
+        "canplay",
+        publishHeroVideoSource,
       );
       warmHeroVideoFromMediaElement.removeEventListener(
         "progress",

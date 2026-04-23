@@ -370,6 +370,7 @@ export default function PanoViewer() {
     if (!viewerRef.current) return;
 
     let cancelled = false;
+    let handlePanoramaError: ((event: unknown) => void) | null = null;
 
     (async () => {
       const { nodes, usesTiledAdapter } = await buildNodes(navData as NavItem[]);
@@ -426,10 +427,19 @@ export default function PanoViewer() {
         ],
       });
 
+      if (cancelled) {
+        viewer.destroy();
+        return;
+      }
+
       viewerInstanceRef.current = viewer;
-      viewer.addEventListener("panorama-error", ({ error }: { error: unknown }) => {
-        console.error("PanoViewer panorama load error:", error);
-      });
+      handlePanoramaError = (event: unknown) => {
+        console.error(
+          "PanoViewer panorama load error:",
+          (event as { error?: unknown }).error,
+        );
+      };
+      viewer.addEventListener("panorama-error", handlePanoramaError);
 
       const markersPlugin = viewer.getPlugin(MarkersPlugin) as MarkersPlugin;
       const virtualTourPlugin = viewer.getPlugin(
@@ -463,6 +473,10 @@ export default function PanoViewer() {
 
     return () => {
       cancelled = true;
+      const viewer = viewerInstanceRef.current;
+      if (viewer && handlePanoramaError) {
+        viewer.removeEventListener("panorama-error", handlePanoramaError);
+      }
       viewerInstanceRef.current?.destroy();
       viewerInstanceRef.current = null;
       virtualTourRef.current = null;

@@ -2,7 +2,11 @@ import { cookies } from "next/headers";
 
 export const ADMIN_COOKIE_NAME = "sthyra_admin_session";
 const ADMIN_SESSION_TTL_SECONDS = 60 * 60 * 12;
-const DEV_ADMIN_SESSION_SECRET = "sthyra-local-admin-session-secret";
+const ADMIN_SESSION_CLOCK_SKEW_MS = 5 * 60 * 1000;
+const DEV_ADMIN_SESSION_SECRET =
+  process.env.NODE_ENV === "production"
+    ? ""
+    : `dev-admin-session-${crypto.randomUUID()}`;
 const ADMIN_SESSION_SECRET_ENV_KEYS = [
   "ADMIN_SESSION_SECRET",
   "AUTH_SECRET",
@@ -121,7 +125,10 @@ export async function getAdminSessionPayload(value?: string | null) {
   }
 
   const expiresAt = Number(expiresAtRaw);
-  if (!Number.isFinite(expiresAt) || Date.now() >= expiresAt) {
+  if (
+    !Number.isFinite(expiresAt) ||
+    Date.now() - ADMIN_SESSION_CLOCK_SKEW_MS >= expiresAt
+  ) {
     return null;
   }
 

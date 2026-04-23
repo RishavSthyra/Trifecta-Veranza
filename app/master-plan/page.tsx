@@ -2,6 +2,7 @@ import { buildPageMetadata } from "@/lib/metadata";
 import MasterPlanLayout from "@/components/MasterPlanLayout";
 import { getInventoryApartments } from "@/lib/inventory";
 import type { InventoryApartment } from "@/types/inventory";
+import { unstable_cache } from "next/cache";
 
 export const metadata = buildPageMetadata({
   title: "Master Plan",
@@ -15,13 +16,24 @@ export const metadata = buildPageMetadata({
   ],
 });
 
+export const revalidate = 30;
+
+const getCachedInventoryApartments = unstable_cache(
+  getInventoryApartments,
+  ["master-plan-inventory"],
+  {
+    revalidate: 30,
+    tags: ["inventory"],
+  },
+);
+
 export default async function MasterPlanPage() {
   let initialApartments: InventoryApartment[] = [];
 
   try {
-    initialApartments = await getInventoryApartments();
-  } catch (error) {
-    console.error("Failed to load master plan inventory:", error);
+    initialApartments = await getCachedInventoryApartments();
+  } catch {
+    console.error("Failed to load master plan inventory.");
   }
 
   return (

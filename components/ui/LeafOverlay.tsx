@@ -178,7 +178,7 @@ function MapleLeafSVG({
 
 export default function LeafOverlay() {
   return (
-    <div className="pointer-events-none absolute inset-0 z-[3] overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 z-3 overflow-hidden">
       {leaves.map((leaf) => (
         <motion.div
           key={leaf.id}

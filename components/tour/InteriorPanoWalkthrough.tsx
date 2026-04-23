@@ -20,6 +20,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import pLimit from "p-limit";
 import {
   ArrowDown,
   ArrowLeft,
@@ -83,6 +84,15 @@ const INTERIOR_MIN_FOV = 36;
 const INTERIOR_MAX_FOV = 74;
 const ENTRANCE_FRAME_ID = "F0000";
 const TRACKPAD_PANO_YAW_RADIANS_PER_PIXEL = 0.0032;
+const INTERIOR_PANO_DEV_TOOL_ENABLED = false;
+
+function canUseDeviceOrientation() {
+  return (
+    typeof window !== "undefined" &&
+    "DeviceOrientationEvent" in window &&
+    typeof window.DeviceOrientationEvent !== "undefined"
+  );
+}
 
 function getWheelPixelDelta(event: WheelEvent) {
   const scale =
@@ -884,6 +894,7 @@ export default function InteriorPanoWalkthrough({
   const currentNodeIdRef = useRef("");
   const isDimensionsVisibleRef = useRef(isDimensionsVisible);
   const cacheRef = useRef(new Map<string, ResolvedPano>());
+  const warmupRunRef = useRef(0);
 
   const allNodes = useMemo(
     () => ((isBareShellMode ? bareShellNavData : furnishedNavData) as ExteriorPanoNodeSource[]),
@@ -911,15 +922,25 @@ export default function InteriorPanoWalkthrough({
     : undefined;
   const currentNodeId = explicitNodeId || preferredNodeId || fallbackNodeId;
   const activeNode = graph.byId[currentNodeId];
-  const activePanoId = activeNode ? imageFilenameToPanoId(activeNode.imageFilename) : "";
-  const activeRoomLabel = activeNode ? getRoomLabel(activeNode.imageFilename) : "";
+  const activePanoId =
+    INTERIOR_PANO_DEV_TOOL_ENABLED && activeNode
+      ? imageFilenameToPanoId(activeNode.imageFilename)
+      : "";
+  const activeRoomLabel =
+    INTERIOR_PANO_DEV_TOOL_ENABLED && activeNode
+      ? getRoomLabel(activeNode.imageFilename)
+      : "";
   const activeDimensionMarkerDefinitions = useMemo(
     () =>
-      getInteriorDimensionMarkerDefinitions(
-        activeNode,
-        isBareShellMode,
-        activePanoId ? INTERIOR_DIMENSION_MARKER_OVERRIDES[activePanoId] : undefined,
-      ),
+      INTERIOR_PANO_DEV_TOOL_ENABLED
+        ? getInteriorDimensionMarkerDefinitions(
+            activeNode,
+            isBareShellMode,
+            activePanoId
+              ? INTERIOR_DIMENSION_MARKER_OVERRIDES[activePanoId]
+              : undefined,
+          )
+        : [],
     [activeNode, activePanoId, isBareShellMode],
   );
   const navigationTargets = useMemo(
@@ -1338,6 +1359,8 @@ export default function InteriorPanoWalkthrough({
 
   useEffect(() => {
     let cancelled = false;
+    const runId = warmupRunRef.current + 1;
+    warmupRunRef.current = runId;
 
     const warmCurrentPanorama = async () => {
       const node = graph.byId[currentNodeId];
@@ -1347,9 +1370,16 @@ export default function InteriorPanoWalkthrough({
 
       try {
         const resolved = await resolvePano(node.id);
+        if (cancelled || warmupRunRef.current !== runId) {
+          return;
+        }
+
         const previewFile = resolved.meta.preview ?? getDefaultPreviewFile();
 
         await assetStore.preloadPreview(resolved.panoId, previewFile, "high");
+        if (cancelled || warmupRunRef.current !== runId) {
+          return;
+        }
 
         const warmupTiles = selectWarmupTiles(
           resolved.panoId,
@@ -1357,28 +1387,45 @@ export default function InteriorPanoWalkthrough({
           panoBaseUrl,
           isSlowNetwork ? 6 : 12,
         );
+        const tileLimit = pLimit(isSlowNetwork ? 2 : 4);
 
         await Promise.allSettled(
           warmupTiles
             .slice(0, isSlowNetwork ? 6 : 12)
             .map((tile, index) =>
-              assetStore.preloadTile(tile, index < 2 ? "high" : "low"),
+              tileLimit(() =>
+                assetStore.preloadTile(tile, index < 2 ? "high" : "low"),
+              ),
             ),
         );
+        if (cancelled || warmupRunRef.current !== runId) {
+          return;
+        }
 
         const neighborIds = node.neighbors
           .slice(0, isSlowNetwork ? 1 : 2)
           .map((neighbor) => neighbor.id);
+        const neighborLimit = pLimit(1);
 
         await Promise.allSettled(
-          neighborIds.map(async (neighborId) => {
-            const neighbor = await resolvePano(neighborId);
-            return assetStore.preloadPreview(
-              neighbor.panoId,
-              neighbor.meta.preview ?? getDefaultPreviewFile(),
-              "low",
-            );
-          }),
+          neighborIds.map((neighborId) =>
+            neighborLimit(async () => {
+              if (cancelled || warmupRunRef.current !== runId) {
+                return;
+              }
+
+              const neighbor = await resolvePano(neighborId);
+              if (cancelled || warmupRunRef.current !== runId) {
+                return;
+              }
+
+              return assetStore.preloadPreview(
+                neighbor.panoId,
+                neighbor.meta.preview ?? getDefaultPreviewFile(),
+                "low",
+              );
+            }),
+          ),
         );
       } catch (error) {
         if (!cancelled) {
@@ -1418,16 +1465,22 @@ export default function InteriorPanoWalkthrough({
           startResolved.meta.preview ?? getDefaultPreviewFile(),
           "high",
         );
+        const startupTileLimit = pLimit(isSlowNetwork ? 2 : 4);
         await Promise.allSettled(
           warmupTiles
             .slice(0, isSlowNetwork ? 6 : 10)
             .map((tile, index) =>
-              assetStore.preloadTile(tile, index < 2 ? "high" : "low"),
+              startupTileLimit(() =>
+                assetStore.preloadTile(tile, index < 2 ? "high" : "low"),
+              ),
             ),
         );
       }
 
-      const tourNodes = await Promise.all(graph.nodes.map((node) => buildTourNode(node)));
+      const nodeLimit = pLimit(isSlowNetwork ? 3 : 5);
+      const tourNodes = await Promise.all(
+        graph.nodes.map((node) => nodeLimit(() => buildTourNode(node))),
+      );
       if (disposed || !viewerHostRef.current) {
         return;
       }
@@ -1460,7 +1513,7 @@ export default function InteriorPanoWalkthrough({
         },
         plugins: [
           MarkersPlugin,
-          GyroscopePlugin,
+          ...(canUseDeviceOrientation() ? [GyroscopePlugin] : []),
         //    AutorotatePlugin.withConfig({
         //     autorotatePitch: '5deg',
         //     autostartDelay: 9000,
@@ -1575,7 +1628,7 @@ export default function InteriorPanoWalkthrough({
 
   return (
     <section
-      className={`relative isolate h-full w-full overflow-hidden rounded-[2.25rem] border border-white/10 bg-black text-white  ${className ?? ""}`}
+      className={`interior-pano-walkthrough relative isolate h-full w-full overflow-hidden rounded-[2.25rem] border border-white/10 bg-black text-white  ${className ?? ""}`}
     >
       {/* {walkthroughContext.flatNumber ? (
         <div className="pointer-events-none absolute inset-x-4 top-4 z-30 flex justify-center sm:top-5">
@@ -1652,20 +1705,22 @@ export default function InteriorPanoWalkthrough({
             {isDimensionsVisible ? "Hide Dimensions" : "Show Dimensions"}
           </button>
 
-          <div className={`${uiFont.className} mt-3 rounded-[1.2rem] border border-white/16 bg-[linear-gradient(180deg,rgba(9,13,19,0.42),rgba(9,13,19,0.28))] px-3 py-2.5 text-white/82 shadow-[0_14px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl`}>
-            <div className="text-[9px] font-semibold uppercase tracking-[0.28em] text-white/42">
-              Pano Devtool
+          {INTERIOR_PANO_DEV_TOOL_ENABLED ? (
+            <div className={`${uiFont.className} mt-3 rounded-[1.2rem] border border-white/16 bg-[linear-gradient(180deg,rgba(9,13,19,0.42),rgba(9,13,19,0.28))] px-3 py-2.5 text-white/82 shadow-[0_14px_28px_rgba(0,0,0,0.18)] backdrop-blur-2xl`}>
+              <div className="text-[9px] font-semibold uppercase tracking-[0.28em] text-white/42">
+                Pano Devtool
+              </div>
+              <div className="mt-2 text-[12px] font-semibold leading-4 text-white">
+                {activeRoomLabel || "Unknown Room"}
+              </div>
+              <div className="mt-1 break-all text-[10px] leading-4 text-white/58">
+                {activePanoId || "No pano selected"}
+              </div>
+              <div className="mt-2 text-[10px] uppercase tracking-[0.22em] text-white/46">
+                Dimensions {isDimensionsVisible ? "on" : "off"} • {activeDimensionMarkerDefinitions.length} markers • Yaw {Math.round((viewYaw * 180) / Math.PI)}°
+              </div>
             </div>
-            <div className="mt-2 text-[12px] font-semibold leading-4 text-white">
-              {activeRoomLabel || "Unknown Room"}
-            </div>
-            <div className="mt-1 break-all text-[10px] leading-4 text-white/58">
-              {activePanoId || "No pano selected"}
-            </div>
-            <div className="mt-2 text-[10px] uppercase tracking-[0.22em] text-white/46">
-              Dimensions {isDimensionsVisible ? "on" : "off"} • {activeDimensionMarkerDefinitions.length} markers • Yaw {Math.round((viewYaw * 180) / Math.PI)}°
-            </div>
-          </div>
+          ) : null}
         </div>
       </div>
 
@@ -1802,8 +1857,8 @@ export default function InteriorPanoWalkthrough({
       </div>
 
       <style jsx global>{`
-        .psv-navbar,
-        .psv-virtual-tour-arrows {
+        .interior-pano-walkthrough .psv-navbar,
+        .interior-pano-walkthrough .psv-virtual-tour-arrows {
           display: none !important;
         }
       `}</style>

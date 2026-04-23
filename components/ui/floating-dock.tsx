@@ -160,39 +160,20 @@ function IconContainer({
 
   const distance = useTransform(mouseY, (val) => val - centerYRef.current);
 
-  const widthTransform = useTransform(distance, [-150, 0, 150], [40, 80, 40]);
-  const heightTransform = useTransform(distance, [-150, 0, 150], [40, 80, 40]);
-
-  const widthTransformIcon = useTransform(
-    distance,
-    [-150, 0, 150],
-    [20, 40, 20]
-  );
-  const heightTransformIcon = useTransform(
+  const sizeTransform = useTransform(distance, [-150, 0, 150], [40, 80, 40]);
+  const iconSizeTransform = useTransform(
     distance,
     [-150, 0, 150],
     [20, 40, 20]
   );
 
-  const width = useSpring(widthTransform, {
+  const size = useSpring(sizeTransform, {
     mass: 0.1,
     stiffness: 150,
     damping: 12,
   });
 
-  const height = useSpring(heightTransform, {
-    mass: 0.1,
-    stiffness: 150,
-    damping: 12,
-  });
-
-  const widthIcon = useSpring(widthTransformIcon, {
-    mass: 0.1,
-    stiffness: 150,
-    damping: 12,
-  });
-
-  const heightIcon = useSpring(heightTransformIcon, {
+  const iconSize = useSpring(iconSizeTransform, {
     mass: 0.1,
     stiffness: 150,
     damping: 12,
@@ -202,7 +183,7 @@ function IconContainer({
     <Link href={href}>
       <motion.div
         ref={ref}
-        style={{ width, height }}
+        style={{ width: size, height: size }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         className={cn(
@@ -226,7 +207,7 @@ function IconContainer({
         </AnimatePresence>
 
         <motion.div
-          style={{ width: widthIcon, height: heightIcon }}
+          style={{ width: iconSize, height: iconSize }}
           className="flex items-center justify-center"
         >
           {icon}
