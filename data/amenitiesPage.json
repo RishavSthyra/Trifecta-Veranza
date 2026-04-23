@@ -1,0 +1,104 @@
+{
+  "eyebrow": "Amenities",
+  "title": "We Give More",
+  "description": "A curated collection of open-air, wellness, leisure, and community spaces designed to make every day feel easier.",
+  "summary": "Add a videoSrc and thumbnailSrc to any amenity below and the page will render it automatically.",
+  "items": [
+    {
+      "id": "rooftop-leisure-deck",
+      "title": "Rooftop Leisure Deck",
+      "category": "Sky Retreat",
+      "shortDescription": "A calm elevated deck for sunset breaks, quiet conversations, and open-sky evenings.",
+      "details": "Designed as a flexible leisure layer with seating pockets, planting edges, and a relaxed skyline mood.",
+      "videoSrc": "",
+      "thumbnailSrc": "",
+      "tags": ["Open Sky", "Seating", "Leisure"],
+      "statLabel": "Mood",
+      "statValue": "Elevated"
+    },
+    {
+      "id": "children-play-area",
+      "title": "Children's Play Area",
+      "category": "Family",
+      "shortDescription": "A soft, visible, and welcoming zone for younger residents to play freely.",
+      "details": "Planned for easy supervision, active movement, and everyday neighborhood energy.",
+      "videoSrc": "",
+      "thumbnailSrc": "",
+      "tags": ["Kids", "Active", "Safe"],
+      "statLabel": "Use",
+      "statValue": "Daily"
+    },
+    {
+      "id": "yoga-lawn",
+      "title": "Yoga Lawn",
+      "category": "Wellness",
+      "shortDescription": "A quiet green pause for stretching, meditation, and slow mornings.",
+      "details": "A softer open-air setting shaped for low-noise routines and restorative use.",
+      "videoSrc": "",
+      "thumbnailSrc": "",
+      "tags": ["Wellness", "Morning", "Green"],
+      "statLabel": "Pace",
+      "statValue": "Calm"
+    },
+    {
+      "id": "poolside-cabanas",
+      "title": "Poolside Cabanas",
+      "category": "Leisure",
+      "shortDescription": "Shaded lounge pockets for relaxed afternoons and resort-like breaks.",
+      "details": "A comfort-first amenity zone for cooling off, resting, and spending time with guests.",
+      "videoSrc": "",
+      "thumbnailSrc": "",
+      "tags": ["Shade", "Pool", "Lounge"],
+      "statLabel": "Feel",
+      "statValue": "Resort"
+    },
+    {
+      "id": "outdoor-gym",
+      "title": "Outdoor Gym",
+      "category": "Fitness",
+      "shortDescription": "Open-air fitness for quick strength work without leaving the campus.",
+      "details": "A durable activity zone that keeps everyday movement convenient and visible.",
+      "videoSrc": "",
+      "thumbnailSrc": "",
+      "tags": ["Fitness", "Outdoor", "Active"],
+      "statLabel": "Energy",
+      "statValue": "High"
+    },
+    {
+      "id": "mini-cricket-pitch",
+      "title": "Mini Cricket Pitch",
+      "category": "Sport",
+      "shortDescription": "A compact play space made for quick games and weekend energy.",
+      "details": "A community-friendly sports amenity for children, families, and casual players.",
+      "videoSrc": "",
+      "thumbnailSrc": "",
+      "tags": ["Sport", "Weekend", "Community"],
+      "statLabel": "Mode",
+      "statValue": "Play"
+    },
+    {
+      "id": "party-lawn",
+      "title": "Party Lawn",
+      "category": "Social",
+      "shortDescription": "A generous lawn for small celebrations, gatherings, and evening events.",
+      "details": "A flexible outdoor host space that supports community moments without feeling crowded.",
+      "videoSrc": "",
+      "thumbnailSrc": "",
+      "tags": ["Events", "Outdoor", "Social"],
+      "statLabel": "Gather",
+      "statValue": "Together"
+    },
+    {
+      "id": "zen-garden",
+      "title": "Zen Garden",
+      "category": "Quiet Zone",
+      "shortDescription": "A still garden moment for reading, reflection, and slower breaks.",
+      "details": "Layered planting and seating create a quieter pocket inside the larger landscape.",
+      "videoSrc": "",
+      "thumbnailSrc": "",
+      "tags": ["Garden", "Quiet", "Pause"],
+      "statLabel": "Tone",
+      "statValue": "Still"
+    }
+  ]
+}

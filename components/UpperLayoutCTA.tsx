@@ -8,7 +8,7 @@ import { FiPhone, FiDownload, FiDollarSign, FiGrid, FiHome } from "react-icons/f
 import { BiHome } from "react-icons/bi";
 import { IoMapOutline } from "react-icons/io5";
 import { RiBuilding2Line } from "react-icons/ri";
-import { Footprints, Menu, X } from "lucide-react";
+import { Footprints, Menu, Sparkles, X } from "lucide-react";
 
 interface CtaButtonType {
   name: string;
@@ -243,6 +243,15 @@ export default function UpperLayoutCTA({
         isHighlight: isQuickRouteActive(pathname ?? "", "/master-plan"),
         icon: (
           <RiBuilding2Line className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
+        ),
+      },
+      {
+        name: "Amenities",
+        link: "/amenities",
+        action: "link",
+        isHighlight: isQuickRouteActive(pathname ?? "", "/amenities"),
+        icon: (
+          <Sparkles className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
         ),
       },
       {

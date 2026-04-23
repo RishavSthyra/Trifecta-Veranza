@@ -608,21 +608,27 @@ export default function HeroSection({
 
       <video
         ref={heroLoopVideoRef}
+        autoPlay
+        muted
+        playsInline
+        preload="auto"
         className={`hero-section-video pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           isHeroLoopVideoVisible && !isEntryVideoVisible
             ? "opacity-100"
             : "opacity-0"
         }`}
         src={heroLoopVideoSrc ?? undefined}
-        muted
-        playsInline
-        preload="auto"
         poster={HERO_POSTER_URL}
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
         controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
         onTimeUpdate={handleHeroLoopPlaybackBoundary}
+        onCanPlay={() => {
+          const video = heroLoopVideoRef.current;
+          if (video && !video.paused) return;
+          void video?.play().catch(() => undefined);
+        }}
       />
 
       <video

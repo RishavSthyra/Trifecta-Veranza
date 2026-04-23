@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Phone } from "lucide-react";
+import { Download, Phone, Sparkles } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { BiHome } from "react-icons/bi";
@@ -67,8 +67,10 @@ export default function RouteChrome() {
     pathname === "/exterior-tour" ||
     pathname === "/exterior-walkthrough";
   const isInteriorWalkthroughRoute = pathname === "/walkthrough";
+  const isAmenitiesRoute = pathname === "/amenities";
   const isImmersiveRoute =
-    pathname === "/tower-hover-test" || pathname === "/project-layout";
+    pathname === "/tower-hover-test" ||
+    pathname === "/project-layout";
   const isDocklessRoute = pathname === "/test";
   const shouldMergeLinksForRoute =
     shouldMergeDockIntoCta ||
@@ -167,6 +169,12 @@ export default function RouteChrome() {
         active: isDockRouteActive(pathname, "/master-plan"),
       },
       {
+        title: "Amenities",
+        icon: <Sparkles className="h-full w-full" />,
+        href: "/amenities",
+        active: isDockRouteActive(pathname, "/amenities"),
+      },
+      {
         title: "Walkthrough",
         icon: <Footprints className="h-full w-full" />,
         href: "/exterior-walkthrough",
@@ -239,7 +247,9 @@ export default function RouteChrome() {
         />
       ) : null}
 
-      <QuoteRequestController mergeRouteLinks={shouldMergeLinksForRoute} />
+      {!isAmenitiesRoute ? (
+        <QuoteRequestController mergeRouteLinks={shouldMergeLinksForRoute} />
+      ) : null}
     </>
   );
 }
