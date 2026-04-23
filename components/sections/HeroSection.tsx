@@ -72,6 +72,7 @@ export default function HeroSection({
   const sectionRef = useRef<HTMLElement | null>(null);
   const scrollLockRef = useRef(false);
   const startedEntryTransitionRef = useRef(false);
+  const isLoopSeamSeekInProgressRef = useRef(false);
 
   const [videoReady, setVideoReady] = useState(false);
   const [isTransitioningToMasterPlan, setIsTransitioningToMasterPlan] =
@@ -164,6 +165,23 @@ export default function HeroSection({
     video.setAttribute("webkit-playsinline", "");
   }, []);
 
+  const prepareHeroLoopVideo = useCallback(
+    (video: HTMLVideoElement) => {
+      if (!heroLoopVideoSrc) {
+        return;
+      }
+
+      prepareVideoForInlinePlayback(video);
+
+      if (video.src !== heroLoopVideoSrc) {
+        video.src = heroLoopVideoSrc;
+      }
+
+      video.preload = "auto";
+    },
+    [heroLoopVideoSrc, prepareVideoForInlinePlayback],
+  );
+
   const startHeroLoopVideo = useCallback(async () => {
     const loopVideo = heroLoopVideoRef.current;
 
@@ -171,12 +189,8 @@ export default function HeroSection({
       return;
     }
 
-    prepareVideoForInlinePlayback(loopVideo);
-
-    if (loopVideo.src !== heroLoopVideoSrc) {
-      loopVideo.src = heroLoopVideoSrc;
-      loopVideo.load();
-    }
+    prepareHeroLoopVideo(loopVideo);
+    loopVideo.load();
 
     let didRevealLoopVideo = false;
 
@@ -208,7 +222,47 @@ export default function HeroSection({
       loopVideo.removeEventListener("loadeddata", revealLoopVideo);
       loopVideo.removeEventListener("canplay", revealLoopVideo);
     }
-  }, [heroLoopVideoSrc, isEntryVideoVisible, prepareVideoForInlinePlayback]);
+  }, [
+    heroLoopVideoSrc,
+    isEntryVideoVisible,
+    prepareHeroLoopVideo,
+  ]);
+
+  const handleHeroLoopPlaybackBoundary = useCallback(() => {
+    const loopVideo = heroLoopVideoRef.current;
+
+    if (
+      !loopVideo ||
+      !isHeroLoopVideoVisible ||
+      isEntryVideoVisible ||
+      isLoopSeamSeekInProgressRef.current
+    ) {
+      return;
+    }
+
+    const duration = loopVideo.duration;
+    const currentTime = loopVideo.currentTime;
+    const secondsUntilEnd = duration - currentTime;
+
+    if (!Number.isFinite(duration) || duration <= 0 || secondsUntilEnd > 0.5) {
+      return;
+    }
+
+    isLoopSeamSeekInProgressRef.current = true;
+
+    try {
+      loopVideo.currentTime = 0.04;
+      // Seek backward → video pauses. Always call play() to resume.
+      // The brief pause before play() resumes is imperceptible with duration-0.04 < 0.18s.
+      void loopVideo.play().catch(() => undefined);
+    } catch {
+      // Keep the last rendered frame visible if the browser rejects the seek.
+    } finally {
+      window.setTimeout(() => {
+        isLoopSeamSeekInProgressRef.current = false;
+      }, 180);
+    }
+  }, [isEntryVideoVisible, isHeroLoopVideoVisible]);
 
   const startEntryVideo = useCallback(async () => {
     const heroVideo = heroVideoRef.current;
@@ -220,6 +274,7 @@ export default function HeroSection({
     startedEntryTransitionRef.current = true;
     heroVideo?.pause();
     heroLoopVideo?.pause();
+    isLoopSeamSeekInProgressRef.current = false;
 
     prepareVideoForInlinePlayback(entryVideo);
 
@@ -246,7 +301,7 @@ export default function HeroSection({
 
     scrollLockRef.current = true;
     setIsTransitioningToMasterPlan(true);
-    router.prefetch("/master-plan");
+    router.prefetch("/project-overview");
     void startEntryVideo();
   }, [isTransitioningToMasterPlan, router, startEntryVideo]);
 
@@ -367,15 +422,9 @@ export default function HeroSection({
       return;
     }
 
-    prepareVideoForInlinePlayback(loopVideo);
-
-    if (loopVideo.src !== heroLoopVideoSrc) {
-      loopVideo.src = heroLoopVideoSrc;
-    }
-
-    loopVideo.preload = "auto";
+    prepareHeroLoopVideo(loopVideo);
     loopVideo.load();
-  }, [heroLoopVideoSrc, prepareVideoForInlinePlayback]);
+  }, [heroLoopVideoSrc, prepareHeroLoopVideo]);
 
   useEffect(() => {
     router.prefetch("/master-plan");
@@ -476,7 +525,6 @@ export default function HeroSection({
         }`}
         src={heroLoopVideoSrc ?? undefined}
         muted
-        loop
         playsInline
         preload="auto"
         poster={HERO_POSTER_URL}
@@ -484,6 +532,7 @@ export default function HeroSection({
         disablePictureInPicture
         disableRemotePlayback
         controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
+        onTimeUpdate={handleHeroLoopPlaybackBoundary}
       />
 
       <video
@@ -630,7 +679,7 @@ export default function HeroSection({
               disabled={isTransitioningToMasterPlan}
               className="cursor-pointer border border-white/40 bg-white/10 px-7 py-3 text-xs uppercase tracking-[0.25em] backdrop-blur-sm transition hover:bg-white hover:text-black disabled:cursor-default disabled:opacity-60"
             >
-              Explore Masterplan
+              Explore Project
             </button>
           </motion.div>
         </motion.div>
