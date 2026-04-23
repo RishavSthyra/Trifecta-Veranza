@@ -323,6 +323,12 @@ export default function HeroSection({
     void startEntryVideo();
   }, [isTransitioningToMasterPlan, router, startEntryVideo]);
 
+  const goToProjectOverview = useCallback(() => {
+    if (isTransitioningToMasterPlan) return;
+
+    router.push("/project-overview");
+  }, [isTransitioningToMasterPlan, router]);
+
   useEffect(() => {
     const heroVideo = heroVideoRef.current;
     if (!heroVideo || !heroVideoSrc) {
@@ -816,7 +822,7 @@ export default function HeroSection({
             className="mt-8 flex flex-col items-end gap-4 md:flex-row md:justify-end"
           >
             <button
-              onClick={goToNextPage}
+              onClick={goToProjectOverview}
               disabled={isTransitioningToMasterPlan}
               className="cursor-pointer border border-white/40 bg-white/10 px-7 py-3 text-xs uppercase tracking-[0.25em] backdrop-blur-sm transition hover:bg-white hover:text-black disabled:cursor-default disabled:opacity-60"
             >
