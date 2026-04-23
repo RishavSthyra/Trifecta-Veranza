@@ -10,6 +10,8 @@ import { MASTER_PLAN_SCRUB_HQ_VIDEO_PATH } from "@/data/masterPlanFrameCdnUrls";
 const HERO_POSTER_URL = "https://cdn.sthyra.com/images/first_frame_again.png";
 const ENTRY_VIDEO_SRC =
   "https://cdn.sthyra.com/videos/Tf%20Fixed%20Final_2.mp4";
+const HERO_LOOP_RESTART_BEFORE_END_SECONDS = 0.5;
+const HERO_LOOP_RESTART_AT_SECONDS = 0.04;
 
 type IdleCapableWindow = Window &
   typeof globalThis & {
@@ -244,16 +246,20 @@ export default function HeroSection({
     const currentTime = loopVideo.currentTime;
     const secondsUntilEnd = duration - currentTime;
 
-    if (!Number.isFinite(duration) || duration <= 0 || secondsUntilEnd > 0.5) {
+    if (
+      !Number.isFinite(duration) ||
+      duration <= 0 ||
+      secondsUntilEnd > HERO_LOOP_RESTART_BEFORE_END_SECONDS
+    ) {
       return;
     }
 
     isLoopSeamSeekInProgressRef.current = true;
 
     try {
-      loopVideo.currentTime = 0.04;
+      loopVideo.currentTime = HERO_LOOP_RESTART_AT_SECONDS;
       // Seek backward → video pauses. Always call play() to resume.
-      // The brief pause before play() resumes is imperceptible with duration-0.04 < 0.18s.
+      // Restart before the encoded end so the browser never paints the end boundary.
       void loopVideo.play().catch(() => undefined);
     } catch {
       // Keep the last rendered frame visible if the browser rejects the seek.
@@ -327,7 +333,9 @@ export default function HeroSection({
       onHeroVideoProgressChange?.(getHeroVideoLoadProgress(heroVideo));
     };
 
+    setVideoReady(false);
     prepareVideoForInlinePlayback(heroVideo);
+    heroVideo.preload = "auto";
 
     if (heroVideo.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
       onHeroVideoProgressChange?.(1);
@@ -340,7 +348,6 @@ export default function HeroSection({
     }
 
     reportProgress();
-    void heroVideo.play().catch(() => undefined);
 
     const handleCanPlay = () => {
       reportProgress();
@@ -389,6 +396,9 @@ export default function HeroSection({
     heroVideo.addEventListener("waiting", handleStateCheck);
     heroVideo.addEventListener("error", handleFallbackReady);
 
+    heroVideo.load();
+    void heroVideo.play().catch(() => undefined);
+
     return () => {
       if (readyFrameId !== null) {
         window.cancelAnimationFrame(readyFrameId);
@@ -425,6 +435,31 @@ export default function HeroSection({
     prepareHeroLoopVideo(loopVideo);
     loopVideo.load();
   }, [heroLoopVideoSrc, prepareHeroLoopVideo]);
+
+  useEffect(() => {
+    if (!isHeroLoopVideoVisible || isEntryVideoVisible) {
+      return;
+    }
+
+    let frameId: number | null = null;
+
+    const checkLoopBoundary = () => {
+      handleHeroLoopPlaybackBoundary();
+      frameId = window.requestAnimationFrame(checkLoopBoundary);
+    };
+
+    frameId = window.requestAnimationFrame(checkLoopBoundary);
+
+    return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [
+    handleHeroLoopPlaybackBoundary,
+    isEntryVideoVisible,
+    isHeroLoopVideoVisible,
+  ]);
 
   useEffect(() => {
     router.prefetch("/master-plan");
@@ -540,7 +575,6 @@ export default function HeroSection({
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           isEntryVideoVisible ? "opacity-100" : "pointer-events-none opacity-0"
         }`}
-        crossOrigin="anonymous"
         muted
         playsInline
         preload="metadata"
@@ -573,20 +607,10 @@ export default function HeroSection({
         <source src={MASTER_PLAN_SCRUB_HQ_VIDEO_PATH} type="video/mp4" />
       </video>
 
-      {/* <motion.div
-        animate={{ opacity: isTransitioningToMasterPlan ? 0.18 : 0.05 }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute inset-0 bg-black"
-      />
-      <motion.div
-        animate={{
-          opacity: isTransitioningToMasterPlan ? 0.15 : 0.7,
-        }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-        className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_35%,rgba(0,0,0,0.45)_100%)]"
-      /> */}
+      {/* Bottom mask for aesthetic look */}
+      <div className="absolute inset-0 z-7 pointer-events-none bg-linear-to-t from-black/80 via-black/20 to-transparent" />
 
-      <div className="hidden  absolute left-0 right-0 top-0 z-20 lg:flex items-center justify-between px-6 py-5 md:px-10">
+      <div className="hidden absolute left-0 right-0 top-0 z-20 lg:flex items-center justify-between px-6 py-5 md:px-10">
         <button className="text-xs uppercase tracking-[0.25em] text-white/80">
           <Link href={"/"}>
             <Image
@@ -597,12 +621,15 @@ export default function HeroSection({
             />
           </Link>
         </button>
-        <button className="text-xs uppercase tracking-[0.25em] text-white/80">
-          Inquire
+        <Link href={"/admin/login"}>
+       
+        <button className="text-xs uppercase cursor-pointer tracking-[0.25em] text-white/80">
+          Login
         </button>
+         </Link>
       </div>
 
-      <div className="absolute inset-0 z-10 flex items-center justify-center px-6 pb-[max(env(safe-area-inset-bottom),1.5rem)] pt-[max(env(safe-area-inset-top),1.5rem)]">
+      <div className="absolute inset-0 z-10 flex items-end justify-end px-8 pb-16 xl:pb-24 xl:px-16">
         <motion.div
           variants={contentWrap}
           initial="hidden"
@@ -613,7 +640,7 @@ export default function HeroSection({
                 ? "show"
                 : "hidden"
           }
-          className="max-w-5xl text-center"
+          className="max-w-2xl text-right"
         >
           <motion.p
             variants={contentItem}
@@ -635,7 +662,7 @@ export default function HeroSection({
               }
               className="text-[2.15rem] font-light uppercase tracking-[0.01em] sm:text-[3.2rem] md:text-[4.1rem] md:leading-[0.94] lg:text-[4.85rem] xl:text-7xl"
             >
-              <div className="flex flex-wrap justify-center overflow-hidden">
+              <div className="flex flex-wrap justify-end overflow-hidden">
               {line1.split("").map((char, i) => (
                 <motion.span
                   key={`l1-${i}`}
@@ -647,7 +674,7 @@ export default function HeroSection({
               ))}
               </div>
 
-              <div className="mt-2 flex flex-wrap justify-center overflow-hidden sm:mt-3">
+              <div className="mt-2 flex flex-wrap justify-end overflow-hidden sm:mt-3">
               {line2.split("").map((char, i) => (
                 <motion.span
                   key={`l2-${i}`}
@@ -663,7 +690,7 @@ export default function HeroSection({
 
           <motion.p
             variants={contentItem}
-            className="mx-auto mt-6 max-w-[24rem] text-sm text-white/80 sm:max-w-[30rem] md:max-w-[36rem] md:text-[15px] lg:max-w-[40rem] lg:text-base"
+            className="mt-6 max-w-[24rem] text-sm text-white/80 sm:max-w-[30rem] md:max-w-[36rem] md:text-[15px] lg:max-w-[40rem] lg:text-base"
           >
             Expansive skyrise residences set across 6+ acres with 2 iconic
             towers, rising G+36 floors and offering 444 exclusive homes designed
@@ -672,7 +699,7 @@ export default function HeroSection({
 
           <motion.div
             variants={contentItem}
-            className="mt-8 flex flex-col items-center gap-4 md:flex-row md:justify-center"
+            className="mt-8 flex flex-col items-end gap-4 md:flex-row md:justify-end"
           >
             <button
               onClick={goToNextPage}

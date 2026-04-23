@@ -18,8 +18,6 @@ import {
   LoaderCircle,
   LogOut,
   Search,
-  ShieldCheck,
-  Sparkles,
   TowerControl,
   UserCircle2,
   Users,
@@ -125,6 +123,16 @@ const doughnutOptions: ChartOptions<"doughnut"> = {
       bodyColor: "rgba(255,255,255,0.88)",
       titleColor: "rgba(255,255,255,0.96)",
       displayColors: true,
+    },
+  },
+};
+
+const compactDoughnutOptions: ChartOptions<"doughnut"> = {
+  ...doughnutOptions,
+  plugins: {
+    ...doughnutOptions.plugins,
+    legend: {
+      display: false,
     },
   },
 };
@@ -335,7 +343,7 @@ export default function AdminDashboard({
         backgroundColor: statusTheme[status].solid,
         borderRadius: 10,
         borderSkipped: false,
-        maxBarThickness: 28,
+        maxBarThickness: 18,
       })),
     };
   }, [filteredInventory]);
@@ -382,6 +390,7 @@ export default function AdminDashboard({
           100,
       )
     : 0;
+  const floorChartWidth = Math.max(560, floorChart.labels.length * 32);
 
   const scopeLabel =
     selectedTower === "All"
@@ -491,7 +500,7 @@ export default function AdminDashboard({
   return (
     <div
       ref={glowRootRef}
-      className="relative bg-[#08090c] text-white"
+      className="custom-scrollbar relative h-dvh min-h-dvh overflow-y-auto overflow-x-hidden bg-[#08090c] text-white overscroll-contain [-webkit-overflow-scrolling:touch]"
     >
       <div className="pointer-events-none fixed inset-0">
         <div className="absolute left-[-140px] top-[-110px] h-[360px] w-[360px] rounded-full bg-[#c9a96b]/12 blur-3xl" />
@@ -499,7 +508,7 @@ export default function AdminDashboard({
         <div className="absolute bottom-[-130px] left-[42%] h-[320px] w-[320px] rounded-full bg-white/5 blur-3xl" />
       </div>
 
-      <div className="relative flex flex-col gap-4 xl:grid xl:grid-cols-[290px_minmax(0,1fr)] xl:items-start">
+      <div className="relative grid min-h-full grid-cols-1 gap-4 xl:grid-cols-[clamp(15rem,14vw,18rem)_minmax(0,1fr)] xl:items-start">
         <aside className="w-full shrink-0 xl:self-start">
           <GlowPanel className="relative flex flex-col border border-white/10 bg-[#0b0c10]/94 px-5 py-5 shadow-[0_30px_90px_rgba(0,0,0,0.45)] backdrop-blur-2xl xl:rounded-l-none xl:rounded-r-[34px] xl:border-l-0 sm:px-6 sm:py-6">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(214,188,136,0.12),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_38%,rgba(255,255,255,0.02))]" />
@@ -670,7 +679,7 @@ export default function AdminDashboard({
           </GlowPanel>
         </aside>
 
-        <main className="min-w-0 px-4 py-4 sm:px-5 lg:px-6">
+        <main className="w-full min-w-0 px-3 py-3 sm:px-5 sm:py-4 lg:px-6">
           <div className="space-y-4 pb-6">
             <GlowPanel
               className={cn(
@@ -872,7 +881,7 @@ export default function AdminDashboard({
                       </div>
                     </div>
 
-                    <div className="mt-4 space-y-3">
+                    <div className="custom-scrollbar mt-4 max-h-[min(48dvh,520px)] space-y-3 overflow-y-auto pr-1">
                       {users.map((user) => (
                         <div
                           key={user.id}
@@ -937,12 +946,12 @@ export default function AdminDashboard({
 
             <div
               className={cn(
-                "grid gap-4 2xl:grid-cols-[360px_minmax(0,1fr)]",
+                "grid gap-4 xl:grid-cols-[minmax(0,0.5fr)_minmax(0,1fr)] 2xl:grid-cols-[360px_minmax(0,1fr)]",
                 activeView === "inventory" ? "" : "hidden",
               )}
             >
-              <GlowPanel className="rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.4)] backdrop-blur-2xl sm:p-6">
-                <div className="flex items-start justify-between gap-4">
+              <GlowPanel className="rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 p-4 shadow-[0_30px_90px_rgba(0,0,0,0.4)] backdrop-blur-2xl sm:p-5 xl:p-6">
+                <div className="hidden items-start justify-between gap-4 xl:flex">
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.26em] text-white/34">
                       Status Split
@@ -961,12 +970,20 @@ export default function AdminDashboard({
                 </div>
 
                 {activeSummary.total ? (
-                  <div className="relative mt-6 h-[260px]">
-                    <Doughnut
-                      data={availabilityChart}
-                      options={doughnutOptions}
-                    />
-                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="relative mx-auto h-[280px] w-full max-w-[310px] sm:h-[320px] sm:max-w-[360px] xl:mt-6 xl:h-[280px] xl:max-w-[340px] 2xl:h-[260px] 2xl:max-w-full">
+                    <div className="h-full xl:hidden">
+                      <Doughnut
+                        data={availabilityChart}
+                        options={compactDoughnutOptions}
+                      />
+                    </div>
+                    <div className="hidden h-full xl:block">
+                      <Doughnut
+                        data={availabilityChart}
+                        options={doughnutOptions}
+                      />
+                    </div>
+                    <div className="pointer-events-none absolute inset-0 hidden items-center justify-center xl:flex">
                       <div className="text-center">
                         <p className="text-[11px] uppercase tracking-[0.28em] text-white/34">
                           Occupied
@@ -982,7 +999,7 @@ export default function AdminDashboard({
                 )}
               </GlowPanel>
 
-              <GlowPanel className="rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.4)] backdrop-blur-2xl sm:p-6">
+              <GlowPanel className="hidden rounded-[32px] border border-white/10 bg-[#0a0b0f]/92 p-5 shadow-[0_30px_90px_rgba(0,0,0,0.4)] backdrop-blur-2xl sm:p-6 xl:block">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[11px] uppercase tracking-[0.26em] text-white/34">
@@ -1002,8 +1019,8 @@ export default function AdminDashboard({
                 </div>
 
                 {activeSummary.total ? (
-                  <div className="custom-scrollbar mt-6 overflow-x-auto">
-                    <div className="h-[280px] min-w-[640px]">
+                  <div className="custom-scrollbar mt-6 overflow-x-auto pb-2">
+                    <div className="h-[280px]" style={{ width: `${floorChartWidth}px` }}>
                       <Bar data={floorChart} options={barOptions} />
                     </div>
                   </div>
@@ -1046,9 +1063,9 @@ export default function AdminDashboard({
 
               {filteredInventory.length ? (
                 <div className="relative z-10 px-5 py-5 sm:px-6 sm:py-6 lg:px-8">
-                  <GlowSurface className="overflow-visible rounded-[28px] border border-white/10 bg-white/[0.02]">
-                    <div className="custom-scrollbar overflow-x-auto overflow-y-visible">
-                      <table className="min-w-full border-collapse text-sm">
+                  <GlowSurface className="overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.02]">
+                    <div className="custom-scrollbar max-h-[min(66dvh,720px)] overflow-auto">
+                      <table className="min-w-[880px] border-collapse text-sm lg:min-w-full">
                         <thead className="sticky top-0 z-10 bg-[#111317]/96 backdrop-blur-xl">
                           <tr className="border-b border-white/10">
                             <TableHead>Flat</TableHead>
@@ -1194,42 +1211,14 @@ function GlowBorder() {
   );
 }
 
-function RailStrip({
-  icon,
-  title,
-  description,
-}: {
-  icon: ReactNode;
-  title: string;
-  description: string;
-}) {
-  return (
-    <GlowSurface className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
-      <div className="relative z-10 flex items-start gap-3">
-        <div className="rounded-full border border-[#d6bc88]/20 bg-[#d6bc88]/10 p-2 text-[#ecd7ae]">
-          {icon}
-        </div>
-        <div>
-          <p className="text-sm font-medium text-white">{title}</p>
-          <p className="mt-1 text-[13px] leading-6 text-white/52">
-            {description}
-          </p>
-        </div>
-      </div>
-    </GlowSurface>
-  );
-}
-
 function RailTab({
   icon,
   title,
-  description,
   isActive,
   onClick,
 }: {
   icon: ReactNode;
   title: string;
-  description?: string;
   isActive: boolean;
   onClick: () => void;
 }) {

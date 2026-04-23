@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import HeroSection from "@/components/sections/HeroSection";
 import TrifectaPreloader from "@/components/ui/Preloader";
 import {
@@ -76,6 +76,17 @@ function shouldPreferFallbackHeroVideo() {
   );
 }
 
+function shouldPreferLightweightHeroVideo() {
+  if (typeof window === "undefined") {
+    return shouldPreferFallbackHeroVideo();
+  }
+
+  return (
+    window.matchMedia("(max-width: 1024px)").matches ||
+    shouldPreferFallbackHeroVideo()
+  );
+}
+
 export default function HomePageClient() {
   const loaderStartedAtRef = useRef(0);
   const heroReadyRef = useRef(false);
@@ -120,6 +131,24 @@ export default function HomePageClient() {
       window.clearTimeout(timer);
     };
   }, [heroReady]);
+
+  const handleHeroVideoProgressChange = useCallback((nextProgress: number) => {
+    setProgress((currentProgress) => {
+      if (heroReadyRef.current) {
+        return 100;
+      }
+
+      const targetValue = Math.round(
+        Math.max(currentProgress, Math.min(nextProgress * 100, 96)),
+      );
+      const dampedStep = Math.max(
+        1,
+        Math.round((targetValue - currentProgress) * 0.45),
+      );
+
+      return Math.min(targetValue, currentProgress + dampedStep);
+    });
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || !loading) {
@@ -202,7 +231,6 @@ export default function HomePageClient() {
       video.preload = "auto";
       video.muted = true;
       video.playsInline = true;
-      video.crossOrigin = "anonymous";
       video.src = src;
       video.load();
       warmVideos.push(video);
@@ -215,18 +243,16 @@ export default function HomePageClient() {
         as: "image",
       },
       {
-        href: shouldPreferFallbackHeroVideo()
+        href: shouldPreferLightweightHeroVideo()
           ? HERO_FALLBACK_VIDEO_URL
           : HERO_VIDEO_URL,
         as: "video",
-        crossOrigin: "anonymous",
       },
-      { href: HERO_LOOP_VIDEO_URL, as: "video", crossOrigin: "anonymous" },
-      { href: ENTRY_VIDEO_URL, as: "video", crossOrigin: "anonymous" },
+      { href: HERO_LOOP_VIDEO_URL, as: "video" },
+      { href: ENTRY_VIDEO_URL, as: "video" },
       {
         href: MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
         as: "video",
-        crossOrigin: "anonymous",
       },
       { href: "/models/forglb.glb", as: "fetch" },
       { href: "/models/forglb%20-%20Copy.glb", as: "fetch" },
@@ -236,7 +262,7 @@ export default function HomePageClient() {
     warmVideoSource(HERO_LOOP_VIDEO_URL);
     warmVideoSource(MASTER_PLAN_SCRUB_HQ_VIDEO_PATH);
 
-    const shouldStartWithFallbackHero = shouldPreferFallbackHeroVideo();
+    const shouldStartWithFallbackHero = shouldPreferLightweightHeroVideo();
     const warmHeroVideoFromMediaElement = warmVideoSource(
       shouldStartWithFallbackHero ? HERO_FALLBACK_VIDEO_URL : HERO_VIDEO_URL,
     );
@@ -441,23 +467,7 @@ export default function HomePageClient() {
           heroLoopVideoSrc={HERO_LOOP_VIDEO_URL}
           playIntroAnimation={!loading}
           onHeroReadyChange={setHeroReady}
-          onHeroVideoProgressChange={(nextProgress) => {
-            setProgress((currentProgress) => {
-              if (heroReadyRef.current) {
-                return 100;
-              }
-
-              const targetValue = Math.round(
-                Math.max(currentProgress, Math.min(nextProgress * 100, 96)),
-              );
-              const dampedStep = Math.max(
-                1,
-                Math.round((targetValue - currentProgress) * 0.45),
-              );
-
-              return Math.min(targetValue, currentProgress + dampedStep);
-            });
-          }}
+          onHeroVideoProgressChange={handleHeroVideoProgressChange}
         />
       </main>
     </>
