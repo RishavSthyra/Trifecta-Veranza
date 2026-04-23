@@ -13,7 +13,7 @@ import {
 } from "@photo-sphere-viewer/virtual-tour-plugin";
 import "@photo-sphere-viewer/virtual-tour-plugin/index.css";
 import { Cormorant_Garamond, DM_Sans, Manrope } from "next/font/google";
-import NextImage from "next/image";
+import NextImage, { type StaticImageData } from "next/image";
 import {
   usePathname,
   useRouter,
@@ -31,6 +31,8 @@ import {
   Sofa,
   X,
 } from "lucide-react";
+import FurnishedFloorPlanMinimap from "@/assets/Tower_A_06_2D.webp";
+import BareShellFloorPlanMinimap from "@/assets/Tower_A_01_2D.webp";
 import furnishedNavData from "@/data/trifecta_pano_walkthrough_data_Interior.json";
 import bareShellNavData from "@/data/trifecta_pano_walkthrough_data_BareShell.json";
 import {
@@ -85,6 +87,42 @@ const INTERIOR_MAX_FOV = 74;
 const ENTRANCE_FRAME_ID = "F0000";
 const TRACKPAD_PANO_YAW_RADIANS_PER_PIXEL = 0.0032;
 const INTERIOR_PANO_DEV_TOOL_ENABLED = false;
+const FURNISHED_MINIMAP_FLIP_X = true;
+const FURNISHED_MINIMAP_FLIP_Y = true;
+const BARE_SHELL_MINIMAP_FLIP_X = true;
+const BARE_SHELL_MINIMAP_FLIP_Y = true;
+const FURNISHED_MINIMAP_OFFSET_X = 0;
+const FURNISHED_MINIMAP_OFFSET_Y = 0;
+const FURNISHED_MINIMAP_SCALE_X = 1;
+const FURNISHED_MINIMAP_SCALE_Y = 1;
+const BARE_SHELL_MINIMAP_OFFSET_X = 0;
+const BARE_SHELL_MINIMAP_OFFSET_Y = 0;
+const BARE_SHELL_MINIMAP_SCALE_X = 1;
+const BARE_SHELL_MINIMAP_SCALE_Y = 1;
+const FURNISHED_MINIMAP_WORLD_BOUNDS: FloorPlanMinimapWorldBounds = {
+  bottomLeft: {
+    x: 688.10828,
+    y: -9159.876,
+    z: 10980.549,
+  },
+  topRight: {
+    x: 1899.21672,
+    y: -7800.978,
+    z: 10980.549,
+  },
+};
+const BARE_SHELL_MINIMAP_WORLD_BOUNDS: FloorPlanMinimapWorldBounds = {
+  bottomLeft: {
+    x: 4651.149307,
+    y: -9052.57788,
+    z: 10800,
+  },
+  topRight: {
+    x: 5850.028969,
+    y: -7958.955825,
+    z: 11085,
+  },
+};
 
 function canUseDeviceOrientation() {
   return (
@@ -143,6 +181,32 @@ type RoomTab = {
 
 type MenuRoomItem = RoomTab & {
   isActive: boolean;
+};
+
+type FloorPlanMinimapPoint = {
+  id: string;
+  label: string;
+  left: number;
+  top: number;
+  isActive: boolean;
+};
+
+type FloorPlanMinimapWorldPoint = {
+  x: number;
+  y: number;
+  z?: number;
+};
+
+type FloorPlanMinimapWorldBounds = {
+  bottomLeft: FloorPlanMinimapWorldPoint;
+  topRight: FloorPlanMinimapWorldPoint;
+};
+
+type FloorPlanMinimapAdjustment = {
+  offsetX: number;
+  offsetY: number;
+  scaleX: number;
+  scaleY: number;
 };
 
 type ViewerBindings = {
@@ -568,6 +632,58 @@ function ArrowButton({
   );
 }
 
+function InteriorFloorPlanMinimap({
+  image,
+  points,
+  isTransitioning,
+  onPointSelect,
+  className = "",
+}: {
+  image: StaticImageData;
+  points: FloorPlanMinimapPoint[];
+  isTransitioning: boolean;
+  onPointSelect: (nodeId: string) => void;
+  className?: string;
+}) {
+  if (!points.length) {
+    return null;
+  }
+
+  return (
+    <div className={`pointer-events-auto relative drop-shadow-[0_18px_32px_rgba(0,0,0,0.28)] ${className}`}>
+      <NextImage
+        src={image}
+        alt="Interior floor plan minimap"
+        className="h-auto w-full select-none"
+        sizes="(max-width: 767px) 176px, (max-width: 1279px) 220px, 280px"
+        priority={false}
+      />
+
+      {points.map((point) => (
+        <button
+          key={point.id}
+          type="button"
+          aria-label={`Open ${point.label}`}
+          title={point.label}
+          disabled={isTransitioning}
+          onClick={() => onPointSelect(point.id)}
+          style={{
+            left: `${point.left}%`,
+            top: `${point.top}%`,
+          }}
+          className={`absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border transition duration-200 hover:scale-150 disabled:cursor-not-allowed disabled:opacity-50 sm:h-2 sm:w-2 ${
+            point.isActive
+              ? "border-white bg-[#ffd45a] shadow-[0_0_0_4px_rgba(255,212,90,0.22),0_0_18px_rgba(255,212,90,0.82)]"
+              : "border-[#fff4c9] bg-[#f4c84d] shadow-[0_0_0_3px_rgba(244,200,77,0.18),0_0_14px_rgba(244,200,77,0.7),0_5px_14px_rgba(0,0,0,0.22)]"
+          }`}
+        >
+          <span className="sr-only">{point.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const ROOM_LABELS: Record<string, string> = {
   LS_BP_panoPath_Interior_F0000: "Entrance",
   LS_BP_panoPath_Interior_F0001: "Drawing Room",
@@ -772,6 +888,37 @@ function getDefaultPreviewFile() {
 
 function buildNodeModeLabel(isBareShellMode: boolean) {
   return isBareShellMode ? "Bare Shell" : "Furnished";
+}
+
+function projectWorldPointToMinimap(
+  point: FloorPlanMinimapWorldPoint,
+  bounds: FloorPlanMinimapWorldBounds,
+) {
+  const spanX = Math.max(bounds.topRight.x - bounds.bottomLeft.x, 1);
+  const spanY = Math.max(bounds.topRight.y - bounds.bottomLeft.y, 1);
+
+  return {
+    left: clamp(((point.x - bounds.bottomLeft.x) / spanX) * 100, 0, 100),
+    top: clamp((1 - (point.y - bounds.bottomLeft.y) / spanY) * 100, 0, 100),
+  };
+}
+
+function adjustMinimapPosition(
+  position: Pick<FloorPlanMinimapPoint, "left" | "top">,
+  adjustment: FloorPlanMinimapAdjustment,
+) {
+  return {
+    left: clamp(
+      50 + (position.left - 50) * adjustment.scaleX + adjustment.offsetX,
+      0,
+      100,
+    ),
+    top: clamp(
+      50 + (position.top - 50) * adjustment.scaleY + adjustment.offsetY,
+      0,
+      100,
+    ),
+  };
 }
 
 function vectorFromAngle(angle: number) {
@@ -982,6 +1129,54 @@ export default function InteriorPanoWalkthrough({
     isBareShellMode,
     panoBaseUrl,
   ]);
+  const minimapImage = isBareShellMode
+    ? BareShellFloorPlanMinimap
+    : FurnishedFloorPlanMinimap;
+  const minimapPoints = useMemo<FloorPlanMinimapPoint[]>(() => {
+    const worldBounds = isBareShellMode
+      ? BARE_SHELL_MINIMAP_WORLD_BOUNDS
+      : FURNISHED_MINIMAP_WORLD_BOUNDS;
+    const shouldFlipX = isBareShellMode
+      ? BARE_SHELL_MINIMAP_FLIP_X
+      : FURNISHED_MINIMAP_FLIP_X;
+    const shouldFlipY = isBareShellMode
+      ? BARE_SHELL_MINIMAP_FLIP_Y
+      : FURNISHED_MINIMAP_FLIP_Y;
+    const minimapAdjustment = isBareShellMode
+      ? {
+          offsetX: BARE_SHELL_MINIMAP_OFFSET_X,
+          offsetY: BARE_SHELL_MINIMAP_OFFSET_Y,
+          scaleX: BARE_SHELL_MINIMAP_SCALE_X,
+          scaleY: BARE_SHELL_MINIMAP_SCALE_Y,
+        }
+      : {
+          offsetX: FURNISHED_MINIMAP_OFFSET_X,
+          offsetY: FURNISHED_MINIMAP_OFFSET_Y,
+          scaleX: FURNISHED_MINIMAP_SCALE_X,
+          scaleY: FURNISHED_MINIMAP_SCALE_Y,
+        };
+
+    return graph.nodes.reduce<FloorPlanMinimapPoint[]>((points, node) => {
+      const projectedPosition = projectWorldPointToMinimap(node.rawPosition, worldBounds);
+      const adjustedPosition = adjustMinimapPosition(
+        {
+          left: shouldFlipX ? 100 - projectedPosition.left : projectedPosition.left,
+          top: shouldFlipY ? 100 - projectedPosition.top : projectedPosition.top,
+        },
+        minimapAdjustment,
+      );
+
+      points.push({
+        id: node.id,
+        isActive: node.id === currentNodeId,
+        label: getRoomLabel(node.imageFilename),
+        left: adjustedPosition.left,
+        top: adjustedPosition.top,
+      });
+
+      return points;
+    }, []);
+  }, [currentNodeId, graph.nodes, isBareShellMode]);
 
   const updateModeInUrl = useCallback(
     (nextMode: boolean) => {
@@ -1684,6 +1879,17 @@ export default function InteriorPanoWalkthrough({
 
       <div className="pointer-events-none absolute right-4 top-[1.5rem] z-30 hidden w-[220px] xl:block 2xl:right-6 2xl:top-[2rem] 2xl:w-[300px]">
         <div className="pointer-events-auto rounded-[1.6rem] p-3 ">
+          <InteriorFloorPlanMinimap
+            image={minimapImage}
+            points={minimapPoints}
+            isTransitioning={isTransitioning}
+            onPointSelect={(nodeId) => {
+              setPreferredFrame(null);
+              void goToNode(nodeId);
+            }}
+            className="mx-auto mb-3 w-[210px] 2xl:w-[280px]"
+          />
+
           <button
             type="button"
             onClick={handleModeToggle}
@@ -1722,6 +1928,19 @@ export default function InteriorPanoWalkthrough({
             </div>
           ) : null}
         </div>
+      </div>
+
+      <div className="pointer-events-none absolute right-3 top-3 z-20 xl:hidden">
+        <InteriorFloorPlanMinimap
+          image={minimapImage}
+          points={minimapPoints}
+          isTransitioning={isTransitioning}
+          onPointSelect={(nodeId) => {
+            setPreferredFrame(null);
+            void goToNode(nodeId);
+          }}
+          className="w-[10.5rem] sm:w-[13rem]"
+        />
       </div>
 
       {isMenuOpen ? (
