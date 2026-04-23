@@ -7,7 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { MASTER_PLAN_SCRUB_HQ_VIDEO_PATH } from "@/data/masterPlanFrameCdnUrls";
 
-const HERO_POSTER_URL = "https://cdn.sthyra.com/images/first_frame_again.png";
+const HERO_POSTER_URL = "https://cdn.sthyra.com/images/hero_first_frame.avif";
 const ENTRY_VIDEO_SRC =
   "https://cdn.sthyra.com/videos/Tf%20Fixed%20Final_2.mp4";
 const HERO_LOOP_RESTART_BEFORE_END_SECONDS = 0.5;
@@ -424,6 +424,61 @@ export default function HeroSection({
   useEffect(() => {
     onHeroReadyChange?.(videoReady);
   }, [onHeroReadyChange, videoReady]);
+
+  useEffect(() => {
+    const heroVideo = heroVideoRef.current;
+
+    if (
+      !heroVideo ||
+      !heroVideoSrc ||
+      !playIntroAnimation ||
+      !videoReady ||
+      isEntryVideoVisible ||
+      isHeroLoopVideoVisible
+    ) {
+      return;
+    }
+
+    prepareVideoForInlinePlayback(heroVideo);
+
+    const playHeroVideo = () => {
+      if (
+        document.visibilityState === "hidden" ||
+        isEntryVideoVisible ||
+        isHeroLoopVideoVisible
+      ) {
+        return;
+      }
+
+      void heroVideo.play().catch(() => undefined);
+    };
+
+    playHeroVideo();
+    window.setTimeout(playHeroVideo, 120);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        playHeroVideo();
+      }
+    };
+
+    window.addEventListener("focus", playHeroVideo);
+    window.addEventListener("pageshow", playHeroVideo);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", playHeroVideo);
+      window.removeEventListener("pageshow", playHeroVideo);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [
+    heroVideoSrc,
+    isEntryVideoVisible,
+    isHeroLoopVideoVisible,
+    playIntroAnimation,
+    prepareVideoForInlinePlayback,
+    videoReady,
+  ]);
 
   useEffect(() => {
     const loopVideo = heroLoopVideoRef.current;
