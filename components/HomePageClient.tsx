@@ -19,9 +19,19 @@ type IdleWindow = Window &
   };
 
 const HERO_VIDEO_URL =
-  "https://cdn.sthyra.com/videos/Tf%20Fixed.mp4";
+  "https://cdn.sthyra.com/videos/Hero%20Section%20Video%20A.mp4";
+const HERO_FALLBACK_VIDEO_URL =
+  "https://cdn.sthyra.com/videos/Hero%20Section%20Video%20A_MORE_2.mp4";
+const HERO_LOOP_VIDEO_URL =
+  "https://cdn.sthyra.com/videos/Hero%20Section%20Video%20B.mp4";
+const HERO_VIDEO_FALLBACK_DELAY_MS = 2600;
 const ENTRY_VIDEO_URL =
   "https://cdn.sthyra.com/videos/Tf%20Fixed%20Final_2.mp4";
+
+type NavigatorConnectionLike = {
+  effectiveType?: string;
+  saveData?: boolean;
+};
 
 function getVideoLoadProgress(video: HTMLVideoElement) {
   const duration = video.duration;
@@ -48,6 +58,22 @@ function getVideoLoadProgress(video: HTMLVideoElement) {
   }
 
   return 0.08;
+}
+
+function shouldPreferFallbackHeroVideo() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const connection = (
+    navigator as Navigator & { connection?: NavigatorConnectionLike }
+  ).connection;
+
+  return (
+    connection?.saveData === true ||
+    connection?.effectiveType === "slow-2g" ||
+    connection?.effectiveType === "2g"
+  );
 }
 
 export default function HomePageClient() {
@@ -107,6 +133,8 @@ export default function HomePageClient() {
     let heroProgressAnimationFrame: number | null = null;
     let heroProgressInterval: number | null = null;
     let preloadAnimationFrame: number | null = null;
+    let heroFallbackTimer: number | null = null;
+    let currentHeroWarmVideo: HTMLVideoElement | null = null;
     let disposed = false;
 
     const updateLoaderProgress = (nextProgress: number) => {
@@ -186,7 +214,14 @@ export default function HomePageClient() {
         href: "https://cdn.sthyra.com/images/first_frame_again.png",
         as: "image",
       },
-      { href: HERO_VIDEO_URL, as: "video", crossOrigin: "anonymous" },
+      {
+        href: shouldPreferFallbackHeroVideo()
+          ? HERO_FALLBACK_VIDEO_URL
+          : HERO_VIDEO_URL,
+        as: "video",
+        crossOrigin: "anonymous",
+      },
+      { href: HERO_LOOP_VIDEO_URL, as: "video", crossOrigin: "anonymous" },
       { href: ENTRY_VIDEO_URL, as: "video", crossOrigin: "anonymous" },
       {
         href: MASTER_PLAN_SCRUB_HQ_VIDEO_PATH,
@@ -198,18 +233,52 @@ export default function HomePageClient() {
     ]);
 
     warmVideoSource(ENTRY_VIDEO_URL);
+    warmVideoSource(HERO_LOOP_VIDEO_URL);
     warmVideoSource(MASTER_PLAN_SCRUB_HQ_VIDEO_PATH);
 
-    const warmHeroVideoFromMediaElement = warmVideoSource(HERO_VIDEO_URL);
+    const shouldStartWithFallbackHero = shouldPreferFallbackHeroVideo();
+    const warmHeroVideoFromMediaElement = warmVideoSource(
+      shouldStartWithFallbackHero ? HERO_FALLBACK_VIDEO_URL : HERO_VIDEO_URL,
+    );
+    currentHeroWarmVideo = warmHeroVideoFromMediaElement;
 
     const reportHeroProgressFromMediaElement = () => {
-      updateLoaderProgress(getVideoLoadProgress(warmHeroVideoFromMediaElement) * 100);
+      const warmVideo = currentHeroWarmVideo;
+
+      if (!warmVideo) {
+        return;
+      }
+
+      updateLoaderProgress(getVideoLoadProgress(warmVideo) * 100);
     };
 
-    const publishHeroVideoSource = () => {
+    const publishHeroVideoSource = (src?: string) => {
       if (!disposed) {
-        setHeroVideoSrc(HERO_VIDEO_URL);
+        setHeroVideoSrc(src ?? currentHeroWarmVideo?.src ?? HERO_VIDEO_URL);
       }
+    };
+
+    const switchToFallbackHeroVideo = () => {
+      if (
+        disposed ||
+        currentHeroWarmVideo?.src === HERO_FALLBACK_VIDEO_URL ||
+        heroReadyRef.current
+      ) {
+        return;
+      }
+
+      const fallbackWarmVideo = warmVideoSource(HERO_FALLBACK_VIDEO_URL);
+      currentHeroWarmVideo = fallbackWarmVideo;
+      publishHeroVideoSource(HERO_FALLBACK_VIDEO_URL);
+      void fallbackWarmVideo.play().catch(() => undefined);
+    };
+
+    const publishCurrentHeroVideoSource = () => {
+      publishHeroVideoSource();
+    };
+
+    const handleHeroWarmMediaError = () => {
+      switchToFallbackHeroVideo();
     };
 
     const handleHeroWarmMediaProgress = () => {
@@ -233,7 +302,7 @@ export default function HomePageClient() {
     );
     warmHeroVideoFromMediaElement.addEventListener(
       "canplay",
-      publishHeroVideoSource,
+      publishCurrentHeroVideoSource,
       { once: true },
     );
     warmHeroVideoFromMediaElement.addEventListener(
@@ -248,6 +317,11 @@ export default function HomePageClient() {
       "suspend",
       handleHeroWarmMediaProgress,
     );
+    warmHeroVideoFromMediaElement.addEventListener(
+      "error",
+      handleHeroWarmMediaError,
+      { once: true },
+    );
 
     heroProgressInterval = window.setInterval(() => {
       reportHeroProgressFromMediaElement();
@@ -255,6 +329,13 @@ export default function HomePageClient() {
 
     void warmHeroVideoFromMediaElement.play().catch(() => undefined);
     publishHeroVideoSource();
+
+    if (!shouldStartWithFallbackHero) {
+      heroFallbackTimer = window.setTimeout(
+        switchToFallbackHeroVideo,
+        HERO_VIDEO_FALLBACK_DELAY_MS,
+      );
+    }
 
     const warmMasterPlanAssets = () => {
       const frameUrls = getMasterPlanFramePreloadSequence(1, 10).map((frame) =>
@@ -306,6 +387,9 @@ export default function HomePageClient() {
       if (heroProgressInterval !== null) {
         window.clearInterval(heroProgressInterval);
       }
+      if (heroFallbackTimer !== null) {
+        window.clearTimeout(heroFallbackTimer);
+      }
       warmHeroVideoFromMediaElement.removeEventListener(
         "loadedmetadata",
         handleHeroWarmMediaProgress,
@@ -316,7 +400,7 @@ export default function HomePageClient() {
       );
       warmHeroVideoFromMediaElement.removeEventListener(
         "canplay",
-        publishHeroVideoSource,
+        publishCurrentHeroVideoSource,
       );
       warmHeroVideoFromMediaElement.removeEventListener(
         "progress",
@@ -329,6 +413,10 @@ export default function HomePageClient() {
       warmHeroVideoFromMediaElement.removeEventListener(
         "suspend",
         handleHeroWarmMediaProgress,
+      );
+      warmHeroVideoFromMediaElement.removeEventListener(
+        "error",
+        handleHeroWarmMediaError,
       );
       createdLinks.forEach((link) => link.remove());
       warmVideos.forEach((video) => {
@@ -350,6 +438,7 @@ export default function HomePageClient() {
       >
         <HeroSection
           heroVideoSrc={heroVideoSrc}
+          heroLoopVideoSrc={HERO_LOOP_VIDEO_URL}
           playIntroAnimation={!loading}
           onHeroReadyChange={setHeroReady}
           onHeroVideoProgressChange={(nextProgress) => {

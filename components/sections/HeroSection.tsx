@@ -24,6 +24,7 @@ type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
 
 type HeroSectionProps = {
   heroVideoSrc?: string | null;
+  heroLoopVideoSrc?: string | null;
   onHeroReadyChange?: (ready: boolean) => void;
   onHeroVideoProgressChange?: (progress: number) => void;
   playIntroAnimation?: boolean;
@@ -58,12 +59,14 @@ function getHeroVideoLoadProgress(video: HTMLVideoElement) {
 
 export default function HeroSection({
   heroVideoSrc,
+  heroLoopVideoSrc,
   onHeroReadyChange,
   onHeroVideoProgressChange,
   playIntroAnimation = false,
 }: HeroSectionProps) {
   const router = useRouter();
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+  const heroLoopVideoRef = useRef<HTMLVideoElement | null>(null);
   const entryVideoRef = useRef<HTMLVideoElement | null>(null);
   const idleWarmVideoRef = useRef<HTMLVideoElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -74,6 +77,7 @@ export default function HeroSection({
   const [isTransitioningToMasterPlan, setIsTransitioningToMasterPlan] =
     useState(false);
   const [isEntryVideoVisible, setIsEntryVideoVisible] = useState(false);
+  const [isHeroLoopVideoVisible, setIsHeroLoopVideoVisible] = useState(false);
 
   const line1 = "Open to Sky,";
   const line2 = "Rooted in Green";
@@ -152,20 +156,72 @@ export default function HeroSection({
     },
   };
 
+  const prepareVideoForInlinePlayback = useCallback((video: HTMLVideoElement) => {
+    video.muted = true;
+    video.defaultMuted = true;
+    video.playsInline = true;
+    video.setAttribute("playsinline", "");
+    video.setAttribute("webkit-playsinline", "");
+  }, []);
+
+  const startHeroLoopVideo = useCallback(async () => {
+    const loopVideo = heroLoopVideoRef.current;
+
+    if (!loopVideo || !heroLoopVideoSrc || isEntryVideoVisible) {
+      return;
+    }
+
+    prepareVideoForInlinePlayback(loopVideo);
+
+    if (loopVideo.src !== heroLoopVideoSrc) {
+      loopVideo.src = heroLoopVideoSrc;
+      loopVideo.load();
+    }
+
+    let didRevealLoopVideo = false;
+
+    const revealLoopVideo = () => {
+      if (didRevealLoopVideo) {
+        return;
+      }
+
+      didRevealLoopVideo = true;
+      loopVideo.removeEventListener("loadeddata", revealLoopVideo);
+      loopVideo.removeEventListener("canplay", revealLoopVideo);
+      setIsHeroLoopVideoVisible(true);
+    };
+
+    if (loopVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+      revealLoopVideo();
+    } else {
+      loopVideo.addEventListener("loadeddata", revealLoopVideo, { once: true });
+      loopVideo.addEventListener("canplay", revealLoopVideo, { once: true });
+    }
+
+    try {
+      loopVideo.currentTime = 0;
+      await loopVideo.play();
+      if (loopVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        revealLoopVideo();
+      }
+    } catch {
+      loopVideo.removeEventListener("loadeddata", revealLoopVideo);
+      loopVideo.removeEventListener("canplay", revealLoopVideo);
+    }
+  }, [heroLoopVideoSrc, isEntryVideoVisible, prepareVideoForInlinePlayback]);
+
   const startEntryVideo = useCallback(async () => {
     const heroVideo = heroVideoRef.current;
+    const heroLoopVideo = heroLoopVideoRef.current;
     const entryVideo = entryVideoRef.current;
 
     if (!entryVideo) return;
 
     startedEntryTransitionRef.current = true;
     heroVideo?.pause();
+    heroLoopVideo?.pause();
 
-    entryVideo.muted = true;
-    entryVideo.defaultMuted = true;
-    entryVideo.playsInline = true;
-    entryVideo.setAttribute("playsinline", "");
-    entryVideo.setAttribute("webkit-playsinline", "");
+    prepareVideoForInlinePlayback(entryVideo);
 
     if (entryVideo.src !== ENTRY_VIDEO_SRC) {
       entryVideo.src = ENTRY_VIDEO_SRC;
@@ -183,7 +239,7 @@ export default function HeroSection({
     } catch {
       router.push("/master-plan");
     }
-  }, [router]);
+  }, [prepareVideoForInlinePlayback, router]);
 
   const goToNextPage = useCallback(() => {
     if (scrollLockRef.current || isTransitioningToMasterPlan) return;
@@ -216,6 +272,8 @@ export default function HeroSection({
       onHeroVideoProgressChange?.(getHeroVideoLoadProgress(heroVideo));
     };
 
+    prepareVideoForInlinePlayback(heroVideo);
+
     if (heroVideo.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
       onHeroVideoProgressChange?.(1);
       readyFrameId = window.requestAnimationFrame(markVideoReady);
@@ -226,11 +284,6 @@ export default function HeroSection({
       };
     }
 
-    heroVideo.muted = true;
-    heroVideo.defaultMuted = true;
-    heroVideo.playsInline = true;
-    heroVideo.setAttribute("playsinline", "");
-    heroVideo.setAttribute("webkit-playsinline", "");
     reportProgress();
     void heroVideo.play().catch(() => undefined);
 
@@ -301,11 +354,28 @@ export default function HeroSection({
       heroVideo.removeEventListener("waiting", handleStateCheck);
       heroVideo.removeEventListener("error", handleFallbackReady);
     };
-  }, [heroVideoSrc, onHeroVideoProgressChange]);
+  }, [heroVideoSrc, onHeroVideoProgressChange, prepareVideoForInlinePlayback]);
 
   useEffect(() => {
     onHeroReadyChange?.(videoReady);
   }, [onHeroReadyChange, videoReady]);
+
+  useEffect(() => {
+    const loopVideo = heroLoopVideoRef.current;
+
+    if (!loopVideo || !heroLoopVideoSrc) {
+      return;
+    }
+
+    prepareVideoForInlinePlayback(loopVideo);
+
+    if (loopVideo.src !== heroLoopVideoSrc) {
+      loopVideo.src = heroLoopVideoSrc;
+    }
+
+    loopVideo.preload = "auto";
+    loopVideo.load();
+  }, [heroLoopVideoSrc, prepareVideoForInlinePlayback]);
 
   useEffect(() => {
     router.prefetch("/master-plan");
@@ -378,10 +448,33 @@ export default function HeroSection({
       <video
         ref={heroVideoRef}
         className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-          videoReady && !isEntryVideoVisible ? "opacity-100" : "opacity-0"
+          videoReady && !isEntryVideoVisible && !isHeroLoopVideoVisible
+            ? "opacity-100"
+            : "opacity-0"
         }`}
         src={heroVideoSrc ?? undefined}
         autoPlay
+        muted
+        playsInline
+        preload="auto"
+        poster={HERO_POSTER_URL}
+        controls={false}
+        disablePictureInPicture
+        disableRemotePlayback
+        controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
+        onEnded={() => {
+          void startHeroLoopVideo();
+        }}
+      />
+
+      <video
+        ref={heroLoopVideoRef}
+        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+          isHeroLoopVideoVisible && !isEntryVideoVisible
+            ? "opacity-100"
+            : "pointer-events-none opacity-0"
+        }`}
+        src={heroLoopVideoSrc ?? undefined}
         muted
         loop
         playsInline
