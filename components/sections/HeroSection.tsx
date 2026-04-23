@@ -586,7 +586,7 @@ export default function HeroSection({
 
       <video
         ref={heroVideoRef}
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+        className={`hero-section-video pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
           videoReady && !isEntryVideoVisible && !isHeroLoopVideoVisible
             ? "opacity-100"
             : "opacity-0"
@@ -608,10 +608,10 @@ export default function HeroSection({
 
       <video
         ref={heroLoopVideoRef}
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+        className={`hero-section-video pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
           isHeroLoopVideoVisible && !isEntryVideoVisible
             ? "opacity-100"
-            : "pointer-events-none opacity-0"
+            : "opacity-0"
         }`}
         src={heroLoopVideoSrc ?? undefined}
         muted
@@ -627,8 +627,8 @@ export default function HeroSection({
 
       <video
         ref={entryVideoRef}
-        className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-          isEntryVideoVisible ? "opacity-100" : "pointer-events-none opacity-0"
+        className={`hero-section-video pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
+          isEntryVideoVisible ? "opacity-100" : "opacity-0"
         }`}
         muted
         playsInline
@@ -662,6 +662,18 @@ export default function HeroSection({
         <source src={MASTER_PLAN_SCRUB_HQ_VIDEO_PATH} type="video/mp4" />
       </video>
 
+      <style jsx global>{`
+        .hero-section-video::-webkit-media-controls,
+        .hero-section-video::-webkit-media-controls-panel,
+        .hero-section-video::-webkit-media-controls-play-button,
+        .hero-section-video::-webkit-media-controls-start-playback-button {
+          display: none !important;
+          opacity: 0 !important;
+          pointer-events: none !important;
+          -webkit-appearance: none !important;
+        }
+      `}</style>
+
       {/* Bottom mask for aesthetic look */}
       <div className="absolute inset-0 z-7 pointer-events-none bg-linear-to-t from-black/80 via-black/20 to-transparent" />
 
@@ -669,7 +681,7 @@ export default function HeroSection({
         <button className="text-xs uppercase tracking-[0.25em] text-white/80">
           <Link href={"/"}>
             <Image
-              src={"https://cdn.sthyra.com/images/Logo_Trifect_Veranza%20A.svg"}
+              src={"https://cdn.sthyra.com/images/Logo_Trifect_Veranza%20A_new.png"}
               width={140}
               height={100}
               alt="Trifecta Logo"

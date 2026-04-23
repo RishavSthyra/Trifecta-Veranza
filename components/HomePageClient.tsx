@@ -82,7 +82,8 @@ function shouldPreferLightweightHeroVideo() {
   }
 
   return (
-    window.matchMedia("(max-width: 1024px)").matches ||
+    window.matchMedia("(max-width: 1279px)").matches ||
+    window.matchMedia("(pointer: coarse)").matches ||
     shouldPreferFallbackHeroVideo()
   );
 }
