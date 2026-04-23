@@ -12,6 +12,7 @@ const ENTRY_VIDEO_SRC =
   "https://cdn.sthyra.com/videos/Tf%20Fixed%20Final_2.mp4";
 const HERO_LOOP_RESTART_BEFORE_END_SECONDS = 0.5;
 const HERO_LOOP_RESTART_AT_SECONDS = 0.04;
+const HERO_PLAY_RETRY_MS = 450;
 
 type IdleCapableWindow = Window &
   typeof globalThis & {
@@ -77,6 +78,7 @@ export default function HeroSection({
   const isLoopSeamSeekInProgressRef = useRef(false);
 
   const [videoReady, setVideoReady] = useState(false);
+  const [isHeroVideoPlaying, setIsHeroVideoPlaying] = useState(false);
   const [isTransitioningToMasterPlan, setIsTransitioningToMasterPlan] =
     useState(false);
   const [isEntryVideoVisible, setIsEntryVideoVisible] = useState(false);
@@ -163,8 +165,18 @@ export default function HeroSection({
     video.muted = true;
     video.defaultMuted = true;
     video.playsInline = true;
+    video.autoplay = true;
+    video.controls = false;
+    video.disablePictureInPicture = true;
+    video.disableRemotePlayback = true;
+    video.removeAttribute("controls");
+    video.setAttribute("muted", "");
+    video.setAttribute("autoplay", "");
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
+    video.setAttribute("x5-playsinline", "");
+    video.setAttribute("x5-video-player-type", "h5-page");
+    video.setAttribute("x-webkit-airplay", "deny");
   }, []);
 
   const prepareHeroLoopVideo = useCallback(
@@ -329,11 +341,20 @@ export default function HeroSection({
       setVideoReady(true);
     };
 
+    const markHeroVideoPlaying = () => {
+      setIsHeroVideoPlaying(true);
+    };
+
+    const markHeroVideoNotPlaying = () => {
+      setIsHeroVideoPlaying(false);
+    };
+
     const reportProgress = () => {
       onHeroVideoProgressChange?.(getHeroVideoLoadProgress(heroVideo));
     };
 
     setVideoReady(false);
+    setIsHeroVideoPlaying(false);
     prepareVideoForInlinePlayback(heroVideo);
     heroVideo.preload = "auto";
 
@@ -352,12 +373,14 @@ export default function HeroSection({
     const handleCanPlay = () => {
       reportProgress();
       markVideoReady();
+      void heroVideo.play().catch(() => undefined);
     };
 
     const handleLoadedData = () => {
       reportProgress();
       if (heroVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
         markVideoReady();
+        void heroVideo.play().catch(() => undefined);
       }
     };
 
@@ -391,6 +414,10 @@ export default function HeroSection({
     heroVideo.addEventListener("canplay", handleCanPlay);
     heroVideo.addEventListener("canplaythrough", handleCanPlay);
     heroVideo.addEventListener("playing", handleStateCheck);
+    heroVideo.addEventListener("playing", markHeroVideoPlaying);
+    heroVideo.addEventListener("play", markHeroVideoPlaying);
+    heroVideo.addEventListener("pause", markHeroVideoNotPlaying);
+    heroVideo.addEventListener("ended", markHeroVideoNotPlaying);
     heroVideo.addEventListener("stalled", handleStateCheck);
     heroVideo.addEventListener("suspend", handleStateCheck);
     heroVideo.addEventListener("waiting", handleStateCheck);
@@ -414,6 +441,10 @@ export default function HeroSection({
       heroVideo.removeEventListener("canplay", handleCanPlay);
       heroVideo.removeEventListener("canplaythrough", handleCanPlay);
       heroVideo.removeEventListener("playing", handleStateCheck);
+      heroVideo.removeEventListener("playing", markHeroVideoPlaying);
+      heroVideo.removeEventListener("play", markHeroVideoPlaying);
+      heroVideo.removeEventListener("pause", markHeroVideoNotPlaying);
+      heroVideo.removeEventListener("ended", markHeroVideoNotPlaying);
       heroVideo.removeEventListener("stalled", handleStateCheck);
       heroVideo.removeEventListener("suspend", handleStateCheck);
       heroVideo.removeEventListener("waiting", handleStateCheck);
@@ -454,7 +485,16 @@ export default function HeroSection({
     };
 
     playHeroVideo();
-    window.setTimeout(playHeroVideo, 120);
+    const retryTimeout = window.setTimeout(playHeroVideo, 120);
+    const retryInterval = window.setInterval(() => {
+      if (!heroVideo.paused && heroVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        setIsHeroVideoPlaying(true);
+        window.clearInterval(retryInterval);
+        return;
+      }
+
+      playHeroVideo();
+    }, HERO_PLAY_RETRY_MS);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
@@ -467,6 +507,8 @@ export default function HeroSection({
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
+      window.clearTimeout(retryTimeout);
+      window.clearInterval(retryInterval);
       window.removeEventListener("focus", playHeroVideo);
       window.removeEventListener("pageshow", playHeroVideo);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -579,7 +621,9 @@ export default function HeroSection({
     >
       <div
         className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${
-          videoReady ? "opacity-0" : "opacity-100"
+          isHeroVideoPlaying || isEntryVideoVisible || isHeroLoopVideoVisible
+            ? "opacity-0"
+            : "opacity-100"
         }`}
         style={{ backgroundImage: `url('${HERO_POSTER_URL}')` }}
       />
@@ -587,7 +631,7 @@ export default function HeroSection({
       <video
         ref={heroVideoRef}
         className={`hero-section-video pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-          videoReady && !isEntryVideoVisible && !isHeroLoopVideoVisible
+          isHeroVideoPlaying && !isEntryVideoVisible && !isHeroLoopVideoVisible
             ? "opacity-100"
             : "opacity-0"
         }`}
@@ -596,7 +640,6 @@ export default function HeroSection({
         muted
         playsInline
         preload="auto"
-        poster={HERO_POSTER_URL}
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
@@ -618,7 +661,6 @@ export default function HeroSection({
             : "opacity-0"
         }`}
         src={heroLoopVideoSrc ?? undefined}
-        poster={HERO_POSTER_URL}
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
@@ -639,7 +681,6 @@ export default function HeroSection({
         muted
         playsInline
         preload="metadata"
-        poster={HERO_POSTER_URL}
         controls={false}
         disablePictureInPicture
         disableRemotePlayback
