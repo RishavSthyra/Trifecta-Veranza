@@ -649,7 +649,7 @@ export default function ExteriorPanoWalkthrough({
   const [minimapZoom, setMinimapZoom] = useState(1);
   const [minimapOffset, setMinimapOffset] = useState({ x: 0, y: 0 });
   const [isMinimapDragging, setIsMinimapDragging] = useState(false);
-  const [isAppleTouchFallbackMode, setIsAppleTouchFallbackMode] = useState(false);
+  const [isAppleTouchFallbackMode] = useState(() => isAppleTouchPanoramaDevice());
   const [fallbackPreviewUrl, setFallbackPreviewUrl] = useState<string | null>(null);
   const [copiedDebugPanoId, setCopiedDebugPanoId] = useState<string | null>(null);
   const [copiedDebugSnippetPanoId, setCopiedDebugSnippetPanoId] = useState<
@@ -953,22 +953,15 @@ export default function ExteriorPanoWalkthrough({
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    setIsAppleTouchFallbackMode(isAppleTouchPanoramaDevice());
-  }, []);
-
-  useEffect(() => {
     if (hasCompletedInitialPano) {
       return;
     }
 
-    if (
-      loadState.phase !== "ready" &&
-      !(isAppleTouchFallbackMode && fallbackPreviewUrl)
-    ) {
+    const isInitialPanoReady = isAppleTouchFallbackMode
+      ? Boolean(fallbackPreviewUrl)
+      : loadState.phase === "ready";
+
+    if (!isInitialPanoReady) {
       return;
     }
 
