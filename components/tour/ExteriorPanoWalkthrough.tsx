@@ -181,6 +181,20 @@ function roundDebugDegrees(value: number) {
   return Object.is(rounded, -0) ? 0 : rounded;
 }
 
+function isAppleTouchPanoramaDevice() {
+  if (typeof navigator === "undefined") {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent ?? "";
+  const platform = navigator.platform ?? "";
+  const maxTouchPoints = navigator.maxTouchPoints ?? 0;
+  const isiPhoneOrIPad = /iPad|iPhone|iPod/i.test(userAgent);
+  const isiPadOSDesktopMode = platform === "MacIntel" && maxTouchPoints > 1;
+
+  return isiPhoneOrIPad || isiPadOSDesktopMode;
+}
+
 function formatDebugNumber(value: number) {
   return Number.isInteger(value)
     ? String(value)
@@ -669,6 +683,7 @@ export default function ExteriorPanoWalkthrough({
   activeNodeIdRef.current = activeNodeId;
   const prefersCoarsePointerRef = useRef(false);
   const isCompactExperienceRef = useRef(false);
+  const forcePreviewPanoramaRef = useRef(false);
 
   const activeNode = graph.byId[activeNodeId];
   const sequential = useMemo(
@@ -796,6 +811,7 @@ export default function ExteriorPanoWalkthrough({
 
       const promise = (async () => {
         let meta: PanoMeta | null = null;
+        let previewFile = "preview.jpg";
 
         try {
           meta = await assetStore.getMeta(node.panoId);
@@ -803,27 +819,42 @@ export default function ExteriorPanoWalkthrough({
           meta = null;
         }
 
-        if (meta) {
-          const previewUrl = getResolvedPreviewUrl(
+        if (meta?.preview) {
+          previewFile = meta.preview;
+        }
+
+        const previewUrl = getResolvedPreviewUrl(node.panoId, cdnBaseUrl, previewFile);
+
+        try {
+          await assetStore.preloadPreview(
             node.panoId,
-            cdnBaseUrl,
-            meta.preview ?? "preview.jpg",
+            previewFile,
+            options?.previewPriority ?? "high",
           );
-          const supportsTiles = canUseTiledPanorama(meta);
+        } catch (error) {
+          if (!meta) {
+            throw error;
+          }
+          console.warn(`Exterior preview warmup failed for ${node.panoId}`, error);
+        }
+
+        if (meta) {
+          const supportsTiles =
+            !forcePreviewPanoramaRef.current && canUseTiledPanorama(meta);
 
           if (!supportsTiles) {
-            availabilityRef.current.set(nodeId, "missing");
-            throw new Error(`Incompatible tile grid for ${node.panoId}`);
-          }
+            const resolved = {
+              nodeId,
+              panoId: node.panoId,
+              meta,
+              panorama: previewUrl,
+              previewUrl,
+              mode: "preview",
+            } satisfies ResolvedPano;
 
-          try {
-            await assetStore.preloadPreview(
-              node.panoId,
-              meta.preview ?? "preview.jpg",
-              options?.previewPriority ?? "high",
-            );
-          } catch (error) {
-            console.warn(`Exterior preview warmup failed for ${node.panoId}`, error);
+            availabilityRef.current.set(nodeId, "available");
+            rememberResolvedPano(resolved);
+            return resolved;
           }
 
           const resolved = {
@@ -846,8 +877,18 @@ export default function ExteriorPanoWalkthrough({
           return resolved;
         }
 
-        availabilityRef.current.set(nodeId, "missing");
-        throw new Error(`Missing tiled panorama metadata for ${node.panoId}`);
+        const resolved = {
+          nodeId,
+          panoId: node.panoId,
+          meta: null,
+          panorama: previewUrl,
+          previewUrl,
+          mode: "preview",
+        } satisfies ResolvedPano;
+
+        availabilityRef.current.set(nodeId, "available");
+        rememberResolvedPano(resolved);
+        return resolved;
       })()
         .catch((error) => {
           availabilityRef.current.set(nodeId, "missing");
@@ -884,6 +925,7 @@ export default function ExteriorPanoWalkthrough({
       prefersCoarsePointerRef.current =
         window.matchMedia?.("(pointer: coarse)").matches ||
         navigator.maxTouchPoints > 0;
+      forcePreviewPanoramaRef.current = isAppleTouchPanoramaDevice();
       isCompactExperienceRef.current =
         window.matchMedia?.("(max-width: 1279px)").matches ||
         prefersCoarsePointerRef.current;
@@ -937,14 +979,18 @@ export default function ExteriorPanoWalkthrough({
 
       localViewer = new Viewer({
         container: viewerHostRef.current,
-        adapter: EquirectangularTilesAdapter.withConfig({
-          resolution: isCompactExperienceRef.current
-            ? EXTERIOR_COMPACT_SPHERE_RESOLUTION
-            : EXTERIOR_SPHERE_RESOLUTION,
-          showErrorTile: false,
-          baseBlur: true,
-          antialias: true,
-        }),
+        ...(initialResolved.mode === "tiles"
+          ? {
+              adapter: EquirectangularTilesAdapter.withConfig({
+                resolution: isCompactExperienceRef.current
+                  ? EXTERIOR_COMPACT_SPHERE_RESOLUTION
+                  : EXTERIOR_SPHERE_RESOLUTION,
+                showErrorTile: false,
+                baseBlur: true,
+                antialias: true,
+              }),
+            }
+          : {}),
         panorama: initialResolved.panorama,
         navbar: false,
         plugins: [
@@ -965,7 +1011,8 @@ export default function ExteriorPanoWalkthrough({
         moveInertia: true,
         rendererParameters: {
           antialias: true,
-          powerPreference: "high-performance",
+          powerPreference:
+            initialResolved.mode === "tiles" ? "high-performance" : "default",
         },
       });
 
@@ -1078,7 +1125,7 @@ export default function ExteriorPanoWalkthrough({
         try {
           const warmupProfile = getWarmupProfile(isCompactExperienceRef.current);
           const resolved = await resolvePano(activeNode.id, { previewPriority: "high" });
-          if (cancelled || !resolved.meta) {
+          if (cancelled || resolved.mode !== "tiles" || !resolved.meta) {
             return;
           }
 
@@ -1178,7 +1225,7 @@ export default function ExteriorPanoWalkthrough({
             // Some tiled panos may not support PSV preload cleanly; keep manual warmup.
           }
 
-          if (resolved.meta) {
+          if (resolved.mode === "tiles" && resolved.meta) {
             const warmTiles = selectPriorityTiles(
               resolved.panoId,
               resolved.meta,
