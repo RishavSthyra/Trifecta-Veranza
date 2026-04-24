@@ -1474,10 +1474,6 @@ function buildInventoryApartmentIndex(
   const index: InventoryApartmentIndex = new Map();
 
   apartments.forEach((apartment) => {
-    if (apartment.floor <= 0) {
-      return;
-    }
-
     const towerIndex = index.get(apartment.tower) ?? new Map<string, InventoryApartment>();
 
     index.set(apartment.tower, towerIndex);
@@ -2551,7 +2547,7 @@ const TowerScene = memo(function TowerScene({
           interactiveTowerScope,
         );
 
-        if (inventoryApartment && inventoryApartment.floor > 0) {
+        if (inventoryApartment) {
           apartmentIds.add(apartmentId);
         }
       });
@@ -4386,7 +4382,7 @@ export default function MasterPlanFrameHoverStage({
   );
   const hotspotHoveredApartmentId =
     hoveredApartmentId &&
-    Boolean(hoveredInventoryCandidate && hoveredInventoryCandidate.floor > 0) &&
+    Boolean(hoveredInventoryCandidate) &&
     isApartmentIdAllowedAtHotspot(
       hoveredApartmentId,
       activeHotspot,

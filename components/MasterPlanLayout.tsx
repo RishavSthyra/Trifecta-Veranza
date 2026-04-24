@@ -263,6 +263,31 @@ function getRoomDimensionItems(roomDimensions: string) {
     });
 }
 
+function compareMasterPlanApartments(
+  left: InventoryApartment,
+  right: InventoryApartment,
+) {
+  if (left.floor !== right.floor) {
+    return left.floor - right.floor;
+  }
+
+  const leftFlatKey = left.flatNumber || left.title;
+  const rightFlatKey = right.flatNumber || right.title;
+  const flatComparison = leftFlatKey.localeCompare(rightFlatKey, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+  if (flatComparison !== 0) {
+    return flatComparison;
+  }
+
+  return left.title.localeCompare(right.title, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
 function getUnitPlanForApartment(apartment: InventoryApartment) {
   const flatToken = getApartmentFlatToken(apartment);
   const unitEnding = Number(flatToken.at(-1));
@@ -919,6 +944,12 @@ export default function MasterPlanLayout({
         floorValue: String(apartment.floor),
         searchText: `${apartment.title} ${apartment.flatNumber}`.toLowerCase(),
       });
+    });
+
+    next.forEach((rows) => {
+      rows.sort((left, right) =>
+        compareMasterPlanApartments(left.apartment, right.apartment),
+      );
     });
 
     return next;

@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   Area,
   AreaChart,
@@ -21,9 +22,11 @@ import {
   Landmark,
   Sparkles,
   Trees,
+  ArrowUpRight,
 } from "lucide-react";
 import CoverHero from "@/assets/Aparttments_Clouds.png";
 import { unitPlans } from "@/data/unitPlans";
+import { preloadMasterPlanFrameWindow } from "@/lib/masterPlanFramePreload";
 
 type ChartPoint = {
   name: string;
@@ -155,10 +158,25 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
 }
 
 export default function MobileDeckLanding() {
+  const router = useRouter();
   const [activeView, setActiveView] = useState<ChartKey>("lifestyle");
   const chartData = useMemo(() => chartViews[activeView], [activeView]);
   const heroTitleLines = ["The New Standard", "of Refined Urban", "Living"];
   const featuredPlans = useMemo(() => unitPlans, []);
+
+  useEffect(() => {
+    router.prefetch("/master-plan");
+    const cleanupFrameWarmup = preloadMasterPlanFrameWindow(1, {
+      batchSize: 3,
+      count: 10,
+      decode: false,
+      initialHighPriorityCount: 3,
+    });
+
+    return () => {
+      cleanupFrameWarmup();
+    };
+  }, [router]);
 
   return (
     <div className="w-full px-1.5 pb-[max(env(safe-area-inset-bottom),5.5rem)] [touch-action:pan-y_pinch-zoom] sm:px-2.5 md:px-3 lg:mx-auto lg:max-w-[1180px] lg:px-4 xl:max-w-full xl:px-0">
@@ -468,9 +486,23 @@ export default function MobileDeckLanding() {
           </div>
         </section>
 
+        <section className="flex justify-center px-4 pb-2 pt-6 sm:px-6 sm:pt-8">
+          <button
+            type="button"
+            onClick={() => {
+              router.prefetch("/master-plan");
+              router.push("/master-plan");
+            }}
+            className="flex w-full max-w-[24rem] items-center justify-center gap-2 rounded-full border border-[#d6c4ab] bg-[linear-gradient(180deg,rgba(255,252,246,0.96),rgba(244,235,222,0.94))] px-5 py-3 text-center text-[11px] font-semibold uppercase tracking-[0.24em] text-[#4d4033] shadow-[0_18px_40px_rgba(108,76,36,0.12)] transition hover:border-[#c9b18d] hover:bg-[linear-gradient(180deg,rgba(255,252,246,1),rgba(242,231,214,0.98))] sm:max-w-[26rem] sm:text-[12px]"
+          >
+            Open Masterplan
+            <ArrowUpRight className="h-4 w-4" />
+          </button>
+        </section>
+
         <motion.div
           variants={fadeUp}
-          className="mt-10 flex w-full max-w-4xl flex-wrap items-center justify-center gap-8 sm:gap-12"
+          className="mt-6 flex w-full max-w-4xl flex-wrap items-center justify-center gap-8 sm:mt-8 sm:gap-12"
         >
           <div className="flex items-center justify-center">
             <Image

@@ -174,10 +174,6 @@ function findInventoryApartment(
         return false;
       }
 
-      if (apartment.floor <= 0) {
-        return false;
-      }
-
       const flatToken = normalizeFlatToken(apartment.flatNumber);
       const titleToken = normalizeFlatToken(apartment.title);
       return candidates.has(flatToken) || candidates.has(titleToken);
