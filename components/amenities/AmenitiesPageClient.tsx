@@ -123,7 +123,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
     viewportHeight: desktopAmenitiesViewportHeight,
   } = useSnapListViewport({
     itemCount: data.items.length,
-    targetVisibleCards: 2,
+    targetVisibleCards: 2.1,
   });
   const {
     setFirstItemNode: setMobileAmenitiesFirstItemNode,
@@ -132,7 +132,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
     viewportHeight: mobileAmenitiesViewportHeight,
   } = useSnapListViewport({
     itemCount: data.items.length,
-    targetVisibleCards: 2,
+    targetVisibleCards: 2.1,
   });
 
   const activeIndex = useMemo(
