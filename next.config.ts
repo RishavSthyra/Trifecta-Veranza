@@ -29,6 +29,11 @@ const nextConfig = {
       {
         protocol: "https",
         hostname: "cdn.sthyra.com",
+        pathname: "/interior-panos-trifecta-2/**",
+      },
+      {
+        protocol: "https",
+        hostname: "cdn.sthyra.com",
         pathname: "/exterior-panos-trifecta/**",
       },
       {

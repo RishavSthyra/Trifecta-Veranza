@@ -1,7 +1,7 @@
 export const CLOUDINARY_PANO_IMAGE_BASE_URL =
-  "https://cdn.sthyra.com/interior-panos-trifecta/";
+  "https://cdn.sthyra.com/interior-panos-trifecta-2/";
 export const CLOUDINARY_PANO_RAW_BASE_URL =
-  "https://cdn.sthyra.com/interior-panos-trifecta/";
+  "https://cdn.sthyra.com/interior-panos-trifecta-2/";
 
 function ensureTrailingSlash(value: string) {
   return value.endsWith("/") ? value : `${value}/`;

@@ -31,9 +31,9 @@ import {
   Sofa,
   X,
 } from "lucide-react";
-import FurnishedFloorPlanMinimap from "@/assets/Tower_A_06_2D.webp";
-import BareShellFloorPlanMinimap from "@/assets/Tower_A_01_2D.webp";
-import furnishedNavData from "@/data/trifecta_pano_walkthrough_data_Interior.json";
+import FurnishedFloorPlanMinimap from "@/assets/Tower_A_01_2D.webp";
+import BareShellFloorPlanMinimap from "@/assets/Tower_A_06_2D.webp";
+import furnishedNavData from "@/data/trifecta_pano_walkthrough_data_Interior_final.json"
 import bareShellNavData from "@/data/trifecta_pano_walkthrough_data_BareShell.json";
 import {
   buildPhotoSpherePanorama,
@@ -75,7 +75,8 @@ const wallLabelFont = DM_Sans({
   weight: ["500", "700"],
 });
 
-const FURNISHED_PANO_BASE_URL = "https://cdn.sthyra.com/interior-pano-trifecta-new/";
+const FURNISHED_PANO_BASE_URL =
+  "https://cdn.sthyra.com/interior-panos-trifecta-2/";
 const BARE_SHELL_PANO_BASE_URL =
   "https://cdn.sthyra.com/bareshell-pano-trifecta-new/";
 const DEFAULT_ZOOM = 10;
@@ -88,9 +89,9 @@ const INTERIOR_MAX_FOV = 74;
 const ENTRANCE_FRAME_ID = "F0000";
 const TRACKPAD_PANO_YAW_RADIANS_PER_PIXEL = 0.0032;
 const INTERIOR_PANO_DEV_TOOL_ENABLED = false;
-const FURNISHED_MINIMAP_FLIP_X = true;
+const FURNISHED_MINIMAP_FLIP_X = false;
 const FURNISHED_MINIMAP_FLIP_Y = true;
-const BARE_SHELL_MINIMAP_FLIP_X = true;
+const BARE_SHELL_MINIMAP_FLIP_X = false;
 const BARE_SHELL_MINIMAP_FLIP_Y = true;
 const FURNISHED_MINIMAP_OFFSET_X = 0;
 const FURNISHED_MINIMAP_OFFSET_Y = 0;
