@@ -147,6 +147,26 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
   }, [activeId]);
 
   useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyHeight = document.body.style.height;
+
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    document.body.style.height = "100dvh";
+
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.height = previousBodyHeight;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!activeAmenity) {
       return;
     }
@@ -218,7 +238,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
   }
 
   return (
-    <main className="relative h-screen min-h-screen overflow-hidden bg-black text-white">
+    <main className="relative h-[100dvh] max-h-[100dvh] min-h-[100dvh] overflow-hidden overscroll-none bg-black text-white">
       {hasMediaSource(displayedAmenity.videoSrc) ? (
         <video
           key={displayedAmenity.videoSrc}
@@ -248,7 +268,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         <AmenityPlaceholder title={displayedAmenity.title} />
       )}
 
-      {/* <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/76 via-black/24 to-transparent" /> */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black via-black/5 to-transparent" />
 
       <section className="pointer-events-none absolute bottom-8 left-5 right-5 z-10 pr-0 sm:bottom-10 sm:left-8 sm:right-8 lg:right-[24rem]">
         <div className="max-w-4xl">
@@ -265,7 +285,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         </div>
       </section>
 
-      <div className="absolute bottom-8 left-5 z-20 hidden items-center gap-2 md:flex sm:bottom-10 lg:left-auto lg:right-[25rem]">
+      <div className="absolute bottom-8 left-5 z-20 hidden items-center gap-2 xl:flex sm:bottom-10 lg:left-auto lg:right-[25rem]">
         <button
           type="button"
           onClick={() => goToRelativeAmenity(-1)}
