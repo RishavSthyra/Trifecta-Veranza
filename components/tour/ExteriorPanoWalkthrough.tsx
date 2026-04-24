@@ -6,6 +6,7 @@ import { EquirectangularTilesAdapter } from "@photo-sphere-viewer/equirectangula
 import "@photo-sphere-viewer/core/index.css";
 import { Cormorant_Garamond, Manrope } from "next/font/google";
 import Image from "next/image";
+import TrifectaPreloader from "@/components/ui/Preloader";
 import {
   ArrowDown,
   ArrowLeft,
@@ -200,6 +201,26 @@ function formatDebugNumber(value: number) {
   return Number.isInteger(value)
     ? String(value)
     : value.toFixed(4).replace(/\.?0+$/, "");
+}
+
+function getExteriorPreloaderProgress(
+  loadState: PanoLoadState,
+  hasFallbackPreview: boolean,
+) {
+  switch (loadState.phase) {
+    case "idle":
+      return 8;
+    case "preview":
+      return hasFallbackPreview ? 72 : 34;
+    case "detail":
+      return Math.round(40 + clamp(loadState.detailProgress, 0, 1) * 54);
+    case "ready":
+      return 100;
+    case "error":
+      return hasFallbackPreview ? 100 : 92;
+    default:
+      return 20;
+  }
 }
 
 function getWheelPixelDelta(event: WheelEvent) {
@@ -610,9 +631,10 @@ export default function ExteriorPanoWalkthrough({
     "";
 
   const [activeNodeId, setActiveNodeId] = useState(initialRequestedNodeId);
-  const [, setLoadState] = useState<PanoLoadState>(
+  const [loadState, setLoadState] = useState<PanoLoadState>(
     createLoadState("idle", "Preparing panorama"),
   );
+  const [hasCompletedInitialPano, setHasCompletedInitialPano] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobileAmenitiesOpen, setIsMobileAmenitiesOpen] = useState(false);
   const [isMinimapExpanded, setIsMinimapExpanded] = useState(false);
@@ -709,6 +731,10 @@ export default function ExteriorPanoWalkthrough({
   const sceneToneIndex = Math.max(
     0,
     SCENE_TONE_OPTIONS.findIndex((option) => option.id === sceneTone),
+  );
+  const exteriorPreloaderProgress = getExteriorPreloaderProgress(
+    loadState,
+    Boolean(fallbackPreviewUrl),
   );
   const activeAmenityNodeIds = activeAmenity?.nodeIds.length
     ? activeAmenity.nodeIds
@@ -933,6 +959,32 @@ export default function ExteriorPanoWalkthrough({
 
     setIsAppleTouchFallbackMode(isAppleTouchPanoramaDevice());
   }, []);
+
+  useEffect(() => {
+    if (hasCompletedInitialPano) {
+      return;
+    }
+
+    if (
+      loadState.phase !== "ready" &&
+      !(isAppleTouchFallbackMode && fallbackPreviewUrl)
+    ) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setHasCompletedInitialPano(true);
+    }, 180);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [
+    fallbackPreviewUrl,
+    hasCompletedInitialPano,
+    isAppleTouchFallbackMode,
+    loadState.phase,
+  ]);
 
   useEffect(() => {
     if (!isAppleTouchFallbackMode || !activeNodeId) {
@@ -2263,6 +2315,9 @@ export default function ExteriorPanoWalkthrough({
       aria-label={title}
       className={`relative isolate h-full w-full overflow-hidden rounded-[2.25rem] border border-white/10 bg-[linear-gradient(180deg,#040608_0%,#05070a_50%,#040608_100%)] text-white shadow-[0_30px_80px_rgba(0,0,0,0.35)] ${className ?? ""}`}
     >
+      {!hasCompletedInitialPano ? (
+        <TrifectaPreloader progress={exteriorPreloaderProgress} />
+      ) : null}
       <div className="sr-only">{subtitle}</div>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(255,255,255,0.08),transparent_24%),radial-gradient(circle_at_80%_12%,rgba(207,193,167,0.08),transparent_20%)]" />
 
