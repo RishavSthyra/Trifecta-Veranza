@@ -4,6 +4,18 @@
   "description": "A curated collection of open-air, wellness, leisure, and community spaces designed to make every day feel easier.",
   "summary": "Add a videoSrc and thumbnailSrc to any amenity below and the page will render it automatically.",
   "items": [
+        {
+      "id": "party-lawn",
+      "title": "Party Lawn",
+      "category": "Social",
+      "shortDescription": "A generous lawn for celebrations, gatherings, and evening events.",
+      "details": "A flexible outdoor host space that supports community moments without feeling crowded.",
+      "videoSrc": "https://cdn.sthyra.com/videos/amenities/Party%20Lange%20Website%204K.mp4",
+      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/party_Lange_website_4k_first_frame.avif",
+      "tags": ["Events", "Outdoor", "Social"],
+      "statLabel": "Gather",
+      "statValue": "Together"
+    },
     {
       "id": "amphitheater",
       "title": "Amphitheater",
@@ -160,18 +172,7 @@
       "statLabel": "Use",
       "statValue": "Daily"
     },
-    {
-      "id": "party-lawn",
-      "title": "Party Lawn",
-      "category": "Social",
-      "shortDescription": "A generous lawn for celebrations, gatherings, and evening events.",
-      "details": "A flexible outdoor host space that supports community moments without feeling crowded.",
-      "videoSrc": "https://cdn.sthyra.com/videos/amenities/Party%20Lange%20Website%204K.mp4",
-      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/party_Lange_website_4k_first_frame.avif",
-      "tags": ["Events", "Outdoor", "Social"],
-      "statLabel": "Gather",
-      "statValue": "Together"
-    },
+
     {
       "id": "rock-garden",
       "title": "Rock Garden",
