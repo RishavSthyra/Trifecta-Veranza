@@ -1618,7 +1618,7 @@ export function CustomStyleExample() {
 
         {/* Mobile / Tablet open button */}
         <div
-          className={`absolute bottom-4 right-4 z-30 xl:hidden ${
+          className={`absolute right-4 top-4 z-30 xl:hidden ${
             isMobileFiltersOpen ? "pointer-events-none opacity-0" : "opacity-100"
           }`}
         >

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -107,6 +108,7 @@ function AmenityCard({
 }
 
 export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) {
+  const router = useRouter();
   const [activeId, setActiveId] = useState(data.items[0]?.id ?? "");
   const [displayedAmenityId, setDisplayedAmenityId] = useState(
     data.items[0]?.id ?? "",
@@ -324,6 +326,15 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         </button>
       </div>
 
+      <button
+        type="button"
+        onClick={() => router.back()}
+        className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/58 text-white shadow-[0_14px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:bg-black/72 sm:left-4 sm:top-4 md:h-11 md:w-11 lg:hidden"
+        aria-label="Go back"
+      >
+        <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
+      </button>
+
       {isPanelCollapsed ? (
         <button
           type="button"
@@ -424,19 +435,19 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         onClick={() => setIsPanelOpen(false)}
       />
       {isPanelOpen ? (
-        <aside className="fixed right-3 top-3 z-50 w-[min(24rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-[1.35rem] border border-white/14 bg-black/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 lg:hidden">
+        <aside className="fixed right-2 top-1/2 z-50 w-[min(16.75rem,calc(100vw-1rem))] max-h-[min(58dvh,31rem)] -translate-y-1/2 overflow-hidden rounded-[1.15rem] border border-white/14 bg-black/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 sm:right-3 sm:w-[min(18.25rem,calc(100vw-1.75rem))] sm:max-h-[min(60dvh,33rem)] sm:rounded-[1.25rem] md:right-4 md:w-[min(19.5rem,calc(100vw-3rem))] md:max-h-[min(63dvh,35rem)] md:rounded-[1.3rem] lg:hidden">
           <div className="flex h-full flex-col">
-            <div className="flex items-center justify-between border-b border-white/10 p-4">
+            <div className="flex items-center justify-between border-b border-white/10 px-3.5 py-3 sm:px-4 sm:py-3.5">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/48">
                   {data.eyebrow}
                 </p>
-                <p className="text-lg font-semibold">{data.title}</p>
+                <p className="text-base font-semibold sm:text-lg">{data.title}</p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsPanelOpen(false)}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-black/52"
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/12 bg-black/52 sm:h-9 sm:w-9"
                 aria-label="Close amenities"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -445,7 +456,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
 
             <div
               ref={setMobileAmenitiesScrollAreaNode}
-              className="custom-scrollbar overflow-y-auto overscroll-contain px-4 pt-4 snap-y snap-mandatory"
+              className="custom-scrollbar overflow-y-auto overscroll-contain px-3.5 pt-3.5 snap-y snap-mandatory sm:px-4 sm:pt-4"
               style={
                 mobileAmenitiesViewportHeight
                   ? { height: `${mobileAmenitiesViewportHeight}px` }
@@ -469,18 +480,18 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
                       }
                       type="button"
                       onClick={() => selectAmenity(amenity.id)}
-                      className={`w-full snap-start snap-always rounded-[1.15rem] border p-2.5 text-left transition ${
+                      className={`w-full snap-start snap-always rounded-[1rem] border p-2 text-left transition sm:rounded-[1.1rem] sm:p-2.5 ${
                         active
                           ? "border-white/28 bg-black/64"
                           : "border-white/8 bg-black/38"
                       }`}
                     >
                       <AmenityCard amenity={amenity} active={active} />
-                      <div className="px-1 pb-1 pt-3">
+                      <div className="px-1 pb-1 pt-2.5 sm:pt-3">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/75">
                           {amenity.category}
                         </p>
-                        <p className="pt-1 text-sm font-semibold text-white">
+                        <p className="pt-1 text-[13px] font-semibold text-white sm:text-sm">
                           {amenity.title}
                         </p>
                       </div>

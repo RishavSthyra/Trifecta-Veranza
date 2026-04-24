@@ -441,9 +441,9 @@ export default function FlipBookDeck() {
         scale: [1, 1.075, 1],
         y: 0,
         boxShadow: [
-          "0 18px 42px rgba(120,170,220,0.26), inset 0 1px 0 rgba(240,248,255,0.26)",
-          "0 26px 70px rgba(135,200,255,0.46), inset 0 1px 0 rgba(240,248,255,0.34)",
-          "0 18px 42px rgba(120,170,220,0.26), inset 0 1px 0 rgba(240,248,255,0.26)",
+          "0 18px 42px rgba(180,150,100,0.18), inset 0 1px 0 rgba(255,252,244,0.6)",
+          "0 26px 70px rgba(210,180,120,0.32), inset 0 1px 0 rgba(255,252,244,0.8)",
+          "0 18px 42px rgba(180,150,100,0.18), inset 0 1px 0 rgba(255,252,244,0.6)",
         ],
       }}
       exit={{ opacity: 0, scale: 0.96, y: 10 }}
@@ -461,14 +461,14 @@ export default function FlipBookDeck() {
           ease: "easeInOut",
         },
       }}
-      className="group absolute bottom-10 left-1/2 z-40 inline-flex -translate-x-1/2 cursor-pointer items-center justify-center overflow-visible rounded-full border border-[#d6ecff]/35 bg-[linear-gradient(135deg,#bfe8ff_0%,#87cefa_46%,#4fa3e3_100%)] px-7 py-3.5 text-[0.68rem] font-bold uppercase tracking-[0.34em] text-white transition duration-300 hover:border-[#ecf7ff]/60 hover:bg-[linear-gradient(135deg,#d4f0ff_0%,#87cefa_42%,#3a94d6_100%)] active:scale-[0.985]"
+      className="group absolute bottom-10 left-1/2 z-40 inline-flex -translate-x-1/2 cursor-pointer items-center justify-center overflow-visible rounded-full border border-[#f3e7cf]/60 bg-[linear-gradient(135deg,#fff8e7_0%,#f5e6c8_46%,#e8d4a8_100%)] px-7 py-3.5 text-[0.68rem] font-bold uppercase tracking-[0.34em] text-[#5c4a2c] transition duration-300 hover:border-[#fff3db]/80 hover:bg-[linear-gradient(135deg,#fffdf4_0%,#f5e6c8_42%,#e2c995_100%)] active:scale-[0.985]"
     >
-      <span className="pointer-events-none absolute -inset-2 rounded-full border border-[#e4f3ff]/35 opacity-55 animate-ping" />
+      <span className="pointer-events-none absolute -inset-2 rounded-full border border-[#f7edd8]/60 opacity-55 animate-ping" />
       <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
-        <span className="absolute inset-x-5 top-0 h-px bg-linear-to-r from-transparent via-[#f0f8ff]/80 to-transparent" />
-        <span className="absolute inset-0 -translate-x-full bg-[linear-gradient(105deg,transparent_0%,rgba(210,235,255,0.34)_45%,transparent_72%)] transition duration-1000 group-hover:translate-x-full" />
+        <span className="absolute inset-x-5 top-0 h-px bg-linear-to-r from-transparent via-[#fff6e5]/90 to-transparent" />
+        <span className="absolute inset-0 -translate-x-full bg-[linear-gradient(105deg,transparent_0%,rgba(255,245,220,0.5)_45%,transparent_72%)] transition duration-1000 group-hover:translate-x-full" />
       </span>
-      <span className="relative whitespace-nowrap text-neutral-800">Enter Masterplan</span>
+      <span className="relative whitespace-nowrap">Enter Masterplan</span>
     </motion.button>
   ) : null}
 </AnimatePresence>
