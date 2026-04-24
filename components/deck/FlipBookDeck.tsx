@@ -424,54 +424,54 @@ export default function FlipBookDeck() {
               </HTMLFlipBook>
             </div>
 
-            <AnimatePresence>
-              {shouldShowMasterplanButton ? (
-                <motion.button
-                  type="button"
-                  aria-label="Enter master plan"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    enterMasterPlan();
-                  }}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onPointerUp={(event) => event.stopPropagation()}
-                  initial={{ opacity: 0, scale: 0.9, y: 18 }}
-                  animate={{
-                    opacity: 1,
-                    scale: [1, 1.075, 1],
-                    y: 0,
-                    boxShadow: [
-                      "0 18px 42px rgba(55,22,29,0.26), inset 0 1px 0 rgba(255,236,230,0.26)",
-                      "0 26px 70px rgba(171,95,104,0.46), inset 0 1px 0 rgba(255,236,230,0.34)",
-                      "0 18px 42px rgba(55,22,29,0.26), inset 0 1px 0 rgba(255,236,230,0.26)",
-                    ],
-                  }}
-                  exit={{ opacity: 0, scale: 0.96, y: 10 }}
-                  transition={{
-                    opacity: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
-                    y: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
-                    scale: {
-                      duration: 1.85,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    },
-                    boxShadow: {
-                      duration: 1.85,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    },
-                  }}
-                  className="group absolute bottom-10 left-1/2 z-40 inline-flex -translate-x-1/2 cursor-pointer items-center justify-center overflow-visible rounded-full border border-[#f2d7d3]/35 bg-[linear-gradient(135deg,#bd747c_0%,#ab5f68_46%,#87404b_100%)] px-7 py-3.5 text-[0.68rem] font-bold uppercase tracking-[0.34em] text-white transition duration-300 hover:border-[#ffe7dc]/60 hover:bg-[linear-gradient(135deg,#c9848b_0%,#ab5f68_42%,#7d3944_100%)] active:scale-[0.985]"
-                >
-                  <span className="pointer-events-none absolute -inset-2 rounded-full border border-[#f7ddd7]/35 opacity-55 animate-ping" />
-                  <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
-                    <span className="absolute inset-x-5 top-0 h-px bg-linear-to-r from-transparent via-[#ffe8df]/80 to-transparent" />
-                    <span className="absolute inset-0 -translate-x-full bg-[linear-gradient(105deg,transparent_0%,rgba(255,237,224,0.34)_45%,transparent_72%)] transition duration-1000 group-hover:translate-x-full" />
-                  </span>
-                  <span className="relative whitespace-nowrap">Enter Masterplan</span>
-                </motion.button>
-              ) : null}
-            </AnimatePresence>
+<AnimatePresence>
+  {shouldShowMasterplanButton ? (
+    <motion.button
+      type="button"
+      aria-label="Enter master plan"
+      onClick={(event) => {
+        event.stopPropagation();
+        enterMasterPlan();
+      }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
+      initial={{ opacity: 0, scale: 0.9, y: 18 }}
+      animate={{
+        opacity: 1,
+        scale: [1, 1.075, 1],
+        y: 0,
+        boxShadow: [
+          "0 18px 42px rgba(120,170,220,0.26), inset 0 1px 0 rgba(240,248,255,0.26)",
+          "0 26px 70px rgba(135,200,255,0.46), inset 0 1px 0 rgba(240,248,255,0.34)",
+          "0 18px 42px rgba(120,170,220,0.26), inset 0 1px 0 rgba(240,248,255,0.26)",
+        ],
+      }}
+      exit={{ opacity: 0, scale: 0.96, y: 10 }}
+      transition={{
+        opacity: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
+        y: { duration: 0.34, ease: [0.22, 1, 0.36, 1] },
+        scale: {
+          duration: 1.85,
+          repeat: Infinity,
+          ease: "easeInOut",
+        },
+        boxShadow: {
+          duration: 1.85,
+          repeat: Infinity,
+          ease: "easeInOut",
+        },
+      }}
+      className="group absolute bottom-10 left-1/2 z-40 inline-flex -translate-x-1/2 cursor-pointer items-center justify-center overflow-visible rounded-full border border-[#d6ecff]/35 bg-[linear-gradient(135deg,#bfe8ff_0%,#87cefa_46%,#4fa3e3_100%)] px-7 py-3.5 text-[0.68rem] font-bold uppercase tracking-[0.34em] text-white transition duration-300 hover:border-[#ecf7ff]/60 hover:bg-[linear-gradient(135deg,#d4f0ff_0%,#87cefa_42%,#3a94d6_100%)] active:scale-[0.985]"
+    >
+      <span className="pointer-events-none absolute -inset-2 rounded-full border border-[#e4f3ff]/35 opacity-55 animate-ping" />
+      <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-full">
+        <span className="absolute inset-x-5 top-0 h-px bg-linear-to-r from-transparent via-[#f0f8ff]/80 to-transparent" />
+        <span className="absolute inset-0 -translate-x-full bg-[linear-gradient(105deg,transparent_0%,rgba(210,235,255,0.34)_45%,transparent_72%)] transition duration-1000 group-hover:translate-x-full" />
+      </span>
+      <span className="relative whitespace-nowrap text-neutral-800">Enter Masterplan</span>
+    </motion.button>
+  ) : null}
+</AnimatePresence>
 
             <button
               type="button"

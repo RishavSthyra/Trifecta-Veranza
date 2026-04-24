@@ -1934,8 +1934,8 @@ export default function MasterPlanLayout({
               }`}
             >
               <div
-                className={`surface-contain flex min-h-0 flex-col overflow-hidden rounded-t-[26px] border border-white/60 border-b-0 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:mx-1 sm:rounded-t-[28px] sm:rounded-b-none ${
-                  selectedTower ? "h-[min(84dvh,48rem)]" : "h-auto"
+                className={`surface-contain flex min-h-0 flex-col overflow-hidden overscroll-none rounded-t-[26px] border border-white/60 border-b-0 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:mx-1 sm:rounded-t-[28px] sm:rounded-b-none ${
+                  selectedTower ? "h-[min(84dvh,48rem)] max-h-[min(84dvh,48rem)]" : "h-auto"
                 }`}
                 data-scroll-area={selectedTower ? "mobile-sheet" : undefined}
               >
@@ -1962,7 +1962,7 @@ export default function MasterPlanLayout({
                       </button>
                     </div>
 
-                    <div className="flex min-h-0 flex-1 flex-col gap-2.5 px-2 pb-2.5 pt-2 sm:gap-3 sm:px-2.5">
+                    <div className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-hidden px-2 pb-2.5 pt-2 sm:gap-3 sm:px-2.5">
                       <MasterPlanFiltersCard
                         search={search}
                         onSearchChange={setSearch}
@@ -2160,7 +2160,13 @@ function MasterPlanFiltersCard({
   };
   const towerOptions: TowerType[] = ["Tower A", "Tower B"];
   const searchControl = (
-    <div className="group flex items-center gap-2 rounded-full border border-white/55 bg-white/68 px-3 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_10px_24px_rgba(15,23,42,0.06)] transition focus-within:border-white/80 focus-within:bg-white/82 dark:border-white/10 dark:bg-white/7 dark:focus-within:border-white/24 dark:focus-within:bg-white/12">
+    <div
+      className={`group flex items-center gap-2 rounded-full border px-3 py-2 transition ${
+        compact
+          ? "border-[#eadfce] bg-white/94 shadow-[inset_0_1px_0_rgba(255,255,255,0.95),0_12px_26px_rgba(15,23,42,0.08)] focus-within:border-[#c8a86a] focus-within:bg-white"
+          : "border-white/55 bg-white/68 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_10px_24px_rgba(15,23,42,0.06)] focus-within:border-white/80 focus-within:bg-white/82 dark:border-white/10 dark:bg-white/7 dark:focus-within:border-white/24 dark:focus-within:bg-white/12"
+      }`}
+    >
       <Search className="h-3.5 w-3.5 shrink-0 text-zinc-500 transition group-focus-within:text-zinc-800 dark:text-zinc-400 dark:group-focus-within:text-white" />
       <input
         value={search}
@@ -2170,19 +2176,23 @@ function MasterPlanFiltersCard({
         enterKeyHint="search"
         autoComplete="off"
         placeholder="Search unit number"
-        className="w-full bg-transparent text-xs font-medium text-zinc-800 outline-none placeholder:text-zinc-400 dark:text-white sm:text-[13px]"
+        className={`w-full bg-transparent text-xs font-medium outline-none sm:text-[13px] ${
+          compact
+            ? "text-zinc-800 placeholder:text-zinc-400"
+            : "text-zinc-800 placeholder:text-zinc-400 dark:text-white"
+        }`}
       />
     </div>
   );
 
   if (compact) {
     return (
-      <motion.div className="surface-contain shrink-0 rounded-[20px] border border-white/50 bg-white/72 p-2.5 shadow-[0_14px_34px_rgba(15,23,42,0.08)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/30 dark:shadow-[0_18px_46px_rgba(0,0,0,0.30)] sm:rounded-[24px] sm:p-3">
+      <motion.div className="surface-contain shrink-0 rounded-[20px] border border-[#ece3d6] bg-white/94 p-2.5 text-zinc-900 shadow-[0_18px_38px_rgba(15,23,42,0.08),inset_0_1px_0_rgba(255,255,255,0.95)] backdrop-blur-2xl sm:rounded-[24px] sm:p-3">
         <div className="flex items-start gap-2">
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/55 bg-white/60 text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:bg-white/78 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#e6dccf] bg-white text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.92)] transition hover:bg-[#faf5ec]"
             aria-label="Back to tower selection"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -2190,29 +2200,51 @@ function MasterPlanFiltersCard({
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-semibold text-zinc-900 dark:text-white sm:text-[13px]">
+              <p className="text-xs font-semibold text-zinc-900 sm:text-[13px]">
                 Refine Flats
               </p>
-              <span className="inline-flex items-center gap-1 rounded-full border border-white/45 bg-white/45 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:border-white/10 dark:bg-white/8 dark:text-zinc-200">
+              <span className="inline-flex items-center gap-1 rounded-full border border-[#e9ddca] bg-[#faf6ee] px-2 py-0.5 text-[10px] font-medium text-zinc-700">
                 <Building2 className="h-3 w-3" />
                 {selectedTower}
               </span>
             </div>
-            <p className="mt-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+            <p className="mt-0.5 text-[10px] text-zinc-500">
               {activeFilterCount > 0
                 ? `${activeFilterCount} active refinements`
                 : "Search first, expand for details"}
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsCompactOpen((value) => !value)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/55 bg-white/60 px-2.5 text-[10px] font-semibold text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:bg-white/78 dark:border-white/10 dark:bg-white/5 dark:text-zinc-200 dark:hover:bg-white/10"
-          >
-            <SlidersHorizontal className="h-3 w-3" />
-            {isCompactOpen ? "Close filters" : "Filters"}
-          </button>
+          <div className="flex items-center gap-1.5">
+            {isCompactOpen ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onReset}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#d4b57b]/55 bg-[#f8f1e3] px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#9b7840] transition hover:bg-[#f3e7d3]"
+                >
+                  Reset
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsCompactOpen(false)}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#e6dccf] bg-white px-2.5 text-[10px] font-semibold text-zinc-700 transition hover:bg-[#faf5ec]"
+                >
+                  <SlidersHorizontal className="h-3 w-3" />
+                  Close filters
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsCompactOpen(true)}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#e6dccf] bg-white px-2.5 text-[10px] font-semibold text-zinc-700 transition hover:bg-[#faf5ec]"
+              >
+                <SlidersHorizontal className="h-3 w-3" />
+                Filters
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-2.5">
@@ -2238,76 +2270,71 @@ function MasterPlanFiltersCard({
 
         {isCompactOpen ? (
           <div className="mt-2.5 max-h-[31svh] space-y-2.5 overflow-y-auto overscroll-contain pr-1 [-webkit-overflow-scrolling:touch] sm:max-h-[36svh]">
-            <FilterBlock compact label="Tower">
+            <FilterBlock compact compactDark label="Tower">
               <FilterPillGroup
                 options={towerOptions}
                 value={selectedTower}
                 onChange={onTowerChange}
                 getLabel={(item) => item.replace("Tower ", "Tower ")}
+                compactDark
               />
             </FilterBlock>
 
-            <FilterBlock compact label="BHK">
+            <FilterBlock compact compactDark label="BHK">
               <FilterPillGroup
                 options={bhkOptions}
                 value={bhk}
                 onChange={onBhkChange}
                 getLabel={(item) => (item === "All" ? "All" : `${item} BHK`)}
+                compactDark
               />
             </FilterBlock>
 
-            <FilterBlock compact label="Floor">
+            <FilterBlock compact compactDark label="Floor">
               <FilterDropdown
                 value={floor}
                 options={floorOptions}
                 onChange={onFloorChange}
+                compactDark
               />
             </FilterBlock>
 
-            <FilterBlock compact label="Facing">
+            <FilterBlock compact compactDark label="Facing">
               <FilterPillGroup
                 options={facingOptions}
                 value={facing}
                 onChange={onFacingChange}
+                compactDark
               />
             </FilterBlock>
 
-            <FilterBlock compact label="Status">
+            <FilterBlock compact compactDark label="Status">
               <FilterPillGroup
                 options={statusOptions}
                 value={status}
                 onChange={onStatusChange}
+                compactDark
               />
             </FilterBlock>
 
-            <FilterBlock compact label={`Min Area: ${minArea} sqft`}>
-              <input
-                type="range"
-                min={0}
-                max={1745}
-                step={45}
-                value={minArea}
-                onChange={(e) => onMinAreaChange(Number(e.target.value))}
-                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/70 accent-zinc-600 dark:bg-white/10 dark:accent-white"
-              />
+            <FilterBlock compact compactDark label={`Min Area: ${minArea} sqft`}>
+              <div className="">
+                <input
+                  type="range"
+                  min={0}
+                  max={1745}
+                  step={45}
+                  value={minArea}
+                  onChange={(e) => onMinAreaChange(Number(e.target.value))}
+                  className="h-3 w-full cursor-pointer appearance-auto accent-[#c8a86a]"
+                  style={{ accentColor: "#c8a86a" }}
+                />
+                <div className="mt-2 flex items-center justify-between text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                  <span>0 sqft</span>
+                  <span>1745 sqft</span>
+                </div>
+              </div>
             </FilterBlock>
-
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={onReset}
-                className="flex-1 rounded-full border border-white/55 bg-white/52 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition hover:bg-white/72 dark:border-white/10 dark:bg-white/8 dark:text-zinc-200 dark:hover:bg-white/12"
-              >
-                Reset
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsCompactOpen(false)}
-                className="flex-1 rounded-full border border-white/70 bg-white/76 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-zinc-800 shadow-[0_10px_22px_rgba(15,23,42,0.08)] transition hover:bg-white dark:border-white/12 dark:bg-white dark:text-black"
-              >
-                Close filters
-              </button>
-            </div>
           </div>
         ) : null}
       </motion.div>
@@ -2416,15 +2443,22 @@ function MasterPlanFiltersCard({
             </FilterBlock>
 
             <FilterBlock label={`Min Area: ${minArea} sqft`}>
-              <input
-                type="range"
-                min={0}
-                max={1745}
-                step={5}
-                value={minArea}
-                onChange={(e) => onMinAreaChange(Number(e.target.value))}
-                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/70 accent-zinc-600 dark:bg-white/10 dark:accent-white"
-              />
+              <div className="">
+                <input
+                  type="range"
+                  min={0}
+                  max={1745}
+                  step={5}
+                  value={minArea}
+                  onChange={(e) => onMinAreaChange(Number(e.target.value))}
+                  className="h-3 w-full cursor-pointer appearance-auto accent-[#c8a86a]"
+                  style={{ accentColor: "#c8a86a" }}
+                />
+                <div className="mt-2 flex items-center justify-between text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
+                  <span>0 sqft</span>
+                  <span>1745 sqft</span>
+                </div>
+              </div>
             </FilterBlock>
           </>
         ) : activeFilterCount > 0 ? (
@@ -2504,17 +2538,23 @@ function MasterPlanResultsCard({
   return (
     <motion.div
       className={`surface-contain flex min-h-0 flex-col rounded-[24px] border border-white/30 bg-white/75 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] ${
-        compact ? "min-h-0 flex-1 p-3" : "flex-1 p-4"
+        compact ? "min-h-0 flex-1 overflow-hidden p-2.5" : "flex-1 p-4"
       }`}
     >
       <div className={`flex items-center justify-between ${compact ? "mb-3" : "mb-4"}`}>
         <div>
-          <h3 className="text-base font-semibold">Matching Flats</h3>
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          <h3 className={`${compact ? "text-[0.95rem]" : "text-base"} font-semibold`}>
+            Matching Flats
+          </h3>
+          <p className={`${compact ? "text-[11px]" : "text-xs"} text-zinc-500 dark:text-zinc-400`}>
             View the Flats matching your requirement
           </p>
         </div>
-        <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium dark:border-white/10 dark:bg-white/5">
+        <span
+          className={`rounded-full border border-zinc-200 bg-zinc-50 font-medium dark:border-white/10 dark:bg-white/5 ${
+            compact ? "px-2.5 py-0.5 text-[11px]" : "px-3 py-1 text-xs"
+          }`}
+        >
           {filteredApartments.length} units
         </span>
       </div>
@@ -2599,7 +2639,7 @@ function MasterPlanResultsCard({
                           : "dark:border-white/10 dark:from-white/10"
                       } ${
                         compact
-                          ? "flex-col gap-3 rounded-[20px] border px-3.5 py-3"
+                          ? "grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-2 rounded-[16px] border px-3 py-2"
                           : "items-center justify-between rounded-[22px] border px-4 py-3"
                       } ${
                         apartment.id === selectedApartmentId
@@ -2614,12 +2654,18 @@ function MasterPlanResultsCard({
                       }`}
                     >
                       <div className="min-w-0 w-full">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-zinc-900 dark:text-white">
+                        <div className={`flex flex-wrap items-center ${compact ? "gap-1.5" : "gap-2"}`}>
+                          <p
+                            className={`font-semibold text-zinc-900 dark:text-white ${
+                              compact ? "text-[0.95rem]" : "text-sm"
+                            }`}
+                          >
                             {apartment.title}
                           </p>
                           <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                            className={`rounded-full font-semibold ${
+                              compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"
+                            } ${
                               apartment.status === "Available"
                                 ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
                                 : apartment.status === "Sold"
@@ -2630,40 +2676,60 @@ function MasterPlanResultsCard({
                             {apartment.status}
                           </span>
                           {!isViewableAtHotspot ? (
-                            <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-[10px] font-semibold text-zinc-600 dark:bg-white/8 dark:text-zinc-300">
+                            <span
+                              className={`rounded-full bg-zinc-200 font-semibold text-zinc-600 dark:bg-white/8 dark:text-zinc-300 ${
+                                compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"
+                              }`}
+                            >
                               Not viewable here
                             </span>
                           ) : null}
                         </div>
 
-                        <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                            <Building2 className="h-3.5 w-3.5" />
+                        <div
+                          className={`mt-2 flex flex-wrap items-center text-zinc-500 dark:text-zinc-400 ${
+                            compact ? "gap-1.5 text-[10px]" : "gap-3 text-xs"
+                          }`}
+                        >
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full bg-zinc-100 dark:bg-white/5 ${
+                              compact ? "px-1.5 py-0.5" : "px-2 py-1"
+                            }`}
+                          >
+                            <Building2 className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
                             {apartment.tower}
                           </span>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                            <BedDouble className="h-3.5 w-3.5" />
+                          <span
+                            className={`inline-flex items-center gap-1 rounded-full bg-zinc-100 dark:bg-white/5 ${
+                              compact ? "px-1.5 py-0.5" : "px-2 py-1"
+                            }`}
+                          >
+                            <BedDouble className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
                             {apartment.bhk} BHK
                           </span>
                         </div>
                       </div>
 
                       <div
-                        className={`text-xs text-zinc-500 dark:text-zinc-400 ${
+                        className={`text-zinc-500 dark:text-zinc-400 ${
                           compact
-                            ? "flex w-full items-center justify-between gap-3"
-                            : "ml-4 shrink-0 text-right"
+                            ? "flex min-w-[88px] flex-col items-end gap-1 text-[10px]"
+                            : "ml-4 shrink-0 text-right text-xs"
                         }`}
                       >
-                        <div className="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2 py-1 dark:bg-white/5">
-                          <MapPin className="h-3.5 w-3.5" />
+                        <div
+                          className={`inline-flex items-center gap-1 rounded-full bg-zinc-100 dark:bg-white/5 ${
+                            compact ? "px-1.5 py-0.5" : "px-2 py-1"
+                          }`}
+                        >
+                          <MapPin className={compact ? "h-3 w-3" : "h-3.5 w-3.5"} />
                           {apartment.facing}
                         </div>
                         <div className={compact ? "text-right" : ""}>
-                          <p className="font-medium text-zinc-700 dark:text-zinc-300">
+                          <p className={`font-medium text-zinc-700 dark:text-zinc-300 ${compact ? "text-[0.9rem]" : ""}`}>
                             {apartment.areaSqft} sqft
                           </p>
-                          <p className="mt-1 text-[11px]">
+                          <p className={`mt-1 ${compact ? "text-[10px]" : "text-[11px]"}`}>
                             Floor {apartment.floorLabel}
                           </p>
                         </div>
@@ -2713,11 +2779,13 @@ function FilterPillGroup<T extends string>({
   value,
   onChange,
   getLabel = (item) => item,
+  compactDark = false,
 }: {
   options: readonly T[];
   value: T;
   onChange: (value: T) => void;
   getLabel?: (value: T) => string;
+  compactDark?: boolean;
 }) {
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -2731,9 +2799,13 @@ function FilterPillGroup<T extends string>({
             aria-pressed={isActive}
             onClick={() => onChange(item)}
             className={`inline-flex min-h-8 items-center justify-center rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] transition sm:text-[11px] ${
-              isActive
-                ? "border-white/80 bg-white/82 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_24px_rgba(15,23,42,0.10)] dark:border-white/75 dark:bg-white/82 dark:text-black"
-                : "border-white/45 bg-white/36 text-zinc-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] hover:border-white/70 hover:bg-white/58 dark:border-white/12 dark:bg-white/6 dark:text-zinc-300 dark:hover:border-white/24 dark:hover:bg-white/10"
+              compactDark
+                ? isActive
+                  ? "border-[#d4b57b]/60 bg-[#f8f1e3] text-[#9b7840] shadow-[0_10px_22px_rgba(200,168,106,0.16)]"
+                  : "border-[#e8ddd0] bg-white text-zinc-500 hover:border-[#dac4a0] hover:bg-[#fcf7ef]"
+                : isActive
+                  ? "border-white/80 bg-white/82 text-zinc-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_10px_24px_rgba(15,23,42,0.10)] dark:border-white/75 dark:bg-white/82 dark:text-black"
+                  : "border-white/45 bg-white/36 text-zinc-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] hover:border-white/70 hover:bg-white/58 dark:border-white/12 dark:bg-white/6 dark:text-zinc-300 dark:hover:border-white/24 dark:hover:bg-white/10"
             }`}
           >
             {getLabel(item)}
@@ -2748,17 +2820,23 @@ function FilterDropdown({
   value,
   options,
   onChange,
+  compactDark = false,
 }: {
   value: string;
   options: FloorFilterOption[];
   onChange: (value: string) => void;
+  compactDark?: boolean;
 }) {
   return (
     <div className="relative">
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-9 w-full appearance-none rounded-full border border-white/55 bg-white/56 px-3 pr-8 text-[11px] font-semibold text-zinc-700 outline-none shadow-[inset_0_1px_0_rgba(255,255,255,0.68),0_8px_18px_rgba(15,23,42,0.05)] transition focus:border-white/80 focus:bg-white/76 dark:border-white/10 dark:bg-white/7 dark:text-white"
+        className={`h-9 w-full appearance-none rounded-full border px-3 pr-8 text-[11px] font-semibold outline-none transition ${
+          compactDark
+            ? "border-[#e8ddd0] bg-white text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.88),0_10px_22px_rgba(15,23,42,0.05)] focus:border-[#c8a86a] focus:bg-white"
+            : "border-white/55 bg-white/56 text-zinc-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.68),0_8px_18px_rgba(15,23,42,0.05)] focus:border-white/80 focus:bg-white/76 dark:border-white/10 dark:bg-white/7 dark:text-white"
+        }`}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -2766,7 +2844,11 @@ function FilterDropdown({
           </option>
         ))}
       </select>
-      <span className="pointer-events-none absolute right-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rotate-45 border-b border-r border-zinc-500 dark:border-zinc-300" />
+      <span
+        className={`pointer-events-none absolute right-3 top-1/2 h-1.5 w-1.5 -translate-y-1/2 rotate-45 border-b border-r ${
+          compactDark ? "border-zinc-500" : "border-zinc-500 dark:border-zinc-300"
+        }`}
+      />
     </div>
   );
 }
@@ -2775,17 +2857,21 @@ function FilterBlock({
   label,
   children,
   compact = false,
+  compactDark = false,
   className = "",
 }: {
   label: string;
   children: React.ReactNode;
   compact?: boolean;
+  compactDark?: boolean;
   className?: string;
 }) {
   return (
     <div className={`${compact ? "space-y-1.5" : "space-y-2"} ${className}`}>
       <label
-        className={`block font-semibold text-zinc-600 dark:text-zinc-300 ${
+        className={`block font-semibold ${
+          compactDark ? "text-zinc-500" : "text-zinc-600 dark:text-zinc-300"
+        } ${
           compact ? "text-[9px] uppercase tracking-[0.16em]" : "text-xs"
         }`}
       >

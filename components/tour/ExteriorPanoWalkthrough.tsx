@@ -25,6 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
+  forwardRef,
   startTransition,
   useCallback,
   useEffect,
@@ -52,6 +53,7 @@ import {
   wrapAngleRad,
   type Vec3,
 } from "@/lib/exterior-tour/math";
+import { useSnapListViewport } from "@/lib/useSnapListViewport";
 import {
   buildExteriorTourGraph,
   getSequentialNodeIds,
@@ -484,30 +486,37 @@ function clampMinimapOffset(
   };
 }
 
-function AmenityCard({
-  amenity,
-  isActive,
-  onClick,
-  compact,
-}: {
-  amenity: ExteriorAmenity;
-  isActive: boolean;
-  onClick: () => void;
-  compact?: boolean;
-}) {
+const AmenityCard = forwardRef<
+  HTMLButtonElement,
+  {
+    amenity: ExteriorAmenity;
+    isActive: boolean;
+    onClick: () => void;
+    compact?: boolean;
+  }
+>(function AmenityCard(
+  {
+    amenity,
+    isActive,
+    onClick,
+    compact,
+  },
+  ref,
+) {
   const isCompact = compact ?? false;
 
   return (
     <button
+      ref={ref}
       type="button"
       onClick={onClick}
-      className={`group w-full rounded-[1.45rem] border text-left transition duration-200 ${
+      className={`group w-full snap-start snap-always rounded-[1.45rem] border text-left transition duration-200 ${
         isActive
           ? "border-[#ffcf57]/70 bg-[linear-gradient(135deg,rgba(255,207,87,0.22),rgba(8,10,14,0.82))] shadow-[0_18px_38px_rgba(0,0,0,0.28)]"
           : "border-white/10 bg-black/28 hover:border-white/22 hover:bg-black/34"
       }`}
     >
-      <div className="flex items-center gap-3 p-3">
+      <div className="flex items-center gap-3 p-2.5">
         <div
           className={`relative h-16 w-[5.4rem] shrink-0 overflow-hidden rounded-[1rem] border sm:h-[5rem] sm:w-[7.1rem] ${
             isActive
@@ -542,7 +551,7 @@ function AmenityCard({
       </div>
     </button>
   );
-}
+});
 
 function CurrentAmenityPanel({
   name,
@@ -747,6 +756,24 @@ export default function ExteriorPanoWalkthrough({
     () => exteriorAmenities.filter((amenity) => amenity.id !== "general"),
     [],
   );
+  const {
+    setFirstItemNode: setExteriorMenuFirstItemNode,
+    setListNode: setExteriorMenuListNode,
+    setScrollAreaNode: setExteriorMenuScrollAreaNode,
+    viewportHeight: exteriorMenuViewportHeight,
+  } = useSnapListViewport({
+    itemCount: visibleExteriorAmenities.length,
+    targetVisibleCards: 4.4,
+  });
+  const {
+    setFirstItemNode: setMobileExteriorMenuFirstItemNode,
+    setListNode: setMobileExteriorMenuListNode,
+    setScrollAreaNode: setMobileExteriorMenuScrollAreaNode,
+    viewportHeight: mobileExteriorMenuViewportHeight,
+  } = useSnapListViewport({
+    itemCount: visibleExteriorAmenities.length,
+    targetVisibleCards: 4.4,
+  });
   const projectMinimapPoint = useCallback((coordinate: Vec3) => {
     const minX = EXTERIOR_MINIMAP_BOUNDS.bottomLeft.x;
     const maxX = EXTERIOR_MINIMAP_BOUNDS.topRight.x;
@@ -2424,52 +2451,56 @@ export default function ExteriorPanoWalkthrough({
         />
 
         <div
-          className={`absolute left-2 top-2 bottom-2 flex w-[calc(100vw-1rem)] max-w-[22.5rem] flex-col rounded-[1.75rem] border border-white/14 bg-[linear-gradient(180deg,rgba(154,165,175,0.16)_0%,rgba(106,118,128,0.12)_100%)] p-4 text-white shadow-[0_24px_64px_rgba(0,0,0,0.22)] backdrop-blur-[24px] transition duration-300 sm:left-3 sm:top-3 sm:bottom-3 sm:w-[25rem] sm:max-w-none md:left-4 md:top-4 md:bottom-4 md:w-[26rem] xl:left-8 xl:top-28 xl:bottom-auto xl:h-[min(66dvh,42rem)] xl:w-[24rem] xl:rounded-[2rem] xl:border-white/18 xl:bg-[linear-gradient(180deg,rgba(170,180,188,0.18)_0%,rgba(122,136,146,0.12)_100%)] 2xl:left-10 2xl:top-32 2xl:w-[25rem] ${
+          className={`absolute left-2 top-2 flex w-[calc(100vw-1rem)] max-w-[22.5rem] flex-col gap-5 overflow-hidden rounded-[1.75rem] border border-white/14 bg-[linear-gradient(180deg,rgba(154,165,175,0.16)_0%,rgba(106,118,128,0.12)_100%)] px-4 py-4 text-white shadow-[0_24px_64px_rgba(0,0,0,0.22)] backdrop-blur-[24px] transition duration-300 sm:left-3 sm:top-3 sm:w-[25rem] sm:max-w-none md:left-4 md:top-4 md:w-[26rem] xl:left-8 xl:top-28 xl:max-h-[min(78dvh,52rem)] xl:w-[24rem] xl:rounded-[2rem] xl:border-white/18 xl:bg-[linear-gradient(180deg,rgba(170,180,188,0.18)_0%,rgba(122,136,146,0.12)_100%)] 2xl:left-10 2xl:top-32 2xl:w-[25rem] ${
             isMobileAmenitiesOpen
               ? "translate-x-0"
               : "-translate-x-[calc(100%+0.5rem)] sm:-translate-x-[calc(100%+0.75rem)] md:-translate-x-[calc(100%+1rem)] xl:-translate-x-[calc(100%+2rem)] 2xl:-translate-x-[calc(100%+2.5rem)]"
           }`}
+         style={{ maxHeight: "calc(100dvh - 1rem)" }}
         >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className={`${uiFont.className} text-[10px] uppercase tracking-[0.32em] text-white/42`}>
-                Amenities
+          <div>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className={`${uiFont.className} text-[10px] uppercase tracking-[0.32em] text-white/42`}>
+                  Amenities
+                </div>
+                <div className={`${editorialFont.className} mt-2 text-[2rem] leading-none text-white`}>
+                  Walkthrough Stops
+                </div>
+                <div className={`${uiFont.className} mt-2 max-w-[14rem] truncate text-xs font-semibold uppercase tracking-[0.18em] text-white/54 xl:hidden`}>
+                  {activeAmenity?.name ?? "Exterior Trail"}
+                </div>
               </div>
-              <div className={`${editorialFont.className} mt-2 text-[2rem] leading-none text-white`}>
-                Walkthrough Stops
-              </div>
-              <div className={`${uiFont.className} mt-2 max-w-[14rem] truncate text-xs font-semibold uppercase tracking-[0.18em] text-white/54 xl:hidden`}>
-                {activeAmenity?.name ?? "Exterior Trail"}
-              </div>
+
+              <button
+                type="button"
+                aria-label="Close amenities menu"
+                onClick={() => setIsMobileAmenitiesOpen(false)}
+                className="flex h-11 w-11 items-center justify-center rounded-[1rem] border border-white/18 bg-white/10 text-white transition hover:border-white/28 hover:bg-white/14"
+              >
+                <X className="h-4.5 w-4.5" />
+              </button>
             </div>
 
-            <button
-              type="button"
-              aria-label="Close amenities menu"
-              onClick={() => setIsMobileAmenitiesOpen(false)}
-              className="flex h-11 w-11 items-center justify-center rounded-[1rem] border border-white/18 bg-white/10 text-white transition hover:border-white/28 hover:bg-white/14"
+            <div className={`${uiFont.className} mt-3 text-sm leading-6 text-white/54`}>
+              Tap any amenity to jump into its exterior panorama.
+            </div>
+          </div>
+
+          <div
+            ref={setMobileExteriorMenuScrollAreaNode}
+            className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 snap-y snap-mandatory xl:hidden"
+            style={
+              mobileExteriorMenuViewportHeight
+                ? { maxHeight: `${Math.ceil(mobileExteriorMenuViewportHeight)}px` }
+                : undefined
+            }
+          >
+            <div
+              ref={setMobileExteriorMenuListNode}
+              className="space-y-3 pb-3"
             >
-              <X className="h-4.5 w-4.5" />
-            </button>
-          </div>
-
-          <div className={`${uiFont.className} mt-3 text-sm leading-6 text-white/54`}>
-            Tap any amenity to jump into its exterior panorama.
-          </div>
-
-          <div className="custom-scrollbar mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
-            <div className="space-y-3 pb-6">
-              <div className="xl:hidden">
-                <CurrentAmenityPanel
-                  name={activeAmenity?.name ?? "Exterior Trail"}
-                  description={activeAmenityDescription}
-                  nodeIds={activeAmenityNodeIds}
-                  activeNodeId={activeNodeId}
-                  progressIndex={activeAmenityProgressIndex}
-                />
-              </div>
-
-              {visibleExteriorAmenities.map((amenity) => (
+              {visibleExteriorAmenities.map((amenity, index) => (
                 <AmenityCard
                   key={amenity.id}
                   amenity={amenity}
@@ -2479,132 +2510,46 @@ export default function ExteriorPanoWalkthrough({
                     setIsMobileAmenitiesOpen(false);
                     void jumpToAmenity(amenity);
                   }}
+                  ref={
+                    index === 0
+                      ? setMobileExteriorMenuFirstItemNode
+                      : undefined
+                  }
                 />
               ))}
-
-              <div className="pt-4 xl:hidden">
-              <div className={`${uiFont.className} text-[10px] uppercase tracking-[0.32em] text-white/42`}>
-                Minimap
-              </div>
-              <div className={`${editorialFont.className} mt-2 text-[1.8rem] leading-none text-white`}>
-                Amenity Finder
-              </div>
-              <div className={`${uiFont.className} mt-3 text-sm leading-6 text-white/54`}>
-                Scroll inside the map to zoom and tap any yellow dot to jump.
-              </div>
-
-              <div
-                className={`relative mt-4 h-[400px] w-full overflow-hidden rounded-2xl ${
-                  minimapZoom > 1
-                    ? isMinimapDragging
-                      ? "cursor-grabbing"
-                      : "cursor-grab"
-                    : "cursor-default"
-                }`}
-                onWheelCapture={handleMinimapWheel}
-                onPointerDown={handleMinimapPointerDown}
-                onPointerMove={handleMinimapPointerMove}
-                onPointerUp={handleMinimapPointerUp}
-                onPointerCancel={handleMinimapPointerUp}
-                style={{ touchAction: "none" }}
-              >
-                <div
-                  className="absolute inset-0 transition-transform duration-150 ease-out"
-                  style={{
-                    transform: `translate(${minimapOffset.x}px, ${minimapOffset.y}px) scale(${minimapZoom})`,
-                    transformOrigin: "center center",
-                  }}
-                >
-                  <div
-                    className="absolute left-1/2 top-1/2 w-full -translate-x-1/2 rounded-4xl -translate-y-1/2"
-                    style={{
-                      aspectRatio: `${EXTERIOR_MINIMAP_IMAGE_LAYOUT.width} / ${EXTERIOR_MINIMAP_IMAGE_LAYOUT.height}`,
-                    }}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={EXTERIOR_MINIMAP_IMAGE_URL}
-                      alt="Trifecta amenity minimap"
-                      className="h-full w-full opacity-92"
-                      draggable={false}
-                    />
-
-                    {minimapTrailPoints.length > 1 ? (
-                      <svg
-                        className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-                        viewBox="0 0 100 100"
-                        preserveAspectRatio="none"
-                        aria-hidden
-                      >
-                        <polyline
-                          points={minimapTrailPolyline}
-                          fill="none"
-                          stroke="rgba(2,8,23,0.56)"
-                          strokeWidth={1.3}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeDasharray="0.2 1.35"
-                          vectorEffect="non-scaling-stroke"
-                        />
-                        <polyline
-                          points={minimapTrailPolyline}
-                          fill="none"
-                          stroke="rgba(56,189,248,0.68)"
-                          strokeWidth={3.1}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeDasharray="0.2 1.35"
-                          vectorEffect="non-scaling-stroke"
-                          style={{ filter: "blur(2.2px)" }}
-                        />
-                        <polyline
-                          points={minimapTrailPolyline}
-                          fill="none"
-                          stroke="rgba(56,189,248,0.96)"
-                          strokeWidth={1.05}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeDasharray="0.2 1.35"
-                          vectorEffect="non-scaling-stroke"
-                        />
-                      </svg>
-                    ) : null}
-
-                    {minimapTrailPoints.length > 0 ? (
-                      <span
-                        className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/35 bg-[#dff6ff] shadow-[0_0_0_4px_rgba(56,189,248,0.22),0_0_14px_rgba(56,189,248,0.72)]"
-                        style={{
-                          left: `${minimapTrailPoints[minimapTrailPoints.length - 1].leftPercent * 100}%`,
-                          top: `${minimapTrailPoints[minimapTrailPoints.length - 1].topPercent * 100}%`,
-                        }}
-                      />
-                    ) : null}
-
-                    {minimapDots.map((amenity) => (
-                      <button
-                        key={amenity.id}
-                        type="button"
-                        aria-label={`Go to ${amenity.name}`}
-                        title={amenity.name}
-                        onClick={() => {
-                          setIsMobileAmenitiesOpen(false);
-                          void jumpToAmenity(amenity);
-                        }}
-                        className={`absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/30 transition hover:scale-110 ${
-                          activeAmenityId === amenity.id
-                            ? "bg-[#fff18c] shadow-[0_0_0_4px_rgba(255,241,140,0.22)]"
-                            : "bg-[#ffd34d] shadow-[0_0_8px_rgba(255,211,77,0.55)]"
-                        }`}
-                        style={{
-                          left: `${amenity.leftPercent * 100}%`,
-                          top: `${amenity.topPercent * 100}%`,
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
             </div>
+          </div>
+
+          <div
+            ref={setExteriorMenuScrollAreaNode}
+            className="custom-scrollbar hidden min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 snap-y snap-mandatory xl:block"
+            style={
+              exteriorMenuViewportHeight
+                ? { maxHeight: `${Math.ceil(exteriorMenuViewportHeight)}px` }
+                : undefined
+            }
+          >
+            <div
+              ref={setExteriorMenuListNode}
+              className="space-y-3 pb-3"
+            >
+              {visibleExteriorAmenities.map((amenity, index) => (
+                <AmenityCard
+                  key={amenity.id}
+                  amenity={amenity}
+                  isActive={activeAmenityId === amenity.id}
+                  compact
+                  onClick={() => {
+                    setIsMobileAmenitiesOpen(false);
+                    void jumpToAmenity(amenity);
+                  }}
+                  ref={
+                    index === 0
+                      ? setExteriorMenuFirstItemNode
+                      : undefined
+                  }
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -2915,7 +2860,7 @@ export default function ExteriorPanoWalkthrough({
                     aria-label={`Go to ${amenity.name}`}
                     title={amenity.name}
                     onClick={() => void jumpToAmenity(amenity)}
-                    className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/35 transition hover:scale-110 ${
+                    className={`group absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/35 cursor-pointer transition hover:scale-110 ${
                       isMinimapExpanded ? "h-2 w-2" : "h-1.5 w-1.5"
                     } ${
                       activeAmenityId === amenity.id
@@ -2926,13 +2871,39 @@ export default function ExteriorPanoWalkthrough({
                       left: `${amenity.leftPercent * 100}%`,
                       top: `${amenity.topPercent * 100}%`,
                     }}
-                  />
+                  >
+                    <span
+                      aria-hidden
+                      className={`pointer-events-none absolute inset-0 rounded-full ${
+                        activeAmenityId === amenity.id
+                          ? "bg-[#b9ecff]/58"
+                          : "bg-[#7dd3fc]/44"
+                      }`}
+                      style={{ animation: "walkthroughMinimapPulse 1.8s ease-in-out infinite" }}
+                    />
+                  </button>
                 ))}
               </div>
             </div>
           </div>
+
         </div>
       </div>
+
+      <style jsx global>{`
+        @keyframes walkthroughMinimapPulse {
+          0%,
+          100% {
+            opacity: 0.42;
+            transform: scale(0.92);
+          }
+
+          50% {
+            opacity: 0.82;
+            transform: scale(1.16);
+          }
+        }
+      `}</style>
 
       {/* <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex justify-center p-4 sm:p-6">
         <div className={`${uiFont.className} flex items-center gap-3 rounded-full border border-white/10 bg-black/18 px-4 py-2 text-xs uppercase tracking-[0.24em] text-white/56 shadow-[0_14px_32px_rgba(0,0,0,0.24)] backdrop-blur-2xl`}>

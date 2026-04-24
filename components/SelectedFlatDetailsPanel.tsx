@@ -205,7 +205,7 @@ const SelectedFlatDetailsPanel = forwardRef<
               </button>
             )}
 
-            <div className="mt-0 rounded-[18px] border border-white/60 bg-white/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl sm:mt-4 sm:rounded-[24px] sm:p-4">
+            <div className="mt-0 rounded-[18px] border border-white/60 bg-white/45 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.72),0_12px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl mt-4 sm:rounded-[24px] sm:p-4">
               <div className="flex items-end justify-between gap-2 sm:gap-3">
                 <div className="min-w-0">
                   <p className="text-[9px] uppercase tracking-[0.26em] text-zinc-500 sm:text-[10px]">
@@ -366,13 +366,13 @@ const SelectedFlatDetailsPanel = forwardRef<
               className={`mt-3 border-t border-white/45 px-3 pt-2.5 sm:mt-4 sm:px-4 sm:pt-3 md:px-5 ${
                 desktopEnhancedCompact
                   ? "pb-0.5"
-                  : "sticky bottom-0 z-10 -mx-3 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.86)_24%)] pb-3 backdrop-blur-xl sm:-mx-4 sm:pb-4 md:-mx-5 md:pb-5"
+                  : "sticky bottom-[max(env(safe-area-inset-bottom),0px)] left-0 right-0 z-20 -mx-3 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-2.5 sm:-mx-4 sm:px-4 sm:pt-3 sm:pb-[max(env(safe-area-inset-bottom),1rem)] md:-mx-5 md:px-5 md:pb-[max(env(safe-area-inset-bottom),1.1rem)]"
               }`}
             >
               <button
                 type="button"
                 onClick={handleOpenWalkthrough}
-                className="inline-flex w-full items-center justify-center rounded-full border border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.92),rgba(229,231,235,0.82))] px-3 py-2.5 text-xs font-semibold text-zinc-900 shadow-[0_16px_34px_rgba(15,23,42,0.12),inset_0_1px_0_rgba(255,255,255,0.82)] transition hover:bg-white sm:px-4 sm:py-3 sm:text-sm md:py-3.5"
+                className="inline-flex w-full items-center justify-center rounded-full border border-[#d4b06a]/65 bg-[linear-gradient(135deg,#f5e4bd_0%,#dfbf7e_44%,#b8863f_100%)] px-3 py-2.5 text-xs font-semibold text-[#2f2009] shadow-[0_16px_34px_rgba(120,84,28,0.22),inset_0_1px_0_rgba(255,248,230,0.72)] transition hover:brightness-[1.03] sm:px-4 sm:py-3 sm:text-sm md:py-3.5"
               >
                 Open walkthrough
               </button>

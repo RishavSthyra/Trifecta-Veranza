@@ -58,6 +58,7 @@ import type {
 import {
   getWalkthroughMode,
 } from "@/lib/walkthrough";
+import { useSnapListViewport } from "@/lib/useSnapListViewport";
 
 const editorialFont = Cormorant_Garamond({
   subsets: ["latin"],
@@ -671,12 +672,24 @@ function InteriorFloorPlanMinimap({
             left: `${point.left}%`,
             top: `${point.top}%`,
           }}
-          className={`absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border transition duration-200 hover:scale-150 disabled:cursor-not-allowed disabled:opacity-50 sm:h-2 sm:w-2 ${
+          className={`group absolute h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full border cursor-pointer transition duration-200 hover:scale-150 disabled:cursor-not-allowed disabled:opacity-50 sm:h-2 sm:w-2 ${
             point.isActive
               ? "border-white bg-[#ffd45a] shadow-[0_0_0_4px_rgba(255,212,90,0.22),0_0_18px_rgba(255,212,90,0.82)]"
               : "border-[#fff4c9] bg-[#f4c84d] shadow-[0_0_0_3px_rgba(244,200,77,0.18),0_0_14px_rgba(244,200,77,0.7),0_5px_14px_rgba(0,0,0,0.22)]"
           }`}
         >
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute inset-0 rounded-full ${
+              point.isActive
+                ? "bg-[#ffe389]/60"
+                : "bg-[#ffd45a]/48"
+            }`}
+            style={{ animation: "walkthroughMinimapPulse 1.75s ease-in-out infinite" }}
+          />
+          <span className="pointer-events-none absolute left-1/2 top-0 hidden -translate-x-1/2 -translate-y-[calc(100%+0.4rem)] whitespace-nowrap rounded-full border border-white/14 bg-[rgba(14,20,27,0.88)] px-2 py-1 text-[10px] font-semibold tracking-[0.08em] text-white shadow-[0_10px_24px_rgba(0,0,0,0.28)] backdrop-blur-xl group-hover:block group-focus-visible:block">
+            {point.label}
+          </span>
           <span className="sr-only">{point.label}</span>
         </button>
       ))}
@@ -1129,6 +1142,15 @@ export default function InteriorPanoWalkthrough({
     isBareShellMode,
     panoBaseUrl,
   ]);
+  const {
+    setFirstItemNode: setRoomMenuFirstItemNode,
+    setListNode: setRoomMenuListNode,
+    setScrollAreaNode: setRoomMenuScrollAreaNode,
+    viewportHeight: roomMenuViewportHeight,
+  } = useSnapListViewport({
+    itemCount: menuRooms.length,
+    targetVisibleCards: 4,
+  });
   const minimapImage = isBareShellMode
     ? BareShellFloorPlanMinimap
     : FurnishedFloorPlanMinimap;
@@ -1952,14 +1974,14 @@ export default function InteriorPanoWalkthrough({
             className="absolute inset-0 bg-[rgba(14,20,27,0.22)] transition duration-200 xl:bg-[rgba(14,20,27,0.12)]"
           />
 
-          <div className="relative flex h-full w-full flex-col border-r border-white/14 bg-[linear-gradient(180deg,rgba(144,155,164,0.16)_0%,rgba(116,127,136,0.1)_100%)] p-4 text-white shadow-[0_24px_64px_rgba(0,0,0,0.16)] backdrop-blur-[24px] transition duration-300 sm:w-[28rem] xl:mb-6 xl:ml-6 xl:mt-24 xl:h-[min(58dvh,calc(100dvh-8rem))] xl:w-[24rem] xl:overflow-hidden xl:rounded-[2rem] xl:border xl:border-white/18 xl:bg-[linear-gradient(180deg,rgba(165,176,184,0.18)_0%,rgba(120,134,142,0.12)_100%)] 2xl:h-[min(60dvh,calc(100dvh-8rem))]">
+          <div className="relative m-2 flex w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] self-start flex-col border-r border-white/14 bg-[linear-gradient(180deg,rgba(144,155,164,0.16)_0%,rgba(116,127,136,0.1)_100%)] p-4 text-white shadow-[0_24px_64px_rgba(0,0,0,0.16)] backdrop-blur-[24px] transition duration-300 sm:m-4 sm:w-[28rem] sm:max-h-[calc(100dvh-2rem)] xl:mb-6 xl:ml-6 xl:mr-0 xl:mt-24 xl:w-[24rem] xl:max-h-[min(58dvh,calc(100dvh-8rem))] xl:overflow-hidden xl:rounded-[2rem] xl:border xl:border-white/18 xl:bg-[linear-gradient(180deg,rgba(165,176,184,0.18)_0%,rgba(120,134,142,0.12)_100%)] 2xl:max-h-[min(60dvh,calc(100dvh-8rem))]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className={`${uiFont.className} text-[10px] uppercase tracking-[0.32em] text-white/55`}>
                   {buildNodeModeLabel(isBareShellMode)}
                 </div>
                 <div className={`${editorialFont.className} mt-2 text-[2rem] leading-none text-white`}>
-                  Room Index
+                  Rooms
                 </div>
                 {/* <p className={`${uiFont.className} mt-2 max-w-[18rem] text-sm leading-5 text-white/72`}>
                   Browse rooms from a very light glass panel and jump instantly to any panorama.
@@ -2000,47 +2022,58 @@ export default function InteriorPanoWalkthrough({
               </div>
             </div>
 
-            <div className="mt-5 min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain pr-2">
-              {menuRooms.map((room) => {
-                const isActive = room.id === currentNodeId;
-                return (
-                  <button
-                    key={room.id}
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      setPreferredFrame(null);
-                      void goToNode(room.id);
-                    }}
-                    className={`group flex w-full items-center gap-3 rounded-[1.4rem] border p-2.5 text-left shadow-[0_12px_30px_rgba(0,0,0,0.1)] transition ${
-                      isActive
-                        ? "border-[#7fd9d5]/34 bg-[linear-gradient(135deg,rgba(175,223,223,0.16),rgba(88,122,131,0.12))]"
-                        : "border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(181,197,204,0.05))] hover:border-white/22 hover:bg-white/10"
-                    }`}
-                  >
-                    <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-[1rem] border border-white/18 bg-white/8">
-                      <NextImage
-                        src={room.image}
-                        alt={room.label}
-                        fill
-                        sizes="96px"
-                        className="object-cover object-center transition duration-300 group-hover:scale-[1.03]"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-[15px] font-semibold text-white">{room.label}</div>
-                      <div className="mt-1 text-sm leading-5 text-white/72">
-                        {isActive
-                          ? "You are currently inside this room."
-                          : "Tap to switch the panorama view to this room."}
+            <div
+              ref={setRoomMenuScrollAreaNode}
+              className="custom-scrollbar mt-5 min-h-0 overflow-y-auto overscroll-contain pr-2 snap-y snap-mandatory"
+              style={
+                roomMenuViewportHeight
+                  ? { height: `${roomMenuViewportHeight}px` }
+                  : undefined
+              }
+            >
+              <div ref={setRoomMenuListNode} className="space-y-3 pb-2">
+                {menuRooms.map((room, index) => {
+                  const isActive = room.id === currentNodeId;
+                  return (
+                    <button
+                      key={room.id}
+                      ref={index === 0 ? setRoomMenuFirstItemNode : undefined}
+                      type="button"
+                      onClick={() => {
+                        setIsMenuOpen(false);
+                        setPreferredFrame(null);
+                        void goToNode(room.id);
+                      }}
+                      className={`group flex w-full snap-start snap-always items-center gap-3 rounded-[1.4rem] border p-2.5 text-left shadow-[0_12px_30px_rgba(0,0,0,0.1)] transition ${
+                        isActive
+                          ? "border-[#7fd9d5]/34 bg-[linear-gradient(135deg,rgba(175,223,223,0.16),rgba(88,122,131,0.12))]"
+                          : "border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(181,197,204,0.05))] hover:border-white/22 hover:bg-white/10"
+                      }`}
+                    >
+                      <div className="relative h-20 w-24 shrink-0 overflow-hidden rounded-[1rem] border border-white/18 bg-white/8">
+                        <NextImage
+                          src={room.image}
+                          alt={room.label}
+                          fill
+                          sizes="96px"
+                          className="object-cover object-center transition duration-300 group-hover:scale-[1.03]"
+                        />
                       </div>
-                      <div className={`${uiFont.className} mt-2 text-[10px] uppercase tracking-[0.28em] text-white/48`}>
-                        {isActive ? "Current" : "Open"}
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[15px] font-semibold text-white">{room.label}</div>
+                        <div className="mt-1 text-sm leading-5 text-white/72">
+                          {isActive
+                            ? "You are currently inside this room."
+                            : "Tap to switch the panorama view to this room."}
+                        </div>
+                        <div className={`${uiFont.className} mt-2 text-[10px] uppercase tracking-[0.28em] text-white/48`}>
+                          {isActive ? "Current" : "Open"}
+                        </div>
                       </div>
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
@@ -2076,6 +2109,19 @@ export default function InteriorPanoWalkthrough({
       </div>
 
       <style jsx global>{`
+        @keyframes walkthroughMinimapPulse {
+          0%,
+          100% {
+            opacity: 0.45;
+            transform: scale(0.92);
+          }
+
+          50% {
+            opacity: 0.88;
+            transform: scale(1.18);
+          }
+        }
+
         .interior-pano-walkthrough .psv-navbar,
         .interior-pano-walkthrough .psv-virtual-tour-arrows {
           display: none !important;

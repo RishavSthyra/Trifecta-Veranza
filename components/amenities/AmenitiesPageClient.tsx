@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { scheduleAmenityVideoWarmup } from "@/lib/amenity-video-warmup";
+import { useSnapListViewport } from "@/lib/useSnapListViewport";
 
 export type AmenityPageItem = {
   id: string;
@@ -115,6 +116,24 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const transitionTokenRef = useRef(0);
+  const {
+    setFirstItemNode: setDesktopAmenitiesFirstItemNode,
+    setListNode: setDesktopAmenitiesListNode,
+    setScrollAreaNode: setDesktopAmenitiesScrollAreaNode,
+    viewportHeight: desktopAmenitiesViewportHeight,
+  } = useSnapListViewport({
+    itemCount: data.items.length,
+    targetVisibleCards: 2,
+  });
+  const {
+    setFirstItemNode: setMobileAmenitiesFirstItemNode,
+    setListNode: setMobileAmenitiesListNode,
+    setScrollAreaNode: setMobileAmenitiesScrollAreaNode,
+    viewportHeight: mobileAmenitiesViewportHeight,
+  } = useSnapListViewport({
+    itemCount: data.items.length,
+    targetVisibleCards: 2,
+  });
 
   const activeIndex = useMemo(
     () => Math.max(0, data.items.findIndex((item) => item.id === activeId)),
@@ -314,11 +333,11 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
       </button>
 
       <aside
-        className={`fixed right-5 top-1/2 z-30 hidden h-[min(76vh,46rem)] -translate-y-1/2 transition-[width] duration-300 lg:block ${
+        className={`fixed right-5 top-1/2 z-30 hidden max-h-[min(76vh,46rem)] -translate-y-1/2 transition-[width] duration-300 lg:block ${
           isPanelCollapsed ? "w-[5.9rem]" : "w-[21rem]"
         }`}
       >
-        <div className="flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-white/12 bg-black/74 text-white shadow-[0_30px_90px_rgba(0,0,0,0.36)] backdrop-blur-2xl">
+        <div className="flex max-h-[min(76vh,46rem)] flex-col overflow-hidden rounded-[1.35rem] border border-white/12 bg-black/74 text-white shadow-[0_30px_90px_rgba(0,0,0,0.36)] backdrop-blur-2xl">
           {isPanelCollapsed ? (
             <div className="flex justify-center px-3 pb-3 pt-4">
               <button
@@ -390,33 +409,51 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
                 </p>
               </div>
 
-              <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto p-4 pt-1">
-                {data.items.map((amenity) => {
-                  const active = amenity.id === activeAmenity.id;
+              <div
+                ref={setDesktopAmenitiesScrollAreaNode}
+                className="custom-scrollbar overflow-y-auto overscroll-contain px-4 pt-1 snap-y snap-mandatory"
+                style={
+                  desktopAmenitiesViewportHeight
+                    ? { height: `${desktopAmenitiesViewportHeight}px` }
+                    : undefined
+                }
+              >
+                <div
+                  ref={setDesktopAmenitiesListNode}
+                  className="space-y-3 pb-3"
+                >
+                  {data.items.map((amenity, index) => {
+                    const active = amenity.id === activeAmenity.id;
 
-                  return (
-                    <button
-                      key={amenity.id}
-                      type="button"
-                      onClick={() => selectAmenity(amenity.id)}
-                      className={`w-full rounded-[1.15rem] border p-2.5 text-left transition ${
-                        active
-                          ? "border-white/28 bg-black/64 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
-                          : "border-white/8 bg-black/38 hover:border-white/18 hover:bg-black/52"
-                      }`}
-                    >
-                      <AmenityCard amenity={amenity} active={active} />
-                      <div className="px-1.5 pb-1 pt-3">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-emerald-200/75">
-                          {amenity.category}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-white">
-                          {amenity.title}
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={amenity.id}
+                        ref={
+                          index === 0
+                            ? setDesktopAmenitiesFirstItemNode
+                            : undefined
+                        }
+                        type="button"
+                        onClick={() => selectAmenity(amenity.id)}
+                        className={`w-full snap-start snap-always rounded-[1.15rem] border p-2.5 text-left transition ${
+                          active
+                            ? "border-white/28 bg-black/64 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                            : "border-white/8 bg-black/38 hover:border-white/18 hover:bg-black/52"
+                        }`}
+                      >
+                        <AmenityCard amenity={amenity} active={active} />
+                        <div className="px-1.5 pb-1 pt-3">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-emerald-200/75">
+                            {amenity.category}
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-white">
+                            {amenity.title}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </>
           )}
@@ -430,7 +467,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         onClick={() => setIsPanelOpen(false)}
       />
       <aside
-        className={`fixed bottom-3 right-3 top-3 z-50 w-[min(24rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.35rem] border border-white/14 bg-black/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 lg:hidden ${
+        className={`fixed right-3 top-3 z-50 w-[min(24rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-[1.35rem] border border-white/14 bg-black/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 lg:hidden ${
           isPanelOpen ? "translate-x-0 opacity-100" : "translate-x-[110%] opacity-0"
         }`}
       >
@@ -457,33 +494,51 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
             </button>
           </div>
 
-          <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
-            {data.items.map((amenity) => {
-              const active = amenity.id === activeAmenity.id;
+          <div
+            ref={setMobileAmenitiesScrollAreaNode}
+            className="custom-scrollbar overflow-y-auto overscroll-contain px-4 pt-4 snap-y snap-mandatory"
+            style={
+              mobileAmenitiesViewportHeight
+                ? { height: `${mobileAmenitiesViewportHeight}px` }
+                : undefined
+            }
+          >
+            <div
+              ref={setMobileAmenitiesListNode}
+              className="space-y-3 pb-3"
+            >
+              {data.items.map((amenity, index) => {
+                const active = amenity.id === activeAmenity.id;
 
-              return (
-                <button
-                  key={amenity.id}
-                  type="button"
-                  onClick={() => selectAmenity(amenity.id)}
-                  className={`w-full rounded-[1.15rem] border p-2.5 text-left transition ${
-                    active
-                      ? "border-white/28 bg-black/64"
-                      : "border-white/8 bg-black/38"
-                  }`}
-                >
-                  <AmenityCard amenity={amenity} active={active} />
-                  <div className="px-1 pb-1 pt-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/75">
-                      {amenity.category}
-                    </p>
-                    <p className="pt-1 text-sm font-semibold text-white">
-                      {amenity.title}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={amenity.id}
+                    ref={
+                      index === 0
+                        ? setMobileAmenitiesFirstItemNode
+                        : undefined
+                    }
+                    type="button"
+                    onClick={() => selectAmenity(amenity.id)}
+                    className={`w-full snap-start snap-always rounded-[1.15rem] border p-2.5 text-left transition ${
+                      active
+                        ? "border-white/28 bg-black/64"
+                        : "border-white/8 bg-black/38"
+                    }`}
+                  >
+                    <AmenityCard amenity={amenity} active={active} />
+                    <div className="px-1 pb-1 pt-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/75">
+                        {amenity.category}
+                      </p>
+                      <p className="pt-1 text-sm font-semibold text-white">
+                        {amenity.title}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       </aside>

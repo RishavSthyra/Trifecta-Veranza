@@ -311,6 +311,8 @@ export default function UpperLayoutCTA({
                     <Link
                       key={button.name}
                       href={button.link}
+                      title={button.name}
+                      aria-label={button.name}
                       onClick={() => setIsMobileMenuOpen(false)}
                       className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-medium sm:gap-2 sm:px-3.5 sm:py-2 sm:text-[11px] ${
                         button.isHighlight
@@ -327,6 +329,8 @@ export default function UpperLayoutCTA({
                     <button
                       key={button.name}
                       type="button"
+                      title={button.name}
+                      aria-label={button.name}
                       onClick={() => {
                         setIsMobileMenuOpen(false);
                         onQuoteClick();
@@ -459,7 +463,7 @@ export default function UpperLayoutCTA({
                   transition={spring}
                 >
                   {button.action === "link" && button.link ? (
-                    <Link href={button.link}>
+                    <Link href={button.link} title={button.name} aria-label={button.name}>
                       <motion.div
                         layout
                         transition={spring}
@@ -523,6 +527,8 @@ export default function UpperLayoutCTA({
                   ) : (
                     <motion.button
                       type="button"
+                      title={button.name}
+                      aria-label={button.name}
                       layout
                       transition={spring}
                       onClick={onQuoteClick}
