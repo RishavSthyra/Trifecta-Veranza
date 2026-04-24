@@ -15,7 +15,7 @@ const exteriorTourNodes = (exteriorNodes as ExteriorPanoNodeSource[]).filter(
 );
 
 const preferredInitialNodeId =
-  exteriorTourNodes.find((node) => node.id === "BP_panoPath_Exterior_GateEntry_F0001")?.id ??
+  exteriorTourNodes.find((node) => node.id === "BP_panoPath_Exterior_GateEntry_F0000")?.id ??
   exteriorTourNodes[0]?.id;
 
 /** Preconnect to the panorama CDN — saves ~100-300ms on first connection setup. */
@@ -48,7 +48,7 @@ function ExteriorWalkthroughHead() {
       <link
         rel="preload"
         as="image"
-        href={`${EXTERIOR_PANO_BASE}/LS_BP_panoPath_Exterior_GateEntry_F0001/preview.jpg`}
+        href={`${EXTERIOR_PANO_BASE}/LS_BP_panoPath_Exterior_GateEntry_F0000/preview.jpg`}
         fetchPriority="high"
       />
     </>

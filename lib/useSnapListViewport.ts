@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type UseSnapListViewportOptions = {
   itemCount: number;
@@ -18,15 +18,15 @@ export function useSnapListViewport({
   itemCount,
   targetVisibleCards,
 }: UseSnapListViewportOptions): UseSnapListViewportResult {
-  const scrollAreaNodeRef = useRef<HTMLDivElement | null>(null);
-  const listNodeRef = useRef<HTMLDivElement | null>(null);
-  const firstItemNodeRef = useRef<HTMLElement | null>(null);
+  const [scrollAreaNode, setScrollAreaNodeState] = useState<HTMLDivElement | null>(null);
+  const [listNode, setListNodeState] = useState<HTMLDivElement | null>(null);
+  const [firstItemNode, setFirstItemNodeState] = useState<HTMLElement | null>(null);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
   const measure = useCallback(() => {
-    const scrollArea = scrollAreaNodeRef.current;
-    const list = listNodeRef.current;
-    const firstItem = firstItemNodeRef.current;
+    const scrollArea = scrollAreaNode;
+    const list = listNode;
+    const firstItem = firstItemNode;
 
     if (!scrollArea || !list || !firstItem || itemCount === 0) {
       setViewportHeight(null);
@@ -58,7 +58,7 @@ export function useSnapListViewport({
 
       return nextViewportHeight;
     });
-  }, [itemCount, targetVisibleCards]);
+  }, [firstItemNode, itemCount, listNode, scrollAreaNode, targetVisibleCards]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -82,9 +82,9 @@ export function useSnapListViewport({
       measure();
     });
     const observedNodes = [
-      scrollAreaNodeRef.current,
-      listNodeRef.current,
-      firstItemNodeRef.current,
+      scrollAreaNode,
+      listNode,
+      firstItemNode,
     ].filter((node): node is HTMLElement => node !== null);
 
     observedNodes.forEach((node) => observer.observe(node));
@@ -94,18 +94,18 @@ export function useSnapListViewport({
       window.cancelAnimationFrame(frameId);
       window.removeEventListener("resize", handleResize);
     };
-  }, [measure]);
+  }, [firstItemNode, listNode, measure, scrollAreaNode]);
 
   const setScrollAreaNode = useCallback((node: HTMLDivElement | null) => {
-    scrollAreaNodeRef.current = node;
+    setScrollAreaNodeState(node);
   }, []);
 
   const setListNode = useCallback((node: HTMLDivElement | null) => {
-    listNodeRef.current = node;
+    setListNodeState(node);
   }, []);
 
   const setFirstItemNode = useCallback((node: HTMLElement | null) => {
-    firstItemNodeRef.current = node;
+    setFirstItemNodeState(node);
   }, []);
 
   return {

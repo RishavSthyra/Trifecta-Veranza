@@ -6,9 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ImageIcon,
-  Menu,
   Sparkles,
-  X,
 } from "lucide-react";
 import { scheduleAmenityVideoWarmup } from "@/lib/amenity-video-warmup";
 import { useSnapListViewport } from "@/lib/useSnapListViewport";
@@ -256,6 +254,9 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
     );
   }
 
+  const panelEdgeHandleClassName =
+    "fixed right-0 top-1/2 z-40 flex h-14 w-10 -translate-y-1/2 items-center justify-center rounded-l-[1.2rem] border border-r-0 border-white/12 bg-black/74 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-[18px] transition hover:bg-black/82";
+
   return (
     <main className="relative h-[100dvh] max-h-[100dvh] min-h-[100dvh] overflow-hidden overscroll-none bg-black text-white">
       {hasMediaSource(displayedAmenity.videoSrc) ? (
@@ -323,142 +324,98 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setIsPanelOpen(true)}
-        className="absolute right-4 top-4 z-30 flex h-11 w-11 items-center justify-center rounded-full border border-white/16 bg-black/58 text-white shadow-[0_18px_48px_rgba(0,0,0,0.28)] backdrop-blur-xl lg:hidden"
-        aria-label="Open amenities"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
-
-      <aside
-        className={`fixed right-5 top-1/2 z-30 hidden max-h-[min(76vh,46rem)] -translate-y-1/2 transition-[width] duration-300 lg:block ${
-          isPanelCollapsed ? "w-[5.9rem]" : "w-[21rem]"
-        }`}
-      >
-        <div className="flex max-h-[min(76vh,46rem)] flex-col overflow-hidden rounded-[1.35rem] border border-white/12 bg-black/74 text-white shadow-[0_30px_90px_rgba(0,0,0,0.36)] backdrop-blur-2xl">
-          {isPanelCollapsed ? (
-            <div className="flex justify-center px-3 pb-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setIsPanelCollapsed(false)}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white transition hover:bg-white hover:text-zinc-950"
-                aria-label="Expand amenities sidebar"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/14 bg-white/10">
-                  <Sparkles className="h-5 w-5 text-amber-200" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-white/50">
-                    {data.eyebrow}
-                  </p>
-                  <h2 className="truncate text-xl font-semibold">
-                    {data.title}
-                  </h2>
-                </div>
+      {isPanelCollapsed ? (
+        <button
+          type="button"
+          onClick={() => setIsPanelCollapsed(false)}
+          className={`${panelEdgeHandleClassName} hidden lg:flex`}
+          aria-label="Open amenities sidebar"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      ) : (
+        <aside className="fixed right-5 top-1/2 z-30 hidden max-h-[min(76vh,46rem)] w-[21rem] -translate-y-1/2 lg:block">
+          <div className="relative flex max-h-[min(76vh,46rem)] flex-col overflow-hidden rounded-[1.55rem] border border-white/14 bg-[linear-gradient(180deg,rgba(20,26,34,0.42),rgba(8,12,18,0.2))] text-white shadow-[0_30px_90px_rgba(0,0,0,0.36)] backdrop-blur-[30px]">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.2),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(142,197,255,0.14),transparent_24%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02)_28%,rgba(255,255,255,0.01)_100%)]" />
+            <div className="relative flex items-center justify-between gap-3 px-5 pb-3 pt-4">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-white/50">
+                  {data.eyebrow}
+                </p>
+                <h2 className="truncate text-xl font-semibold">
+                  {data.title}
+                </h2>
               </div>
 
               <button
                 type="button"
                 onClick={() => setIsPanelCollapsed(true)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white transition hover:bg-white hover:text-zinc-950"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-black/52 text-white shadow-[0_10px_22px_rgba(0,0,0,0.16)] transition hover:bg-black/72"
                 aria-label="Collapse amenities sidebar"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
             </div>
-          )}
 
-          {isPanelCollapsed ? (
-            <div className="custom-scrollbar flex flex-1 flex-col items-center gap-3 overflow-y-auto px-3 pb-4 pt-1">
-              {data.items.map((amenity, index) => {
-                const active = amenity.id === activeAmenity.id;
-
-                return (
-                  <button
-                    key={amenity.id}
-                    type="button"
-                    onClick={() => selectAmenity(amenity.id)}
-                    className={`flex h-11 w-11 min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition ${
-                      active
-                        ? "border-white bg-white text-zinc-950"
-                        : "border-white/12 bg-black/44 text-white hover:bg-black/60"
-                    }`}
-                    aria-label={amenity.title}
-                  >
-                    {index + 1}
-                  </button>
-                );
-              })}
+            <div className="px-5 pb-3">
+              <p className="line-clamp-2 text-sm leading-6 text-white/62">
+                {activeAmenity.details}
+              </p>
+              <p className="mt-3 text-xs text-white/42">
+                {activeIndex + 1} of {data.items.length}
+              </p>
             </div>
-          ) : (
-            <>
-              <div className="px-5 pb-3">
-                <p className="line-clamp-2 text-sm leading-6 text-white/62">
-                  {activeAmenity.details}
-                </p>
-                <p className="mt-3 text-xs text-white/42">
-                  {activeIndex + 1} of {data.items.length}
-                </p>
-              </div>
 
+            <div
+              ref={setDesktopAmenitiesScrollAreaNode}
+              className="custom-scrollbar overflow-y-auto overscroll-contain px-4 pt-1 snap-y snap-mandatory"
+              style={
+                desktopAmenitiesViewportHeight
+                  ? { height: `${desktopAmenitiesViewportHeight}px` }
+                  : undefined
+              }
+            >
               <div
-                ref={setDesktopAmenitiesScrollAreaNode}
-                className="custom-scrollbar overflow-y-auto overscroll-contain px-4 pt-1 snap-y snap-mandatory"
-                style={
-                  desktopAmenitiesViewportHeight
-                    ? { height: `${desktopAmenitiesViewportHeight}px` }
-                    : undefined
-                }
+                ref={setDesktopAmenitiesListNode}
+                className="space-y-3 pb-3"
               >
-                <div
-                  ref={setDesktopAmenitiesListNode}
-                  className="space-y-3 pb-3"
-                >
-                  {data.items.map((amenity, index) => {
-                    const active = amenity.id === activeAmenity.id;
+                {data.items.map((amenity, index) => {
+                  const active = amenity.id === activeAmenity.id;
 
-                    return (
-                      <button
-                        key={amenity.id}
-                        ref={
-                          index === 0
-                            ? setDesktopAmenitiesFirstItemNode
-                            : undefined
-                        }
-                        type="button"
-                        onClick={() => selectAmenity(amenity.id)}
-                        className={`w-full snap-start snap-always rounded-[1.15rem] border p-2.5 text-left transition ${
-                          active
-                            ? "border-white/28 bg-black/64 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
-                            : "border-white/8 bg-black/38 hover:border-white/18 hover:bg-black/52"
-                        }`}
-                      >
-                        <AmenityCard amenity={amenity} active={active} />
-                        <div className="px-1.5 pb-1 pt-3">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-emerald-200/75">
-                            {amenity.category}
-                          </p>
-                          <p className="mt-1 text-sm font-semibold text-white">
-                            {amenity.title}
-                          </p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                  return (
+                    <button
+                      key={amenity.id}
+                      ref={
+                        index === 0
+                          ? setDesktopAmenitiesFirstItemNode
+                          : undefined
+                      }
+                      type="button"
+                      onClick={() => selectAmenity(amenity.id)}
+                      className={`w-full snap-start snap-always rounded-[1.15rem] border p-2.5 text-left transition ${
+                        active
+                          ? "border-white/28 bg-black/64 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                          : "border-white/8 bg-black/38 hover:border-white/18 hover:bg-black/52"
+                      }`}
+                    >
+                      <AmenityCard amenity={amenity} active={active} />
+                      <div className="px-1.5 pb-1 pt-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-emerald-200/75">
+                          {amenity.category}
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-white">
+                          {amenity.title}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
-            </>
-          )}
-        </div>
-      </aside>
+            </div>
+          </div>
+        </aside>
+      )}
 
       <div
         className={`fixed inset-0 z-40 bg-black/42 backdrop-blur-sm transition lg:hidden ${
@@ -466,82 +423,84 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         }`}
         onClick={() => setIsPanelOpen(false)}
       />
-      <aside
-        className={`fixed right-3 top-3 z-50 w-[min(24rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-[1.35rem] border border-white/14 bg-black/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 lg:hidden ${
-          isPanelOpen ? "translate-x-0 opacity-100" : "translate-x-[110%] opacity-0"
-        }`}
-      >
-        <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between border-b border-white/10 p-4">
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-white/10">
-                <Sparkles className="h-5 w-5 text-amber-200" />
-              </span>
+      {isPanelOpen ? (
+        <aside className="fixed right-3 top-3 z-50 w-[min(24rem,calc(100vw-1.5rem))] max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-[1.35rem] border border-white/14 bg-black/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 lg:hidden">
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between border-b border-white/10 p-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/48">
                   {data.eyebrow}
                 </p>
                 <p className="text-lg font-semibold">{data.title}</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsPanelOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-black/52"
+                aria-label="Close amenities"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsPanelOpen(false)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/46"
-              aria-label="Close amenities"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
 
-          <div
-            ref={setMobileAmenitiesScrollAreaNode}
-            className="custom-scrollbar overflow-y-auto overscroll-contain px-4 pt-4 snap-y snap-mandatory"
-            style={
-              mobileAmenitiesViewportHeight
-                ? { height: `${mobileAmenitiesViewportHeight}px` }
-                : undefined
-            }
-          >
             <div
-              ref={setMobileAmenitiesListNode}
-              className="space-y-3 pb-3"
+              ref={setMobileAmenitiesScrollAreaNode}
+              className="custom-scrollbar overflow-y-auto overscroll-contain px-4 pt-4 snap-y snap-mandatory"
+              style={
+                mobileAmenitiesViewportHeight
+                  ? { height: `${mobileAmenitiesViewportHeight}px` }
+                  : undefined
+              }
             >
-              {data.items.map((amenity, index) => {
-                const active = amenity.id === activeAmenity.id;
+              <div
+                ref={setMobileAmenitiesListNode}
+                className="space-y-3 pb-3"
+              >
+                {data.items.map((amenity, index) => {
+                  const active = amenity.id === activeAmenity.id;
 
-                return (
-                  <button
-                    key={amenity.id}
-                    ref={
-                      index === 0
-                        ? setMobileAmenitiesFirstItemNode
-                        : undefined
-                    }
-                    type="button"
-                    onClick={() => selectAmenity(amenity.id)}
-                    className={`w-full snap-start snap-always rounded-[1.15rem] border p-2.5 text-left transition ${
-                      active
-                        ? "border-white/28 bg-black/64"
-                        : "border-white/8 bg-black/38"
-                    }`}
-                  >
-                    <AmenityCard amenity={amenity} active={active} />
-                    <div className="px-1 pb-1 pt-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/75">
-                        {amenity.category}
-                      </p>
-                      <p className="pt-1 text-sm font-semibold text-white">
-                        {amenity.title}
-                      </p>
-                    </div>
-                  </button>
-                );
-              })}
+                  return (
+                    <button
+                      key={amenity.id}
+                      ref={
+                        index === 0
+                          ? setMobileAmenitiesFirstItemNode
+                          : undefined
+                      }
+                      type="button"
+                      onClick={() => selectAmenity(amenity.id)}
+                      className={`w-full snap-start snap-always rounded-[1.15rem] border p-2.5 text-left transition ${
+                        active
+                          ? "border-white/28 bg-black/64"
+                          : "border-white/8 bg-black/38"
+                      }`}
+                    >
+                      <AmenityCard amenity={amenity} active={active} />
+                      <div className="px-1 pb-1 pt-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-emerald-200/75">
+                          {amenity.category}
+                        </p>
+                        <p className="pt-1 text-sm font-semibold text-white">
+                          {amenity.title}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
-        </div>
-      </aside>
+        </aside>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setIsPanelOpen(true)}
+          className={`${panelEdgeHandleClassName} lg:hidden`}
+          aria-label="Open amenities"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      )}
     </main>
   );
 }
