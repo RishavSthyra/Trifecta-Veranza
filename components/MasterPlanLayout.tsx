@@ -1449,25 +1449,6 @@ export default function MasterPlanLayout({
 
     };
 
-    const handleTouchMove = (e: TouchEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (!target) {
-        return;
-      }
-
-      if (leavingRef.current) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
-      if (isInsideScrollArea(target, e)) {
-        return;
-      }
-
-      e.preventDefault();
-    };
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (leavingRef.current) {
         const blockedKeys = ["ArrowUp", "PageUp", "Home", " "];
@@ -1496,7 +1477,6 @@ export default function MasterPlanLayout({
     };
 
     window.addEventListener("wheel", handleWheel, { passive: false });
-    window.addEventListener("touchmove", handleTouchMove, { passive: false });
     window.addEventListener("keydown", handleKeyDown, { passive: false });
 
     window.addEventListener("scroll", blockAllScrollLikeActions, {
@@ -1510,7 +1490,6 @@ export default function MasterPlanLayout({
 
     return () => {
       window.removeEventListener("wheel", handleWheel);
-      window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("scroll", blockAllScrollLikeActions);
       document.removeEventListener(
@@ -2575,9 +2554,7 @@ function MasterPlanResultsCard({
   return (
     <motion.div
       className={`surface-contain flex min-h-0 flex-col rounded-[24px] border border-white/30 bg-white/75 shadow-[0_20px_60px_rgba(15,23,42,0.10)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/25 dark:shadow-[0_20px_60px_rgba(0,0,0,0.35)] sm:rounded-[30px] ${
-        compact
-          ? "h-[min(40svh,26rem)] min-h-0 flex-1 overflow-hidden p-2.5 sm:h-[min(42svh,28rem)] md:h-[min(46svh,32rem)]"
-          : "flex-1 p-4"
+        compact ? "min-h-0 flex-1 overflow-hidden p-2.5" : "flex-1 p-4"
       }`}
     >
       <div className={`flex items-center justify-between ${compact ? "mb-3" : "mb-4"}`}>
