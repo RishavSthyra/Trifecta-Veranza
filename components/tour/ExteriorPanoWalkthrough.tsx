@@ -90,6 +90,7 @@ const MIN_PITCH = -Math.PI / 2 + 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.08;
 const EXTERIOR_SPHERE_RESOLUTION = 128;
 const EXTERIOR_COMPACT_SPHERE_RESOLUTION = 64;
+const EXTERIOR_APPLE_TOUCH_SPHERE_RESOLUTION = 32;
 const EXTERIOR_MIN_FOV = 36;
 const EXTERIOR_MAX_FOV = 74;
 const RESOLVED_PANO_CACHE_LIMIT = 10;
@@ -683,7 +684,7 @@ export default function ExteriorPanoWalkthrough({
   activeNodeIdRef.current = activeNodeId;
   const prefersCoarsePointerRef = useRef(false);
   const isCompactExperienceRef = useRef(false);
-  const forcePreviewPanoramaRef = useRef(false);
+  const preferTileOnlyPanoramaRef = useRef(false);
 
   const activeNode = graph.byId[activeNodeId];
   const sequential = useMemo(
@@ -839,8 +840,7 @@ export default function ExteriorPanoWalkthrough({
         }
 
         if (meta) {
-          const supportsTiles =
-            !forcePreviewPanoramaRef.current && canUseTiledPanorama(meta);
+          const supportsTiles = canUseTiledPanorama(meta);
 
           if (!supportsTiles) {
             const resolved = {
@@ -861,13 +861,25 @@ export default function ExteriorPanoWalkthrough({
             nodeId,
             panoId: node.panoId,
             meta,
-            panorama: buildPhotoSpherePanorama(
-              node.panoId,
-              meta,
-              cdnBaseUrl,
-              true,
-              previewUrl,
-            ),
+            panorama:
+              (preferTileOnlyPanoramaRef.current
+                ? withoutBasePreview(
+                    buildPhotoSpherePanorama(
+                      node.panoId,
+                      meta,
+                      cdnBaseUrl,
+                      true,
+                      previewUrl,
+                    ),
+                  )
+                : null) ??
+              buildPhotoSpherePanorama(
+                node.panoId,
+                meta,
+                cdnBaseUrl,
+                true,
+                previewUrl,
+              ),
             previewUrl,
             mode: "tiles",
           } satisfies ResolvedPano;
@@ -920,12 +932,13 @@ export default function ExteriorPanoWalkthrough({
     let cancelled = false;
     let localViewer: Viewer | null = null;
     let retriedInitialWithoutBase = false;
+    let retriedInitialPreviewImage = false;
 
     void (async () => {
       prefersCoarsePointerRef.current =
         window.matchMedia?.("(pointer: coarse)").matches ||
         navigator.maxTouchPoints > 0;
-      forcePreviewPanoramaRef.current = isAppleTouchPanoramaDevice();
+      preferTileOnlyPanoramaRef.current = isAppleTouchPanoramaDevice();
       isCompactExperienceRef.current =
         window.matchMedia?.("(max-width: 1279px)").matches ||
         prefersCoarsePointerRef.current;
@@ -982,12 +995,14 @@ export default function ExteriorPanoWalkthrough({
         ...(initialResolved.mode === "tiles"
           ? {
               adapter: EquirectangularTilesAdapter.withConfig({
-                resolution: isCompactExperienceRef.current
-                  ? EXTERIOR_COMPACT_SPHERE_RESOLUTION
-                  : EXTERIOR_SPHERE_RESOLUTION,
+                resolution: preferTileOnlyPanoramaRef.current
+                  ? EXTERIOR_APPLE_TOUCH_SPHERE_RESOLUTION
+                  : isCompactExperienceRef.current
+                    ? EXTERIOR_COMPACT_SPHERE_RESOLUTION
+                    : EXTERIOR_SPHERE_RESOLUTION,
                 showErrorTile: false,
-                baseBlur: true,
-                antialias: true,
+                baseBlur: !preferTileOnlyPanoramaRef.current,
+                antialias: !preferTileOnlyPanoramaRef.current,
               }),
             }
           : {}),
@@ -1010,9 +1025,11 @@ export default function ExteriorPanoWalkthrough({
         maxFov: EXTERIOR_MAX_FOV,
         moveInertia: true,
         rendererParameters: {
-          antialias: true,
+          antialias: !preferTileOnlyPanoramaRef.current,
           powerPreference:
-            initialResolved.mode === "tiles" ? "high-performance" : "default",
+            initialResolved.mode === "tiles" && !preferTileOnlyPanoramaRef.current
+              ? "high-performance"
+              : "default",
         },
       });
 
@@ -1051,6 +1068,25 @@ export default function ExteriorPanoWalkthrough({
             })
             .catch((fallbackError) => {
               console.error("Exterior initial tile-only fallback failed:", fallbackError);
+              localViewer?.hideError();
+              setLoadState(createLoadState("error", "Panorama unavailable"));
+            });
+          return;
+        }
+        if (!retriedInitialPreviewImage && initialResolved.previewUrl && localViewer) {
+          retriedInitialPreviewImage = true;
+          setLoadState(createLoadState("preview", "Retrying panorama"));
+          void localViewer
+            .setPanorama(initialResolved.previewUrl, {
+              position: {
+                yaw: initialYaw,
+                pitch: initialPitch,
+              },
+              zoom: initialZoom,
+              showLoader: false,
+            })
+            .catch((fallbackError) => {
+              console.error("Exterior initial preview fallback failed:", fallbackError);
               localViewer?.hideError();
               setLoadState(createLoadState("error", "Panorama unavailable"));
             });
@@ -1404,7 +1440,8 @@ export default function ExteriorPanoWalkthrough({
         try {
           completed = await viewer.setPanorama(target.panorama, panoramaOptions);
         } catch (previewTransitionError) {
-          const fallbackPanorama = withoutBasePreview(target.panorama);
+          const fallbackPanorama =
+            withoutBasePreview(target.panorama) ?? target.previewUrl;
           if (!fallbackPanorama) {
             throw previewTransitionError;
           }
@@ -1652,7 +1689,8 @@ export default function ExteriorPanoWalkthrough({
             navigated = true;
             break;
           } catch (previewTransitionError) {
-            const fallbackPanorama = withoutBasePreview(target.panorama);
+            const fallbackPanorama =
+              withoutBasePreview(target.panorama) ?? target.previewUrl;
 
             if (!fallbackPanorama) {
               console.warn(
