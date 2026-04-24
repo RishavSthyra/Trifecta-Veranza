@@ -12,7 +12,6 @@ import {
   useState,
 } from "react";
 import InfiniteScroll from "react-infinite-scroll-component";
-import { useRouter } from "next/navigation";
 import {
   motion,
   AnimatePresence,
@@ -37,6 +36,7 @@ import {
 } from "lucide-react";
 import TowerSelect from "./TowerSelect";
 import { unitPlans } from "@/data/unitPlans";
+import { scheduleAmenityVideoWarmup } from "@/lib/amenity-video-warmup";
 import {
   getNearestMasterPlanHotspot,
   isInventoryApartmentAllowedAtHotspot,
@@ -60,8 +60,6 @@ const SPECIAL_UNIT_VIDEO_URL =
   "https://cdn.sthyra.com/videos/Unit%20%20View.mp4";
 const SPECIAL_UNIT_VIDEO_REVERSE_URL =
   "https://cdn.sthyra.com/videos/Unit%20View%203S%20Reversed%20New_Compressed.mp4";
-const MASTER_PLAN_EXIT_REVERSE_VIDEO_URL =
-  "https://cdn.sthyra.com/videos/Tf%20Reversed(1).mp4";
 const MASTER_PLAN_STAGE_FALLBACK_IMAGE =
   "https://cdn.sthyra.com/images/first_frame_again.png";
 const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
@@ -120,21 +118,6 @@ const itemAnim: Variants = {
     transition: { duration: 0.2 },
   },
 };
-
-function isSafariLikeUserAgent(userAgent: string) {
-  return (
-    /Safari/i.test(userAgent) &&
-    !/Chrome|Chromium|CriOS|Edg|OPR|Firefox|FxiOS|Android/i.test(userAgent)
-  );
-}
-
-function shouldUseAppleScrollFix(userAgent: string, maxTouchPoints: number) {
-  const isTouchAppleDevice =
-    /iPhone|iPad|iPod/i.test(userAgent) ||
-    (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
-
-  return isTouchAppleDevice || isSafariLikeUserAgent(userAgent);
-}
 
 function getApartmentMeshId(apartment: InventoryApartment) {
   const towerCode = apartment.tower === "Tower B" ? "B" : "A";
@@ -550,20 +533,15 @@ function MasterPlanModeToggle({
 export default function MasterPlanLayout({
   initialApartments = [],
 }: MasterPlanLayoutProps) {
-  const router = useRouter();
-
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const reverseVideoRef = useRef<HTMLVideoElement | null>(null);
   const selectedFlatPanelRef = useRef<HTMLDivElement | null>(null);
   const specialUnitVideoRef = useRef<HTMLVideoElement | null>(null);
   const specialUnitWarmupRef = useRef<WarmVideoHandle | null>(null);
   const specialUnitReverseWarmupRef = useRef<WarmVideoHandle | null>(null);
-  const exitReverseWarmupRef = useRef<WarmVideoHandle | null>(null);
   const specialVideoLoadedUrlRef = useRef<string | null>(null);
   const specialUnitVideoTimeoutRef = useRef<number | null>(null);
   const leavingRef = useRef(false);
   const lastApartmentSelectionAtRef = useRef(0);
-  const touchStartYRef = useRef<number | null>(null);
   const inventorySignatureRef = useRef("");
   const currentFrameRef = useRef(1);
 
@@ -582,15 +560,13 @@ export default function MasterPlanLayout({
   const [floor, setFloor] = useState(FLOOR_ALL_VALUE);
   const [minArea, setMinArea] = useState(0);
 
-  const [isLeaving, setIsLeaving] = useState(false);
+  const isLeaving = false;
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(true);
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(false);
   const [isDesktopCompactViewport, setIsDesktopCompactViewport] =
     useState(false);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
-  const [useAppleScrollFix, setUseAppleScrollFix] = useState(false);
-  const [isSafariLike, setIsSafariLike] = useState(false);
   const [isTouchTabletViewport, setIsTouchTabletViewport] = useState(false);
   const [isTopViewMode, setIsTopViewMode] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(1);
@@ -648,8 +624,6 @@ export default function MasterPlanLayout({
       ? "-mt-1 min-h-0 flex-1 px-0 pb-0"
       : "-mt-1 min-h-0 flex-1 px-0 pb-0"
     : "mt-2 min-h-0 flex-1 px-3 pb-3";
-  const shouldUseTouchBackNavigation =
-    shouldUseCompactLayout;
   const shouldShowDesktopSidebar =
     !shouldUseCompactLayout && !isLeaving && !selectedApartment;
   const shouldShowTopViewFullscreen =
@@ -685,18 +659,6 @@ export default function MasterPlanLayout({
   }, [isFlatPanelOpen]);
 
   useEffect(() => {
-    if (typeof navigator === "undefined") {
-      return;
-    }
-
-    const userAgent = navigator.userAgent ?? "";
-    const maxTouchPoints = navigator.maxTouchPoints ?? 0;
-
-    setIsSafariLike(isSafariLikeUserAgent(userAgent));
-    setUseAppleScrollFix(shouldUseAppleScrollFix(userAgent, maxTouchPoints));
-  }, []);
-
-  useEffect(() => {
     if (!specialUnitWarmupRef.current) {
       specialUnitWarmupRef.current = createVideoWarmup(SPECIAL_UNIT_VIDEO_URL);
     }
@@ -709,6 +671,20 @@ export default function MasterPlanLayout({
 
       cleanupVideoWarmup(specialUnitWarmupRef.current);
       specialUnitWarmupRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      scheduleAmenityVideoWarmup({ profile: "master-plan" });
+    }, 1800);
+
+    return () => {
+      window.clearTimeout(timer);
     };
   }, []);
 
@@ -767,30 +743,6 @@ export default function MasterPlanLayout({
       video.removeEventListener("canplay", markReady);
     };
   }, [activeSpecialVideoUrl, isSpecialVideoOverlayMounted]);
-
-  useEffect(() => {
-    if (!isSafariLike) {
-      return;
-    }
-
-    if (!exitReverseWarmupRef.current) {
-      exitReverseWarmupRef.current = createVideoWarmup(
-        MASTER_PLAN_EXIT_REVERSE_VIDEO_URL,
-      );
-    }
-
-    const reverseVideo = reverseVideoRef.current;
-
-    if (reverseVideo) {
-      reverseVideo.preload = "auto";
-      reverseVideo.load();
-    }
-
-    return () => {
-      cleanupVideoWarmup(exitReverseWarmupRef.current);
-      exitReverseWarmupRef.current = null;
-    };
-  }, [isSafariLike]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1421,58 +1373,6 @@ export default function MasterPlanLayout({
     [getNextHotspotFrame],
   );
 
-  const leaveToHome = useCallback(async () => {
-    if (leavingRef.current) return;
-    leavingRef.current = true;
-
-    setIsLeaving(true);
-
-    const reverseVideo = reverseVideoRef.current;
-    if (!reverseVideo) {
-      router.push("/");
-      return;
-    }
-
-    reverseVideo.pause();
-    reverseVideo.currentTime = 0;
-
-    try {
-      if (reverseVideo.readyState < 2) {
-        await new Promise<void>((resolve, reject) => {
-          let settled = false;
-          const cleanup = () => {
-            reverseVideo.removeEventListener("canplay", handleCanPlay);
-            reverseVideo.removeEventListener("error", handleError);
-          };
-          const handleCanPlay = () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            resolve();
-          };
-          const handleError = () => {
-            if (settled) return;
-            settled = true;
-            cleanup();
-            reject(new Error("Failed to load reverse video."));
-          };
-
-          reverseVideo.addEventListener("canplay", handleCanPlay, {
-            once: true,
-          });
-          reverseVideo.addEventListener("error", handleError, {
-            once: true,
-          });
-          reverseVideo.load();
-        });
-      }
-
-      await reverseVideo.play();
-    } catch {
-      router.push("/");
-    }
-  }, [router]);
-
   useEffect(() => {
     const getScrollAreaElement = (
       target: EventTarget | null,
@@ -1508,8 +1408,6 @@ export default function MasterPlanLayout({
     const isInsideScrollArea = (target: EventTarget | null, event?: Event) => {
       return Boolean(getScrollAreaElement(target, event));
     };
-    const isAppleBrowser = useAppleScrollFix || isSafariLike;
-
     const blockAllScrollLikeActions = (e: Event) => {
       if (leavingRef.current) {
         e.preventDefault();
@@ -1529,19 +1427,6 @@ export default function MasterPlanLayout({
 
       if (isInsideScrollArea(target, e)) return;
 
-      if (isAppleBrowser) {
-        return;
-      }
-
-      if (shouldUseTouchBackNavigation) {
-        return;
-      }
-
-      if (e.deltaY < -20) {
-        e.preventDefault();
-        e.stopPropagation();
-        leaveToHome();
-      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1569,76 +1454,10 @@ export default function MasterPlanLayout({
         return;
       }
 
-      if (isAppleBrowser) {
-        return;
-      }
-
-      if (shouldUseTouchBackNavigation) {
-        return;
-      }
-
-      const upKeys = ["ArrowUp", "PageUp", "Home"];
-      if (upKeys.includes(e.key)) {
-        e.preventDefault();
-        leaveToHome();
-      }
-    };
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (isAppleBrowser) {
-        return;
-      }
-
-      if (shouldUseTouchBackNavigation) {
-        touchStartYRef.current = null;
-        return;
-      }
-
-      if (isInsideScrollArea(e.target, e)) {
-        touchStartYRef.current = null;
-        return;
-      }
-
-      if (e.touches.length > 0) {
-        touchStartYRef.current = e.touches[0].clientY;
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (leavingRef.current) {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
-      if (isAppleBrowser) {
-        return;
-      }
-
-      if (shouldUseTouchBackNavigation) {
-        return;
-      }
-
-      if (isInsideScrollArea(e.target, e)) return;
-
-      const startY = touchStartYRef.current;
-      const currentY = e.touches[0]?.clientY;
-
-      if (startY == null || currentY == null) return;
-
-      const delta = currentY - startY;
-
-      if (delta > 30) {
-        e.preventDefault();
-        e.stopPropagation();
-        leaveToHome();
-      }
     };
 
     window.addEventListener("wheel", handleWheel, { passive: false });
     window.addEventListener("keydown", handleKeyDown, { passive: false });
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: false });
 
     window.addEventListener("scroll", blockAllScrollLikeActions, {
       passive: false,
@@ -1652,8 +1471,6 @@ export default function MasterPlanLayout({
     return () => {
       window.removeEventListener("wheel", handleWheel);
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
       window.removeEventListener("scroll", blockAllScrollLikeActions);
       document.removeEventListener(
         "gesturestart",
@@ -1662,10 +1479,6 @@ export default function MasterPlanLayout({
     };
   }, [
     goToHotspot,
-    isSafariLike,
-    leaveToHome,
-    shouldUseTouchBackNavigation,
-    useAppleScrollFix,
   ]);
 
   return (
@@ -1695,29 +1508,6 @@ export default function MasterPlanLayout({
           />
         )
       ) : null}
-
-      <video
-        ref={reverseVideoRef}
-        muted
-        playsInline
-        preload={isSafariLike ? "auto" : "metadata"}
-        crossOrigin="anonymous"
-        disablePictureInPicture
-        src={MASTER_PLAN_EXIT_REVERSE_VIDEO_URL}
-        onEnded={() => router.push("/")}
-        className={`gpu-layer absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
-          isLeaving ? "opacity-100" : "pointer-events-none opacity-0"
-        }`}
-        style={
-          isSafariLike
-            ? {
-                transform: "translate3d(-0.35%, 0, 0) scale(1.018)",
-                transformOrigin: "center center",
-              }
-            : undefined
-        }
-      />
-
 
       {!shouldUseCompactLayout &&
       !isTopViewMode &&

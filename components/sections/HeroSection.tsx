@@ -8,8 +8,6 @@ import Link from "next/link";
 import { MASTER_PLAN_SCRUB_HQ_VIDEO_PATH } from "@/data/masterPlanFrameCdnUrls";
 
 const HERO_POSTER_URL = "https://cdn.sthyra.com/images/hero_first_frame.avif";
-const ENTRY_VIDEO_SRC =
-  "https://cdn.sthyra.com/videos/Tf%20Fixed%20Final_2.mp4";
 const HERO_LOOP_RESTART_BEFORE_END_SECONDS = 0.5;
 const HERO_LOOP_RESTART_AT_SECONDS = 0.04;
 const HERO_PLAY_RETRY_MS = 450;
@@ -70,19 +68,15 @@ export default function HeroSection({
   const router = useRouter();
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
   const heroLoopVideoRef = useRef<HTMLVideoElement | null>(null);
-  const entryVideoRef = useRef<HTMLVideoElement | null>(null);
   const idleWarmVideoRef = useRef<HTMLVideoElement | null>(null);
   const sectionRef = useRef<HTMLElement | null>(null);
   const scrollLockRef = useRef(false);
-  const startedEntryTransitionRef = useRef(false);
   const isLoopSeamSeekInProgressRef = useRef(false);
 
   const [videoReady, setVideoReady] = useState(false);
   const [isHeroVideoPlaying, setIsHeroVideoPlaying] = useState(false);
-  const [isTransitioningToMasterPlan, setIsTransitioningToMasterPlan] =
-    useState(false);
-  const [isEntryVideoVisible, setIsEntryVideoVisible] = useState(false);
   const [isHeroLoopVideoVisible, setIsHeroLoopVideoVisible] = useState(false);
+  const isEntryVideoVisible = false;
 
   const line1 = "Open to Sky,";
   const line2 = "Rooted in Green";
@@ -282,52 +276,12 @@ export default function HeroSection({
     }
   }, [isEntryVideoVisible, isHeroLoopVideoVisible]);
 
-  const startEntryVideo = useCallback(async () => {
-    const heroVideo = heroVideoRef.current;
-    const heroLoopVideo = heroLoopVideoRef.current;
-    const entryVideo = entryVideoRef.current;
-
-    if (!entryVideo) return;
-
-    startedEntryTransitionRef.current = true;
-    heroVideo?.pause();
-    heroLoopVideo?.pause();
-    isLoopSeamSeekInProgressRef.current = false;
-
-    prepareVideoForInlinePlayback(entryVideo);
-
-    if (entryVideo.src !== ENTRY_VIDEO_SRC) {
-      entryVideo.src = ENTRY_VIDEO_SRC;
-    }
-
-    setIsEntryVideoVisible(true);
-
-    try {
-      if (entryVideo.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-        entryVideo.load();
-      }
-
-      entryVideo.currentTime = 0;
-      await entryVideo.play();
-    } catch {
-      router.push("/master-plan");
-    }
-  }, [prepareVideoForInlinePlayback, router]);
-
-  const goToNextPage = useCallback(() => {
-    if (scrollLockRef.current || isTransitioningToMasterPlan) return;
+  const goToProjectOverview = useCallback(() => {
+    if (scrollLockRef.current) return;
 
     scrollLockRef.current = true;
-    setIsTransitioningToMasterPlan(true);
-    router.prefetch("/project-overview");
-    void startEntryVideo();
-  }, [isTransitioningToMasterPlan, router, startEntryVideo]);
-
-  const goToProjectOverview = useCallback(() => {
-    if (isTransitioningToMasterPlan) return;
-
     router.push("/project-overview");
-  }, [isTransitioningToMasterPlan, router]);
+  }, [router]);
 
   useEffect(() => {
     const heroVideo = heroVideoRef.current;
@@ -610,7 +564,7 @@ export default function HeroSection({
       if (scrollLockRef.current) return;
 
       e.preventDefault();
-      goToNextPage();
+      goToProjectOverview();
     };
 
     el.addEventListener("wheel", handleWheel, { passive: false });
@@ -618,7 +572,7 @@ export default function HeroSection({
     return () => {
       el.removeEventListener("wheel", handleWheel);
     };
-  }, [goToNextPage]);
+  }, [goToProjectOverview]);
 
   return (
     <section
@@ -680,30 +634,6 @@ export default function HeroSection({
       />
 
       <video
-        ref={entryVideoRef}
-        className={`hero-section-video pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-500 ${
-          isEntryVideoVisible ? "opacity-100" : "opacity-0"
-        }`}
-        muted
-        playsInline
-        preload="metadata"
-        controls={false}
-        disablePictureInPicture
-        disableRemotePlayback
-        controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
-        onError={() => {
-          if (startedEntryTransitionRef.current) {
-            router.push("/master-plan");
-          }
-        }}
-        onEnded={() => {
-          if (startedEntryTransitionRef.current) {
-            router.push("/master-plan");
-          }
-        }}
-      />
-
-      <video
         ref={idleWarmVideoRef}
         muted
         playsInline
@@ -754,11 +684,7 @@ export default function HeroSection({
           variants={contentWrap}
           initial="hidden"
           animate={
-            isTransitioningToMasterPlan
-              ? "exit"
-              : playIntroAnimation
-                ? "show"
-                : "hidden"
+            playIntroAnimation ? "show" : "hidden"
           }
           className="max-w-2xl text-right"
         >
@@ -773,13 +699,7 @@ export default function HeroSection({
             <motion.h1
               variants={container}
               initial="hidden"
-              animate={
-                isTransitioningToMasterPlan
-                  ? "hidden"
-                  : playIntroAnimation
-                    ? "show"
-                    : "hidden"
-              }
+              animate={playIntroAnimation ? "show" : "hidden"}
               className="text-[2.15rem] font-light uppercase tracking-[0.01em] sm:text-[3.2rem] md:text-[4.1rem] md:leading-[0.94] lg:text-[4.85rem] xl:text-7xl"
             >
               <div className="flex flex-wrap justify-end overflow-hidden">
@@ -823,8 +743,7 @@ export default function HeroSection({
           >
             <button
               onClick={goToProjectOverview}
-              disabled={isTransitioningToMasterPlan}
-              className="cursor-pointer border border-white/40 bg-white/10 px-7 py-3 text-xs uppercase tracking-[0.25em] backdrop-blur-sm transition hover:bg-white hover:text-black disabled:cursor-default disabled:opacity-60"
+              className="cursor-pointer border border-white/40 bg-white/10 px-7 py-3 text-xs uppercase tracking-[0.25em] backdrop-blur-sm transition hover:bg-white hover:text-black"
             >
               Explore Project
             </button>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import HeroSection from "@/components/sections/HeroSection";
 import TrifectaPreloader from "@/components/ui/Preloader";
+import { scheduleAmenityVideoWarmup } from "@/lib/amenity-video-warmup";
 import {
   getMasterPlanFrameCdnUrl,
   getMasterPlanFramePreloadSequence,
@@ -105,6 +106,20 @@ export default function HomePageClient() {
     const timer = window.setTimeout(() => {
       setLoading(false);
     }, remainingVisibleMs + 260);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [heroReady]);
+
+  useEffect(() => {
+    if (!heroReady || typeof window === "undefined") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      scheduleAmenityVideoWarmup({ profile: "home" });
+    }, 900);
 
     return () => {
       window.clearTimeout(timer);

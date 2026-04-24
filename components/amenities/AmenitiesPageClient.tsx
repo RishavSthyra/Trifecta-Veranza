@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   ChevronLeft,
@@ -10,6 +10,7 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
+import { scheduleAmenityVideoWarmup } from "@/lib/amenity-video-warmup";
 
 export type AmenityPageItem = {
   id: string;
@@ -108,14 +109,20 @@ function AmenityCard({
 
 export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) {
   const [activeId, setActiveId] = useState(data.items[0]?.id ?? "");
+  const [displayedAmenityId, setDisplayedAmenityId] = useState(
+    data.items[0]?.id ?? "",
+  );
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const transitionTokenRef = useRef(0);
 
   const activeIndex = useMemo(
     () => Math.max(0, data.items.findIndex((item) => item.id === activeId)),
     [activeId, data.items],
   );
   const activeAmenity = data.items[activeIndex] ?? data.items[0];
+  const displayedAmenity =
+    data.items.find((item) => item.id === displayedAmenityId) ?? activeAmenity;
 
   const selectAmenity = (id: string) => {
     setActiveId(id);
@@ -132,6 +139,76 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
     setActiveId(data.items[nextIndex].id);
   };
 
+  useEffect(() => {
+    scheduleAmenityVideoWarmup({
+      profile: "amenities",
+      currentAmenityId: activeId,
+    });
+  }, [activeId]);
+
+  useEffect(() => {
+    if (!activeAmenity) {
+      return;
+    }
+
+    if (activeAmenity.id === displayedAmenityId) {
+      return;
+    }
+
+    if (!hasMediaSource(activeAmenity.videoSrc)) {
+      const frameId = window.requestAnimationFrame(() => {
+        setDisplayedAmenityId(activeAmenity.id);
+      });
+
+      return () => {
+        window.cancelAnimationFrame(frameId);
+      };
+    }
+
+    const token = transitionTokenRef.current + 1;
+    transitionTokenRef.current = token;
+
+    const preloadVideo = document.createElement("video");
+    preloadVideo.preload = "auto";
+    preloadVideo.muted = true;
+    preloadVideo.defaultMuted = true;
+    preloadVideo.playsInline = true;
+    preloadVideo.crossOrigin = "anonymous";
+    preloadVideo.setAttribute("muted", "");
+    preloadVideo.setAttribute("playsinline", "");
+    preloadVideo.setAttribute("webkit-playsinline", "");
+    preloadVideo.src = activeAmenity.videoSrc as string;
+
+    const revealAmenity = () => {
+      if (transitionTokenRef.current !== token) {
+        return;
+      }
+
+      setDisplayedAmenityId(activeAmenity.id);
+    };
+
+    preloadVideo.addEventListener("loadeddata", revealAmenity, { once: true });
+    preloadVideo.addEventListener("canplay", revealAmenity, { once: true });
+    preloadVideo.addEventListener(
+      "error",
+      () => {
+        if (transitionTokenRef.current !== token) {
+          return;
+        }
+
+        setDisplayedAmenityId(activeAmenity.id);
+      },
+      { once: true },
+    );
+    preloadVideo.load();
+
+    return () => {
+      preloadVideo.pause();
+      preloadVideo.removeAttribute("src");
+      preloadVideo.load();
+    };
+  }, [activeAmenity, displayedAmenityId]);
+
   if (!activeAmenity) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-white text-zinc-950">
@@ -141,54 +218,54 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
   }
 
   return (
-    <main className="relative h-screen min-h-screen overflow-hidden bg-white text-white">
-      {hasMediaSource(activeAmenity.videoSrc) ? (
+    <main className="relative h-screen min-h-screen overflow-hidden bg-black text-white">
+      {hasMediaSource(displayedAmenity.videoSrc) ? (
         <video
-          key={activeAmenity.videoSrc}
+          key={displayedAmenity.videoSrc}
           className="absolute inset-0 h-full w-full object-cover"
-          src={activeAmenity.videoSrc}
+          src={displayedAmenity.videoSrc}
           poster={
-            hasMediaSource(activeAmenity.thumbnailSrc)
-              ? activeAmenity.thumbnailSrc
+            hasMediaSource(displayedAmenity.thumbnailSrc)
+              ? displayedAmenity.thumbnailSrc
               : undefined
           }
           autoPlay
           muted
           loop
           playsInline
-          preload="metadata"
+          preload="auto"
         />
-      ) : hasMediaSource(activeAmenity.thumbnailSrc) ? (
+      ) : hasMediaSource(displayedAmenity.thumbnailSrc) ? (
         <Image
-          src={activeAmenity.thumbnailSrc as string}
-          alt={activeAmenity.title}
+          src={displayedAmenity.thumbnailSrc as string}
+          alt={displayedAmenity.title}
           fill
           sizes="100vw"
           className="object-cover"
           priority
         />
       ) : (
-        <AmenityPlaceholder title={activeAmenity.title} />
+        <AmenityPlaceholder title={displayedAmenity.title} />
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/76 via-black/24 to-transparent" />
+      {/* <div className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-linear-to-t from-black/76 via-black/24 to-transparent" /> */}
 
       <section className="pointer-events-none absolute bottom-8 left-5 right-5 z-10 pr-0 sm:bottom-10 sm:left-8 sm:right-8 lg:right-[24rem]">
         <div className="max-w-4xl">
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/18 bg-black/18 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-white backdrop-blur-xl">
             <Sparkles className="h-3.5 w-3.5 text-amber-200" />
-            {activeAmenity.category}
+            {displayedAmenity.category}
           </div>
           <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-white drop-shadow-[0_12px_40px_rgba(0,0,0,0.45)] sm:text-6xl lg:text-7xl">
-            {activeAmenity.title}
+            {displayedAmenity.title}
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-6 text-white/82 sm:text-base">
-            {activeAmenity.shortDescription}
+            {displayedAmenity.shortDescription}
           </p>
         </div>
       </section>
 
-      <div className="absolute bottom-8 left-5 z-20 flex items-center gap-2 sm:bottom-10 lg:left-auto lg:right-[25rem]">
+      <div className="absolute bottom-8 left-5 z-20 hidden items-center gap-2 md:flex sm:bottom-10 lg:left-auto lg:right-[25rem]">
         <button
           type="button"
           onClick={() => goToRelativeAmenity(-1)}
@@ -218,16 +295,16 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
 
       <aside
         className={`fixed right-5 top-1/2 z-30 hidden h-[min(76vh,46rem)] -translate-y-1/2 transition-[width] duration-300 lg:block ${
-          isPanelCollapsed ? "w-[5.25rem]" : "w-[21rem]"
+          isPanelCollapsed ? "w-[5.9rem]" : "w-[21rem]"
         }`}
       >
-        <div className="flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-white/14 bg-zinc-950/66 text-white shadow-[0_30px_90px_rgba(0,0,0,0.32)] backdrop-blur-2xl">
+        <div className="flex h-full flex-col overflow-hidden rounded-[1.35rem] border border-white/12 bg-black/74 text-white shadow-[0_30px_90px_rgba(0,0,0,0.36)] backdrop-blur-2xl">
           {isPanelCollapsed ? (
-            <div className="flex justify-center px-3 pb-2 pt-4">
+            <div className="flex justify-center px-3 pb-3 pt-4">
               <button
                 type="button"
                 onClick={() => setIsPanelCollapsed(false)}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white transition hover:bg-white hover:text-zinc-950"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white transition hover:bg-white hover:text-zinc-950"
                 aria-label="Expand amenities sidebar"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -252,7 +329,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
               <button
                 type="button"
                 onClick={() => setIsPanelCollapsed(true)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-white/8 text-white transition hover:bg-white hover:text-zinc-950"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/12 bg-black/46 text-white transition hover:bg-white hover:text-zinc-950"
                 aria-label="Collapse amenities sidebar"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -261,7 +338,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
           )}
 
           {isPanelCollapsed ? (
-            <div className="custom-scrollbar flex flex-1 flex-col items-center gap-3 overflow-y-auto p-3">
+            <div className="custom-scrollbar flex flex-1 flex-col items-center gap-3 overflow-y-auto px-3 pb-4 pt-1">
               {data.items.map((amenity, index) => {
                 const active = amenity.id === activeAmenity.id;
 
@@ -270,10 +347,10 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
                     key={amenity.id}
                     type="button"
                     onClick={() => selectAmenity(amenity.id)}
-                    className={`flex h-11 w-11 items-center justify-center rounded-full border text-sm font-semibold transition ${
+                    className={`flex h-11 w-11 min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition ${
                       active
                         ? "border-white bg-white text-zinc-950"
-                        : "border-white/12 bg-white/8 text-white hover:bg-white/16"
+                        : "border-white/12 bg-black/44 text-white hover:bg-black/60"
                     }`}
                     aria-label={amenity.title}
                   >
@@ -304,8 +381,8 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
                       onClick={() => selectAmenity(amenity.id)}
                       className={`w-full rounded-[1.15rem] border p-2.5 text-left transition ${
                         active
-                          ? "border-white/38 bg-white/16 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
-                          : "border-white/8 bg-white/6 hover:border-white/22 hover:bg-white/10"
+                          ? "border-white/28 bg-black/64 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)]"
+                          : "border-white/8 bg-black/38 hover:border-white/18 hover:bg-black/52"
                       }`}
                     >
                       <AmenityCard amenity={amenity} active={active} />
@@ -333,7 +410,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         onClick={() => setIsPanelOpen(false)}
       />
       <aside
-        className={`fixed bottom-3 right-3 top-3 z-50 w-[min(24rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.35rem] border border-white/14 bg-zinc-950/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 lg:hidden ${
+        className={`fixed bottom-3 right-3 top-3 z-50 w-[min(24rem,calc(100vw-1.5rem))] overflow-hidden rounded-[1.35rem] border border-white/14 bg-black/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 lg:hidden ${
           isPanelOpen ? "translate-x-0 opacity-100" : "translate-x-[110%] opacity-0"
         }`}
       >
@@ -353,7 +430,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
             <button
               type="button"
               onClick={() => setIsPanelOpen(false)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-white/8"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/46"
               aria-label="Close amenities"
             >
               <X className="h-4 w-4" />
@@ -371,8 +448,8 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
                   onClick={() => selectAmenity(amenity.id)}
                   className={`w-full rounded-[1.15rem] border p-2.5 text-left transition ${
                     active
-                      ? "border-white/45 bg-white/16"
-                      : "border-white/8 bg-white/6"
+                      ? "border-white/28 bg-black/64"
+                      : "border-white/8 bg-black/38"
                   }`}
                 >
                   <AmenityCard amenity={amenity} active={active} />
