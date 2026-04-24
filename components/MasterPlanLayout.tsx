@@ -637,26 +637,6 @@ export default function MasterPlanLayout({
     : SPECIAL_UNIT_VIDEO_URL;
 
   useEffect(() => {
-    if (typeof document === "undefined") {
-      return;
-    }
-
-    const previousHtmlOverflow = document.documentElement.style.overflow;
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousBodyHeight = document.body.style.height;
-
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
-    document.body.style.height = "100dvh";
-
-    return () => {
-      document.documentElement.style.overflow = previousHtmlOverflow;
-      document.body.style.overflow = previousBodyOverflow;
-      document.body.style.height = previousBodyHeight;
-    };
-  }, []);
-
-  useEffect(() => {
     currentFrameRef.current = currentFrame;
   }, [currentFrame]);
 
@@ -1504,7 +1484,7 @@ export default function MasterPlanLayout({
   return (
       <div
         ref={rootRef}
-        className="relative app-screen w-full overflow-hidden overscroll-none bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
+        className="relative app-screen w-full bg-black text-zinc-900 [overflow-anchor:none] dark:text-white"
       >
       {shouldShowTopViewFullscreen ? <MasterPlanTopViewStage /> : null}
 
@@ -1922,8 +1902,12 @@ export default function MasterPlanLayout({
               <button
                 type="button"
                 onClick={() => setIsMobileSheetOpen(true)}
-                className={`pointer-events-auto absolute right-4 top-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl ${
+                className={`pointer-events-auto absolute right-4 z-30 inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/90 px-4 py-3 text-sm font-medium text-zinc-900 shadow-[0_14px_36px_rgba(15,23,42,0.18)] backdrop-blur-xl ${
                   shouldUseCompactLayout ? "" : "xl:hidden"
+                } ${
+                  shouldUseCompactLayout
+                    ? "bottom-[calc(env(safe-area-inset-bottom)+0.85rem)]"
+                    : "bottom-6"
                 }`}
               >
                 <SlidersHorizontal className="h-4 w-4" />
@@ -1950,7 +1934,7 @@ export default function MasterPlanLayout({
               }`}
             >
               <div
-                className={`surface-contain flex min-h-0 flex-col overflow-hidden overscroll-none rounded-t-[26px] border border-white/60 border-b-0 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl [-webkit-overflow-scrolling:touch] touch-pan-y dark:border-white/10 dark:bg-black/70 sm:mx-1 sm:rounded-t-[28px] sm:rounded-b-none ${
+                className={`surface-contain flex min-h-0 flex-col overflow-hidden overscroll-none rounded-t-[26px] border border-white/60 border-b-0 bg-white/92 shadow-[0_-20px_50px_rgba(15,23,42,0.20)] backdrop-blur-2xl dark:border-white/10 dark:bg-black/70 sm:mx-1 sm:rounded-t-[28px] sm:rounded-b-none ${
                   selectedTower ? "h-[min(84dvh,48rem)] max-h-[min(84dvh,48rem)]" : "h-auto"
                 }`}
                 data-scroll-area={selectedTower ? "mobile-sheet" : undefined}
@@ -2515,7 +2499,7 @@ function MasterPlanResultsCard({
   selectedApartmentId: string | null;
   compact?: boolean;
 }) {
-  const scrollableId = useId().replace(/[:]/g, "");
+  const scrollableId = useId();
   const paginationKey = useMemo(
     () => filteredApartments.map((apartment) => apartment.id).join("|"),
     [filteredApartments],
@@ -2584,12 +2568,6 @@ function MasterPlanResultsCard({
         }`}
         id={scrollableId}
         data-scroll-area="results"
-        onTouchMoveCapture={(event) => {
-          event.stopPropagation();
-        }}
-        onWheelCapture={(event) => {
-          event.stopPropagation();
-        }}
       >
         <div className={compact ? "space-y-2.5 pb-1" : "space-y-3"}>
           <AnimatePresence initial={false}>

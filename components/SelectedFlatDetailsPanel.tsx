@@ -308,18 +308,6 @@ const SelectedFlatDetailsPanel = forwardRef<
             </div>
 
             {!desktopEnhancedCompact ? (
-              <div className="mt-3 sm:mt-4">
-                <button
-                  type="button"
-                  onClick={handleOpenWalkthrough}
-                  className="inline-flex w-full items-center justify-center rounded-full border border-[#d4b06a]/65 bg-[linear-gradient(135deg,#f5e4bd_0%,#dfbf7e_44%,#b8863f_100%)] px-3 py-2.5 text-xs font-semibold text-[#2f2009] shadow-[0_16px_34px_rgba(120,84,28,0.22),inset_0_1px_0_rgba(255,248,230,0.72)] transition hover:brightness-[1.03] sm:px-4 sm:py-3 sm:text-sm md:py-3.5"
-                >
-                  Open walkthrough
-                </button>
-              </div>
-            ) : null}
-
-            {!desktopEnhancedCompact ? (
               <div className="mt-3 flex flex-col sm:mt-4">
                 <div className="flex items-center justify-between gap-2 sm:gap-3">
                   <div>
@@ -378,7 +366,7 @@ const SelectedFlatDetailsPanel = forwardRef<
               className={`mt-3 border-t border-white/45 px-3 pt-2.5 sm:mt-4 sm:px-4 sm:pt-3 md:px-5 ${
                 desktopEnhancedCompact
                   ? "pb-0.5"
-                  : "hidden"
+                  : "sticky bottom-[max(env(safe-area-inset-bottom),0px)] left-0 right-0 z-20 -mx-3 px-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] pt-2.5 sm:-mx-4 sm:px-4 sm:pt-3 sm:pb-[max(env(safe-area-inset-bottom),1rem)] md:-mx-5 md:px-5 md:pb-[max(env(safe-area-inset-bottom),1.1rem)]"
               }`}
             >
               <button
