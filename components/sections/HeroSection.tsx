@@ -11,6 +11,7 @@ const HERO_POSTER_URL = "https://cdn.sthyra.com/images/hero_first_frame.avif";
 const HERO_LOOP_RESTART_BEFORE_END_SECONDS = 0.5;
 const HERO_LOOP_RESTART_AT_SECONDS = 0.04;
 const HERO_PLAY_RETRY_MS = 450;
+const STATIC_HERO_IMAGE_HOLD_MS = 2000;
 
 type IdleCapableWindow = Window &
   typeof globalThis & {
@@ -26,6 +27,8 @@ type TimeoutHandle = ReturnType<typeof globalThis.setTimeout>;
 type HeroSectionProps = {
   heroVideoSrc?: string | null;
   heroLoopVideoSrc?: string | null;
+  staticHeroImageSrc?: string | null;
+  useStaticHeroIntro?: boolean;
   onHeroReadyChange?: (ready: boolean) => void;
   onHeroVideoProgressChange?: (progress: number) => void;
   playIntroAnimation?: boolean;
@@ -61,6 +64,8 @@ function getHeroVideoLoadProgress(video: HTMLVideoElement) {
 export default function HeroSection({
   heroVideoSrc,
   heroLoopVideoSrc,
+  staticHeroImageSrc,
+  useStaticHeroIntro = false,
   onHeroReadyChange,
   onHeroVideoProgressChange,
   playIntroAnimation = false,
@@ -80,6 +85,9 @@ export default function HeroSection({
 
   const line1 = "Open to Sky,";
   const line2 = "Rooted in Green";
+  const heroPosterImage = useStaticHeroIntro && staticHeroImageSrc
+    ? staticHeroImageSrc
+    : HERO_POSTER_URL;
 
   const container: Variants = {
     hidden: {},
@@ -285,6 +293,13 @@ export default function HeroSection({
 
   useEffect(() => {
     const heroVideo = heroVideoRef.current;
+    if (useStaticHeroIntro) {
+      setVideoReady(true);
+      setIsHeroVideoPlaying(false);
+      onHeroVideoProgressChange?.(1);
+      return;
+    }
+
     if (!heroVideo || !heroVideoSrc) {
       onHeroVideoProgressChange?.(0.08);
       return;
@@ -410,7 +425,12 @@ export default function HeroSection({
       heroVideo.removeEventListener("waiting", handleStateCheck);
       heroVideo.removeEventListener("error", handleFallbackReady);
     };
-  }, [heroVideoSrc, onHeroVideoProgressChange, prepareVideoForInlinePlayback]);
+  }, [
+    heroVideoSrc,
+    onHeroVideoProgressChange,
+    prepareVideoForInlinePlayback,
+    useStaticHeroIntro,
+  ]);
 
   useEffect(() => {
     onHeroReadyChange?.(videoReady);
@@ -420,6 +440,7 @@ export default function HeroSection({
     const heroVideo = heroVideoRef.current;
 
     if (
+      useStaticHeroIntro ||
       !heroVideo ||
       !heroVideoSrc ||
       !playIntroAnimation ||
@@ -479,7 +500,33 @@ export default function HeroSection({
     isHeroLoopVideoVisible,
     playIntroAnimation,
     prepareVideoForInlinePlayback,
+    useStaticHeroIntro,
     videoReady,
+  ]);
+
+  useEffect(() => {
+    if (
+      !useStaticHeroIntro ||
+      !playIntroAnimation ||
+      isEntryVideoVisible ||
+      isHeroLoopVideoVisible
+    ) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void startHeroLoopVideo();
+    }, STATIC_HERO_IMAGE_HOLD_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [
+    isEntryVideoVisible,
+    isHeroLoopVideoVisible,
+    playIntroAnimation,
+    startHeroLoopVideo,
+    useStaticHeroIntro,
   ]);
 
   useEffect(() => {
@@ -585,29 +632,31 @@ export default function HeroSection({
             ? "opacity-0"
             : "opacity-100"
         }`}
-        style={{ backgroundImage: `url('${HERO_POSTER_URL}')` }}
+        style={{ backgroundImage: `url('${heroPosterImage}')` }}
       />
 
-      <video
-        ref={heroVideoRef}
-        className={`hero-section-video pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
-          isHeroVideoPlaying && !isEntryVideoVisible && !isHeroLoopVideoVisible
-            ? "opacity-100"
-            : "opacity-0"
-        }`}
-        src={heroVideoSrc ?? undefined}
-        autoPlay
-        muted
-        playsInline
-        preload="auto"
-        controls={false}
-        disablePictureInPicture
-        disableRemotePlayback
-        controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
-        onEnded={() => {
-          void startHeroLoopVideo();
-        }}
-      />
+      {!useStaticHeroIntro ? (
+        <video
+          ref={heroVideoRef}
+          className={`hero-section-video pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${
+            isHeroVideoPlaying && !isEntryVideoVisible && !isHeroLoopVideoVisible
+              ? "opacity-100"
+              : "opacity-0"
+          }`}
+          src={heroVideoSrc ?? undefined}
+          autoPlay
+          muted
+          playsInline
+          preload="auto"
+          controls={false}
+          disablePictureInPicture
+          disableRemotePlayback
+          controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
+          onEnded={() => {
+            void startHeroLoopVideo();
+          }}
+        />
+      ) : null}
 
       <video
         ref={heroLoopVideoRef}
