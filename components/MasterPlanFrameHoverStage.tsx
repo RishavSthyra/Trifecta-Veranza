@@ -1359,21 +1359,6 @@ function formatApartmentLabel(
   };
 }
 
-function isGroundFloorApartmentId(apartmentId: string | null) {
-  if (!apartmentId) {
-    return false;
-  }
-
-  const [, , floorCode = ""] = apartmentId.split("_");
-  const normalizedFloorCode = floorCode.trim().toUpperCase();
-
-  return (
-    normalizedFloorCode === "G" ||
-    normalizedFloorCode === "0" ||
-    normalizedFloorCode === "00"
-  );
-}
-
 function normalizeFlatToken(value: string) {
   return value.replace(/[^a-z0-9]/gi, "").toUpperCase();
 }
@@ -1387,6 +1372,16 @@ function buildFlatCandidates(
   const floorToken = normalizeFlatToken(apartment.floor ?? "");
   const towerCode = normalizeFlatToken(apartment.towerCode);
   const compoundUnitTokens = new Set<string>();
+  const orderedCandidates: string[] = [];
+
+  const pushCandidate = (candidate: string) => {
+    if (candidate) {
+      orderedCandidates.push(candidate);
+    }
+  };
+
+  const isGroundFloorToken =
+    floorToken === "G" || floorToken === "0" || floorToken === "00";
 
   if (floorToken && unitToken) {
     const trimmedUnitToken = unitToken.replace(/^0+/, "");
@@ -1402,21 +1397,30 @@ function buildFlatCandidates(
         return;
       }
 
+      if (isGroundFloorToken) {
+        pushCandidate(`G${unitSlice}`);
+        pushCandidate(`${towerCode}G${unitSlice}`);
+        pushCandidate(`T${towerCode}G${unitSlice}`);
+        pushCandidate(`${towerCode}FLATG${unitSlice}`);
+      }
+
       compoundUnitTokens.add(`${floorToken}${unitSlice}`);
     });
   }
 
-  return new Set(
-    [
-      unitToken,
-      ...compoundUnitTokens,
-      `${towerCode}${unitToken}`,
-      `T${towerCode}${unitToken}`,
-      `${towerCode}FLAT${unitToken}`,
-      ...Array.from(compoundUnitTokens, (token) => `${towerCode}${token}`),
-      ...Array.from(compoundUnitTokens, (token) => `T${towerCode}${token}`),
-    ].filter(Boolean),
-  );
+  pushCandidate(unitToken);
+  compoundUnitTokens.forEach((token) => {
+    pushCandidate(token);
+  });
+  pushCandidate(`${towerCode}${unitToken}`);
+  pushCandidate(`T${towerCode}${unitToken}`);
+  pushCandidate(`${towerCode}FLAT${unitToken}`);
+  compoundUnitTokens.forEach((token) => {
+    pushCandidate(`${towerCode}${token}`);
+    pushCandidate(`T${towerCode}${token}`);
+  });
+
+  return new Set(orderedCandidates.filter(Boolean));
 }
 
 function buildApartmentTokenLookup(apartmentIds: Iterable<string>) {
@@ -1725,10 +1729,6 @@ function prepareTowerScene(
         : apartmentId;
 
     if (!normalizedApartmentId) {
-      return;
-    }
-
-    if (isGroundFloorApartmentId(normalizedApartmentId)) {
       return;
     }
 
@@ -2222,7 +2222,7 @@ const HoverTracker = memo(function HoverTracker({
           | string
           | undefined;
 
-        if (!apartmentId || isGroundFloorApartmentId(apartmentId)) {
+        if (!apartmentId) {
           return false;
         }
 
@@ -2239,10 +2239,7 @@ const HoverTracker = memo(function HoverTracker({
 
       const fallbackHit = intersections.find(
         (intersection) =>
-          typeof intersection.object.userData.apartmentId === "string" &&
-          !isGroundFloorApartmentId(
-            intersection.object.userData.apartmentId as string,
-          ),
+          typeof intersection.object.userData.apartmentId === "string",
       );
 
       const hit = frontFacingHit ?? fallbackHit ?? null;
@@ -2670,7 +2667,7 @@ const TowerScene = memo(function TowerScene({
           | string
           | undefined;
 
-        if (!apartmentId || isGroundFloorApartmentId(apartmentId)) {
+        if (!apartmentId) {
           return false;
         }
 
@@ -2686,10 +2683,7 @@ const TowerScene = memo(function TowerScene({
       });
       const fallbackHit = intersections.find(
         (intersection) =>
-          typeof intersection.object.userData.apartmentId === "string" &&
-          !isGroundFloorApartmentId(
-            intersection.object.userData.apartmentId as string,
-          ),
+          typeof intersection.object.userData.apartmentId === "string",
       );
 
       return (
@@ -4525,10 +4519,6 @@ export default function MasterPlanFrameHoverStage({
     (apartmentId: string | null, pointerPosition: PointerPosition | null) => {
       if (!allowHover) {
         return;
-      }
-
-      if (isGroundFloorApartmentId(apartmentId)) {
-        apartmentId = null;
       }
 
       if (!apartmentId) {

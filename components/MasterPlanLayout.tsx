@@ -2357,8 +2357,8 @@ function MasterPlanFiltersCard({
                   step={45}
                   value={minArea}
                   onChange={(e) => onMinAreaChange(Number(e.target.value))}
-                  className="h-3 w-full cursor-pointer appearance-auto accent-[#c8a86a]"
-                  style={{ accentColor: "#c8a86a" }}
+                  className="h-3 w-full cursor-pointer appearance-auto accent-[#ffffff]"
+                  style={{ accentColor: "#fff" }}
                 />
                 <div className="mt-2 flex items-center justify-between text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
                   <span>0 sqft</span>
@@ -2482,8 +2482,8 @@ function MasterPlanFiltersCard({
                   step={5}
                   value={minArea}
                   onChange={(e) => onMinAreaChange(Number(e.target.value))}
-                  className="h-3 w-full cursor-pointer appearance-auto accent-[#c8a86a]"
-                  style={{ accentColor: "#c8a86a" }}
+                  className="h-3 w-full cursor-pointer appearance-auto accent-[#ffffff]"
+                  style={{ accentColor: "#fff" }}
                 />
                 <div className="mt-2 flex items-center justify-between text-[9px] font-semibold uppercase tracking-[0.14em] text-zinc-500 dark:text-zinc-400">
                   <span>0 sqft</span>
