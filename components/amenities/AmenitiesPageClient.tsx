@@ -257,9 +257,6 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
     );
   }
 
-  const panelEdgeHandleClassName =
-    "fixed right-0 top-1/2 z-40 flex h-14 w-10 -translate-y-1/2 items-center justify-center rounded-l-[1.2rem] border border-r-0 border-white/12 bg-black/74 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-[18px] transition hover:bg-black/82";
-
   return (
     <main className="relative h-[100dvh] max-h-[100dvh] min-h-[100dvh] overflow-hidden overscroll-none bg-black text-white">
       {hasMediaSource(displayedAmenity.videoSrc) ? (
@@ -507,10 +504,10 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         <button
           type="button"
           onClick={() => setIsPanelOpen(true)}
-          className={`${panelEdgeHandleClassName} lg:hidden`}
-          aria-label="Open amenities"
+          className="fixed right-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/68 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-[18px] transition hover:bg-black/80 lg:hidden"
+          aria-label="Open amenities sidebar"
         >
-          <ChevronLeft className="h-5 w-5" />
+          <Menu className="h-5 w-5" />
         </button>
       )}
     </main>
