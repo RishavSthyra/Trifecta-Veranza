@@ -728,7 +728,7 @@ export default function HeroSection({
          </Link>
       </div>
 
-      <div className="absolute inset-0 z-10 flex items-end justify-end px-8 pb-16 xl:pb-24 xl:px-16">
+      <div className="absolute inset-0 z-10 flex items-end justify-end px-5 pb-[calc(env(safe-area-inset-bottom)+8.5rem)] sm:px-8 sm:pb-[calc(env(safe-area-inset-bottom)+6.5rem)] lg:pb-16 xl:px-16 xl:pb-24">
         <motion.div
           variants={contentWrap}
           initial="hidden"
