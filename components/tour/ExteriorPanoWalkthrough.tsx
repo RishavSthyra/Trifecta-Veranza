@@ -93,9 +93,10 @@ const MIN_PITCH = -Math.PI / 2 + 0.08;
 const MAX_PITCH = Math.PI / 2 - 0.08;
 const EXTERIOR_SPHERE_RESOLUTION = 128;
 const EXTERIOR_COMPACT_SPHERE_RESOLUTION = 64;
-const EXTERIOR_APPLE_TOUCH_SPHERE_RESOLUTION = 32;
+const EXTERIOR_APPLE_TOUCH_SPHERE_RESOLUTION = 64;
 const EXTERIOR_MIN_FOV = 36;
 const EXTERIOR_MAX_FOV = 74;
+const IOS_PREVIEW_OVERLAY_FADE_MS = 180;
 const RESOLVED_PANO_CACHE_LIMIT = 10;
 const CACHE_MAX_ITEMS = 320;
 const CACHE_TTL_MS = 1000 * 60 * 10;
@@ -680,6 +681,8 @@ export default function ExteriorPanoWalkthrough({
   const [isMinimapDragging, setIsMinimapDragging] = useState(false);
   const [isAppleTouchFallbackMode] = useState(false);
   const [fallbackPreviewUrl, setFallbackPreviewUrl] = useState<string | null>(null);
+  const [previewOverlayUrl, setPreviewOverlayUrl] = useState<string | null>(null);
+  const [isPreviewOverlayVisible, setIsPreviewOverlayVisible] = useState(false);
   const [copiedDebugPanoId, setCopiedDebugPanoId] = useState<string | null>(null);
   const [copiedDebugSnippetPanoId, setCopiedDebugSnippetPanoId] = useState<
     string | null
@@ -739,6 +742,10 @@ export default function ExteriorPanoWalkthrough({
   const isCompactExperienceRef = useRef(false);
   const preferTileOnlyPanoramaRef = useRef(false);
   const fallbackPreviewLoadIdRef = useRef(0);
+  const previewOverlayLoadIdRef = useRef(0);
+  const previewOverlayHideTimeoutRef = useRef<
+    ReturnType<typeof globalThis.setTimeout> | null
+  >(null);
 
   const activeNode = graph.byId[activeNodeId];
   const sequential = useMemo(
@@ -763,7 +770,7 @@ export default function ExteriorPanoWalkthrough({
   );
   const exteriorPreloaderProgress = getExteriorPreloaderProgress(
     loadState,
-    Boolean(fallbackPreviewUrl),
+    Boolean(fallbackPreviewUrl || previewOverlayUrl),
   );
   const activeAmenityNodeIds = activeAmenity?.nodeIds.length
     ? activeAmenity.nodeIds
@@ -861,6 +868,46 @@ export default function ExteriorPanoWalkthrough({
       }
       cache.delete(oldestKey);
     }
+  }, []);
+
+  const hidePreviewOverlay = useCallback((delay = IOS_PREVIEW_OVERLAY_FADE_MS) => {
+    if (previewOverlayHideTimeoutRef.current !== null) {
+      globalThis.clearTimeout(previewOverlayHideTimeoutRef.current);
+      previewOverlayHideTimeoutRef.current = null;
+    }
+
+    previewOverlayHideTimeoutRef.current = globalThis.setTimeout(() => {
+      setIsPreviewOverlayVisible(false);
+      previewOverlayHideTimeoutRef.current = null;
+    }, delay);
+  }, []);
+
+  const showPreviewOverlay = useCallback(async (previewUrl: string | null | undefined) => {
+    if (!previewUrl || !preferTileOnlyPanoramaRef.current) {
+      return;
+    }
+
+    if (previewOverlayHideTimeoutRef.current !== null) {
+      globalThis.clearTimeout(previewOverlayHideTimeoutRef.current);
+      previewOverlayHideTimeoutRef.current = null;
+    }
+
+    const loadId = ++previewOverlayLoadIdRef.current;
+
+    await new Promise<void>((resolve) => {
+      const image = new window.Image();
+      image.decoding = "async";
+      image.onload = () => resolve();
+      image.onerror = () => resolve();
+      image.src = previewUrl;
+    });
+
+    if (previewOverlayLoadIdRef.current !== loadId) {
+      return;
+    }
+
+    setPreviewOverlayUrl(previewUrl);
+    setIsPreviewOverlayVisible(true);
   }, []);
 
   const resolvePano = useCallback(
@@ -997,6 +1044,14 @@ export default function ExteriorPanoWalkthrough({
     Cache.maxItems = Math.max(Cache.maxItems, CACHE_MAX_ITEMS);
     Cache.ttl = Math.max(Cache.ttl, CACHE_TTL_MS);
     Cache.init();
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (previewOverlayHideTimeoutRef.current !== null) {
+        globalThis.clearTimeout(previewOverlayHideTimeoutRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -1141,6 +1196,8 @@ export default function ExteriorPanoWalkthrough({
       const initialZoom = initialAmenity?.startingPano.viewZoom ?? DEFAULT_ZOOM;
       const initialTileOnlyPanorama = withoutBasePreview(initialResolved.panorama);
 
+      await showPreviewOverlay(initialResolved.previewUrl);
+
       if (process.env.NODE_ENV !== "production") {
         console.log("Exterior pano viewer size", {
           w: viewerHostRef.current.clientWidth,
@@ -1209,6 +1266,7 @@ export default function ExteriorPanoWalkthrough({
 
       localViewer.addEventListener("panorama-loaded", () => {
         setLoadState(createLoadState("ready", "Ready", 1));
+        hidePreviewOverlay();
       });
 
       localViewer.addEventListener("panorama-error", ({ error }) => {
@@ -1229,6 +1287,7 @@ export default function ExteriorPanoWalkthrough({
             .catch((fallbackError) => {
               console.error("Exterior initial tile-only fallback failed:", fallbackError);
               localViewer?.hideError();
+              hidePreviewOverlay(0);
               setLoadState(createLoadState("error", "Panorama unavailable"));
             });
           return;
@@ -1248,10 +1307,12 @@ export default function ExteriorPanoWalkthrough({
             .catch((fallbackError) => {
               console.error("Exterior initial preview fallback failed:", fallbackError);
               localViewer?.hideError();
+              hidePreviewOverlay(0);
               setLoadState(createLoadState("error", "Panorama unavailable"));
             });
           return;
         }
+        hidePreviewOverlay(0);
         setLoadState(createLoadState("error", "Panorama unavailable"));
       });
 
@@ -1308,7 +1369,15 @@ export default function ExteriorPanoWalkthrough({
         autorotatePluginRef.current = null;
       }
     };
-  }, [graph.byId, graph.order, initialRequestedNodeId, isAppleTouchFallbackMode, resolvePano]);
+  }, [
+    graph.byId,
+    graph.order,
+    hidePreviewOverlay,
+    initialRequestedNodeId,
+    isAppleTouchFallbackMode,
+    resolvePano,
+    showPreviewOverlay,
+  ]);
 
   useEffect(() => {
     if (!activeNode || isAppleTouchFallbackMode) {
@@ -1608,6 +1677,7 @@ export default function ExteriorPanoWalkthrough({
 
       try {
         const target = await resolvePano(targetId, { previewPriority: "high" });
+        await showPreviewOverlay(target.previewUrl);
         const currentPosition = viewer.getPosition();
         const targetPitch = clamp(
           options.viewPitchDegrees === undefined
@@ -1678,10 +1748,12 @@ export default function ExteriorPanoWalkthrough({
 
           return true;
         }
+        hidePreviewOverlay(0);
         return false;
       } catch (error) {
         console.error("Exterior amenity jump failed:", error);
         viewer.hideError();
+        hidePreviewOverlay(0);
         setLoadState(createLoadState("error", "Panorama unavailable"));
         return false;
       } finally {
@@ -1691,7 +1763,15 @@ export default function ExteriorPanoWalkthrough({
         }, 120);
       }
     },
-    [graph, isAppleTouchFallbackMode, isTransitioning, pushNavigationHistory, resolvePano],
+    [
+      graph,
+      hidePreviewOverlay,
+      isAppleTouchFallbackMode,
+      isTransitioning,
+      pushNavigationHistory,
+      resolvePano,
+      showPreviewOverlay,
+    ],
   );
 
   const jumpToAmenity = useCallback(
@@ -1907,6 +1987,8 @@ export default function ExteriorPanoWalkthrough({
             continue;
           }
 
+          await showPreviewOverlay(target.previewUrl);
+
           try {
             const targetYaw = preserveViewYawBetweenNodes(
               fromNode,
@@ -2026,11 +2108,13 @@ export default function ExteriorPanoWalkthrough({
         }
 
         if (!navigated) {
+          hidePreviewOverlay(0);
           throw new Error(`No available pano found for direction ${direction}`);
         }
       } catch (error) {
         console.error("Exterior navigation failed:", error);
         viewer.hideError();
+        hidePreviewOverlay(0);
         setLoadState(createLoadState("error", "Panorama unavailable"));
       } finally {
         globalThis.setTimeout(() => {
@@ -2039,7 +2123,15 @@ export default function ExteriorPanoWalkthrough({
         }, 120);
       }
     },
-    [graph, isAppleTouchFallbackMode, isTransitioning, pushNavigationHistory, resolvePano],
+    [
+      graph,
+      hidePreviewOverlay,
+      isAppleTouchFallbackMode,
+      isTransitioning,
+      pushNavigationHistory,
+      resolvePano,
+      showPreviewOverlay,
+    ],
   );
 
   useEffect(() => {
@@ -2389,6 +2481,18 @@ export default function ExteriorPanoWalkthrough({
             isAppleTouchFallbackMode ? "opacity-0" : "opacity-100"
           }`}
         />
+        {previewOverlayUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={previewOverlayUrl}
+            alt=""
+            aria-hidden
+            className={`pointer-events-none absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ${
+              isPreviewOverlayVisible ? "opacity-100" : "opacity-0"
+            }`}
+            draggable={false}
+          />
+        ) : null}
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(4,6,10,0.2)_0%,rgba(4,6,10,0.02)_26%,rgba(4,6,10,0.05)_70%,rgba(4,6,10,0.28)_100%)]" />
         <div
           className={`pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_10%,rgba(0,0,0,0.1)_72%,rgba(0,0,0,0.18)_100%)] transition-opacity duration-200 ${

@@ -927,7 +927,7 @@ export function CustomStyleExample() {
   const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
   const [userRoute, setUserRoute] = useState<RouteData | null>(null);
   const [isFilterOpen, setIsFilterOpen] = useState(true);
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(true);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [isDesktopCategoriesOpen, setIsDesktopCategoriesOpen] = useState(true);
   const [currentZoom, setCurrentZoom] = useState(15);
 
@@ -1175,6 +1175,12 @@ export function CustomStyleExample() {
       duration: 1200,
     });
   }, []);
+
+  const handleFilteredPoiSelection = useCallback((poi: Poi) => {
+    setIsFilterOpen(false);
+    setIsMobileFiltersOpen(false);
+    handlePoiMarkerClick(poi);
+  }, [handlePoiMarkerClick]);
 
   const resetFilters = useCallback(() => {
     userRouteRequestRef.current += 1;
@@ -1785,7 +1791,7 @@ export function CustomStyleExample() {
                         <button
                           key={poi.id}
                           type="button"
-                          onClick={() => handlePoiMarkerClick(poi)}
+                          onClick={() => handleFilteredPoiSelection(poi)}
                           className={`w-full rounded-3xl border p-4 text-left transition-all [@media(max-height:850px)]:rounded-2xl [@media(max-height:850px)]:p-3 ${
                             isSelected
                               ? "border-cyan-300 bg-cyan-50 shadow-sm"
@@ -2005,7 +2011,7 @@ export function CustomStyleExample() {
                       <button
                         key={poi.id}
                         type="button"
-                        onClick={() => handlePoiMarkerClick(poi)}
+                        onClick={() => handleFilteredPoiSelection(poi)}
                         className={`w-full rounded-2xl border p-3 text-left transition-all ${
                           isSelected
                             ? "border-cyan-300 bg-cyan-50 shadow-sm"

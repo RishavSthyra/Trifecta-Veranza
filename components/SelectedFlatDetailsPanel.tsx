@@ -246,7 +246,7 @@ const SelectedFlatDetailsPanel = forwardRef<
               </div>
             </div>
 
-            {desktopEnhancedCompact ? (
+            {/* {desktopEnhancedCompact ? (
               <div
                 className="group mt-3 relative shrink-0 overflow-hidden rounded-[18px] border border-white/60 bg-white/35 cursor-pointer shadow-[0_14px_34px_rgba(15,23,42,0.10)] backdrop-blur-xl sm:mt-4 sm:rounded-[24px]"
                 onClick={handleOpenWalkthrough}
@@ -283,7 +283,7 @@ const SelectedFlatDetailsPanel = forwardRef<
                   </div>
                 </div>
               </div>
-            ) : null}
+            ) : null} */}
 
             <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2.5 border-b border-white/45 pb-3 sm:gap-x-4 sm:gap-y-3 sm:pb-4">
               {compactFacts.map((item) => {

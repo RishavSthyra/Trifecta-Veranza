@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ImageIcon,
+  Menu,
   Sparkles,
 } from "lucide-react";
 import { scheduleAmenityVideoWarmup } from "@/lib/amenity-video-warmup";
@@ -339,10 +340,10 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         <button
           type="button"
           onClick={() => setIsPanelCollapsed(false)}
-          className={`${panelEdgeHandleClassName} hidden lg:flex`}
+          className="fixed right-5 top-5 z-40 hidden h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/68 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-[18px] transition hover:bg-black/80 lg:flex"
           aria-label="Open amenities sidebar"
         >
-          <ChevronLeft className="h-5 w-5" />
+          <Menu className="h-5 w-5" />
         </button>
       ) : (
         <aside className="fixed right-5 top-1/2 z-30 hidden max-h-[min(76vh,46rem)] w-[21rem] -translate-y-1/2 lg:block">
