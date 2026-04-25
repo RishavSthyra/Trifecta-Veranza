@@ -131,6 +131,18 @@ const COMPACT_WARMUP_PROFILE = {
   neighborSweepConcurrency: 4,
   transitionSpeed: 420,
 };
+const IOS_WARMUP_PROFILE = {
+  activeFocusLimit: 24,
+  activeFocusConcurrency: 2,
+  activeSweepLimit: 0,
+  activeSweepConcurrency: 1,
+  neighborNodeLimit: 1,
+  neighborFocusLimit: 8,
+  neighborFocusConcurrency: 1,
+  neighborSweepLimit: 0,
+  neighborSweepConcurrency: 1,
+  transitionSpeed: 300,
+};
 
 type SceneTone = "morning" | "golden" | "night";
 
@@ -304,6 +316,10 @@ function buildSweepTiles(
   excludeKeys: Set<string>,
   limit: number,
 ) {
+  if (limit <= 0) {
+    return [] as PanoTileDescriptor[];
+  }
+
   const rows = meta.actualRows ?? meta.rows;
   const horizon = (rows - 1) / 2;
 
@@ -324,6 +340,10 @@ function buildSweepTiles(
 }
 
 function getWarmupProfile(isCompactExperience: boolean) {
+  if (isAppleTouchPanoramaDevice()) {
+    return IOS_WARMUP_PROFILE;
+  }
+
   return isCompactExperience ? COMPACT_WARMUP_PROFILE : DESKTOP_WARMUP_PROFILE;
 }
 
@@ -658,7 +678,7 @@ export default function ExteriorPanoWalkthrough({
   const [minimapZoom, setMinimapZoom] = useState(1);
   const [minimapOffset, setMinimapOffset] = useState({ x: 0, y: 0 });
   const [isMinimapDragging, setIsMinimapDragging] = useState(false);
-  const [isAppleTouchFallbackMode] = useState(() => isAppleTouchPanoramaDevice());
+  const [isAppleTouchFallbackMode] = useState(false);
   const [fallbackPreviewUrl, setFallbackPreviewUrl] = useState<string | null>(null);
   const [copiedDebugPanoId, setCopiedDebugPanoId] = useState<string | null>(null);
   const [copiedDebugSnippetPanoId, setCopiedDebugSnippetPanoId] = useState<

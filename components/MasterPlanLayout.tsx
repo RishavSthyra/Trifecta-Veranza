@@ -1214,7 +1214,7 @@ export default function MasterPlanLayout({
       return;
     }
 
-    if (selectedApartment.floor <= 0) {
+    if (selectedApartment.floor < 0) {
       clearSelectedApartment();
       return;
     }
