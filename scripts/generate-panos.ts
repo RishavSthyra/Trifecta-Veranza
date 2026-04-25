@@ -4,7 +4,7 @@ import os from "os"
 import sharp from "sharp"
 
 const INPUT = "./raw-panos"
-const OUTPUT = "./public/interior-balcony-pano"
+const OUTPUT = "./public/exterior-pano-remaining"
 
 const PREVIEW_WIDTH = 2000
 

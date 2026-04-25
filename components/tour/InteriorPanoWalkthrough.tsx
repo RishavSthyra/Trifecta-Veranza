@@ -104,8 +104,8 @@ const BARE_SHELL_MINIMAP_SCALE_X = 1;
 const BARE_SHELL_MINIMAP_SCALE_Y = 1;
 const BALCONY_PANO_NODE_ID = "BP_panoPath_Interior_Balcony_F9000";
 const BALCONY_PANO_ID = "BAlconyUnit__View_pano";
-const BALCONY_MINIMAP_LEFT = 84;
-const BALCONY_MINIMAP_TOP = 26;
+const BALCONY_MINIMAP_LEFT = 16;
+const BALCONY_MINIMAP_TOP =46;
 const FURNISHED_MINIMAP_WORLD_BOUNDS: FloorPlanMinimapWorldBounds = {
   bottomLeft: {
     x: 688.10828,
