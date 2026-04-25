@@ -20,11 +20,11 @@ type IdleWindow = Window &
   };
 
 const HERO_VIDEO_URL =
-  "https://cdn.sthyra.com/videos/Hero%20Section%20Video%20A.mp4";
+  "https://cdn.sthyra.com/videos/01_2.mp4";
 const HERO_MOBILE_STATIC_IMAGE_URL =
-  "https://cdn.sthyra.com/images/last_frame.jpg";
+  "https://cdn.sthyra.com/images/01_lastframe.avif";
 const HERO_LOOP_VIDEO_URL =
-  "https://cdn.sthyra.com/videos/Hero%20Section%20Video%20B.mp4";
+  "https://cdn.sthyra.com/videos/02.mp4";
 const HERO_VIDEO_RETRY_INTERVAL_MS = 850;
 const ENTRY_VIDEO_URL =
   "https://cdn.sthyra.com/videos/Tf%20Fixed%20Final_2.mp4";

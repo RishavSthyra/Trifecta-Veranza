@@ -4,7 +4,7 @@
   "description": "A curated collection of open-air, wellness, leisure, and community spaces designed to make every day feel easier.",
   "summary": "Add a videoSrc and thumbnailSrc to any amenity below and the page will render it automatically.",
   "items": [
-        {
+    {
       "id": "party-lawn",
       "title": "Party Lawn",
       "category": "Social",
@@ -244,6 +244,42 @@
       "tags": ["Walk", "Wellness", "Green"],
       "statLabel": "Pace",
       "statValue": "Easy"
+    },
+    {
+      "id": "zen-garden",
+      "title": "Zen Garden",
+      "category": "Quiet Zone",
+      "shortDescription": "A calm landscaped retreat for meditation, stillness, and mindful pauses.",
+      "details": "A serene garden pocket shaped with soft planting, stone textures, and quiet pathways for slower moments.",
+      "videoSrc": "https://cdn.sthyra.com/videos/amenities/27%20Zengarden_2.mp4",
+      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/27_ZenGarden_1s.avif",
+      "tags": ["Zen", "Garden", "Calm"],
+      "statLabel": "Pace",
+      "statValue": "Still"
+    },
+    {
+      "id": "club-house",
+      "title": "Club House",
+      "category": "Leisure",
+      "shortDescription": "A refined social hub for residents to relax, gather, and spend time together.",
+      "details": "A premium indoor community space designed for comfort, hosting, recreation, and everyday connection.",
+      "videoSrc": "https://cdn.sthyra.com/videos/amenities/Clubhouse.mp4",
+      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/clubhouse_5s.avif",
+      "tags": ["Club", "Social", "Leisure"],
+      "statLabel": "Feel",
+      "statValue": "Premium"
+    },
+    {
+      "id": "butterfly-garden",
+      "title": "Butterfly Garden",
+      "category": "Nature",
+      "shortDescription": "A soft green garden designed to bring color, movement, and nature closer.",
+      "details": "A nature-led landscape pocket with flowering plants, layered greenery, and a gentle butterfly-friendly mood.",
+      "videoSrc": "https://cdn.sthyra.com/videos/amenities/Butterfly%20Garden_4.mp4",
+      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/butterfly_garden_firstframe.avif",
+      "tags": ["Butterfly", "Nature", "Flowers"],
+      "statLabel": "Tone",
+      "statValue": "Delicate"
     }
   ]
 }

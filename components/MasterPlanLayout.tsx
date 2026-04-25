@@ -53,13 +53,25 @@ const MATCHING_FLATS_PAGE_SIZE = 24;
 const TOTAL_MASTER_PLAN_FRAMES = 360;
 const MASTER_PLAN_SNAP_FRAMES = [1, 61, 121, 181, 241, 301] as const;
 const SPECIAL_UNIT_VIDEO_TOWER: TowerType = "Tower B";
-const SPECIAL_UNIT_VIDEO_FLAT = "3601";
 const SPECIAL_UNIT_VIDEO_HOTSPOT = "A1";
 const SPECIAL_UNIT_VIDEO_FRAME = 1;
-const SPECIAL_UNIT_VIDEO_URL =
-  "https://cdn.sthyra.com/videos/Unit%20%20View.mp4";
-const SPECIAL_UNIT_VIDEO_REVERSE_URL =
-  "https://cdn.sthyra.com/videos/Unit%20View%203S%20Reversed%20New_Compressed.mp4";
+type SpecialUnitVideoConfig = {
+  forwardUrl: string;
+  reverseUrl: string;
+};
+
+const SPECIAL_UNIT_VIDEO_CONFIGS: Record<string, SpecialUnitVideoConfig> = {
+  "3601": {
+    forwardUrl: "https://cdn.sthyra.com/videos/Unit%20%20View.mp4",
+    reverseUrl:
+      "https://cdn.sthyra.com/videos/Unit%20View%203S%20Reversed%20New_Compressed.mp4",
+  },
+  "3001": {
+    forwardUrl: "https://cdn.sthyra.com/videos/Unit%20%20View4sec.mp4",
+    reverseUrl:
+      "https://cdn.sthyra.com/videos/Unit_View4sec_reversed_SMALL.mp4",
+  },
+};
 const MASTER_PLAN_STAGE_FALLBACK_IMAGE =
   "https://cdn.sthyra.com/images/first_frame_again.png";
 const SPECIAL_UNIT_VIDEO_NAVIGATION_DELAY_MS = 760;
@@ -341,8 +353,12 @@ function isSpecialVideoApartment(apartment: InventoryApartment | null) {
 
   return (
     apartment.tower === SPECIAL_UNIT_VIDEO_TOWER &&
-    getApartmentFlatToken(apartment) === SPECIAL_UNIT_VIDEO_FLAT
+    Boolean(SPECIAL_UNIT_VIDEO_CONFIGS[getApartmentFlatToken(apartment)])
   );
+}
+
+function getSpecialUnitVideoConfig(flatToken: string) {
+  return SPECIAL_UNIT_VIDEO_CONFIGS[flatToken] ?? null;
 }
 
 function MasterPlanHotspotControls({
@@ -612,6 +628,11 @@ export default function MasterPlanLayout({
   const [isSpecialVideoReversing, setIsSpecialVideoReversing] = useState(false);
   const [specialVideoApartment, setSpecialVideoApartment] =
     useState<InventoryApartment | null>(null);
+  const [specialVideoFreezeFrameUrl, setSpecialVideoFreezeFrameUrl] = useState<
+    string | null
+  >(null);
+  const [isSpecialVideoFreezeFrameVisible, setIsSpecialVideoFreezeFrameVisible] =
+    useState(false);
   const deferredSearch = useDeferredValue(search);
   const selectedApartmentInventoryId = selectedApartment?.id ?? null;
   const activeHotspot = useMemo(
@@ -657,9 +678,41 @@ export default function MasterPlanLayout({
     !selectedApartment &&
     !isSpecialVideoExperienceActive;
   const shouldHideInlineCompactShell = !shouldUseCompactLayout && isSpecialVideoOpen;
+  const activeSpecialVideoFlatToken = specialVideoApartment
+    ? getApartmentFlatToken(specialVideoApartment)
+    : null;
+  const activeSpecialVideoConfig = specialVideoApartment
+    ? getSpecialUnitVideoConfig(activeSpecialVideoFlatToken!)
+    : null;
   const activeSpecialVideoUrl = isSpecialVideoReversing
-    ? SPECIAL_UNIT_VIDEO_REVERSE_URL
-    : SPECIAL_UNIT_VIDEO_URL;
+    ? activeSpecialVideoConfig?.reverseUrl ?? null
+    : activeSpecialVideoConfig?.forwardUrl ?? null;
+
+  const captureSpecialVideoFreezeFrame = useCallback(() => {
+    const video = specialUnitVideoRef.current;
+    if (!video || video.videoWidth <= 0 || video.videoHeight <= 0) {
+      return;
+    }
+
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext("2d");
+
+      if (!context) {
+        return;
+      }
+
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      setSpecialVideoFreezeFrameUrl(canvas.toDataURL("image/jpeg", 0.92));
+      setIsSpecialVideoFreezeFrameVisible(true);
+    } catch (error) {
+      console.warn("Failed to capture special unit video freeze frame:", error);
+      setSpecialVideoFreezeFrameUrl(null);
+      setIsSpecialVideoFreezeFrameVisible(false);
+    }
+  }, []);
 
   useEffect(() => {
     currentFrameRef.current = currentFrame;
@@ -684,9 +737,12 @@ export default function MasterPlanLayout({
   }, [isFlatPanelOpen]);
 
   useEffect(() => {
-    if (!specialUnitWarmupRef.current) {
-      specialUnitWarmupRef.current = createVideoWarmup(SPECIAL_UNIT_VIDEO_URL);
+    if (!activeSpecialVideoConfig?.forwardUrl) {
+      return;
     }
+
+    cleanupVideoWarmup(specialUnitWarmupRef.current);
+    specialUnitWarmupRef.current = createVideoWarmup(activeSpecialVideoConfig.forwardUrl);
 
     return () => {
       if (specialUnitVideoTimeoutRef.current !== null) {
@@ -697,7 +753,7 @@ export default function MasterPlanLayout({
       cleanupVideoWarmup(specialUnitWarmupRef.current);
       specialUnitWarmupRef.current = null;
     };
-  }, []);
+  }, [activeSpecialVideoConfig?.forwardUrl]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -714,24 +770,27 @@ export default function MasterPlanLayout({
   }, []);
 
   useEffect(() => {
-    if (!isSpecialVideoOpen || isSpecialVideoReversing) {
+    if (
+      !isSpecialVideoOpen ||
+      isSpecialVideoReversing ||
+      !activeSpecialVideoConfig?.reverseUrl
+    ) {
       return;
     }
 
-    if (!specialUnitReverseWarmupRef.current) {
-      specialUnitReverseWarmupRef.current = createVideoWarmup(
-        SPECIAL_UNIT_VIDEO_REVERSE_URL,
-      );
-    }
+    cleanupVideoWarmup(specialUnitReverseWarmupRef.current);
+    specialUnitReverseWarmupRef.current = createVideoWarmup(
+      activeSpecialVideoConfig.reverseUrl,
+    );
 
     return () => {
       cleanupVideoWarmup(specialUnitReverseWarmupRef.current);
       specialUnitReverseWarmupRef.current = null;
     };
-  }, [isSpecialVideoOpen, isSpecialVideoReversing]);
+  }, [activeSpecialVideoConfig?.reverseUrl, isSpecialVideoOpen, isSpecialVideoReversing]);
 
   useEffect(() => {
-    if (!isSpecialVideoOverlayMounted) {
+    if (!isSpecialVideoOverlayMounted || !activeSpecialVideoUrl) {
       return;
     }
 
@@ -1109,6 +1168,8 @@ export default function MasterPlanLayout({
     setIsSpecialVideoCompleted(false);
     setIsSpecialVideoReversing(false);
     setSpecialVideoApartment(null);
+    setSpecialVideoFreezeFrameUrl(null);
+    setIsSpecialVideoFreezeFrameVisible(false);
     specialVideoLoadedUrlRef.current = null;
   }, []);
 
@@ -1128,12 +1189,13 @@ export default function MasterPlanLayout({
       return;
     }
 
+    captureSpecialVideoFreezeFrame();
     setSelectedApartment(null);
     setSelectedApartmentMeshId(null);
     setIsSpecialVideoCompleted(false);
     setIsSpecialVideoReversing(true);
     setShouldAutoplaySpecialVideo(true);
-  }, [isSpecialVideoReversing]);
+  }, [captureSpecialVideoFreezeFrame, isSpecialVideoReversing]);
 
   const handleApartmentSelect = useCallback(
     (apartment: InventoryApartment | null, apartmentMeshId: string | null) => {
@@ -1157,6 +1219,8 @@ export default function MasterPlanLayout({
         setIsSpecialVideoQueuedToOpen(false);
         setShouldAutoplaySpecialVideo(true);
         setSpecialVideoApartment(apartment);
+        setSpecialVideoFreezeFrameUrl(null);
+        setIsSpecialVideoFreezeFrameVisible(false);
         specialVideoLoadedUrlRef.current = null;
 
         if (specialUnitVideoTimeoutRef.current !== null) {
@@ -1306,15 +1370,26 @@ export default function MasterPlanLayout({
       return;
     }
 
+    if (!activeSpecialVideoUrl) {
+      return;
+    }
+
     if (video.getAttribute("src") !== activeSpecialVideoUrl) {
       video.src = activeSpecialVideoUrl;
       video.load();
     }
 
     const playVideo = () => {
+      const handlePlaying = () => {
+        video.removeEventListener("playing", handlePlaying);
+        setIsSpecialVideoFreezeFrameVisible(false);
+      };
+
+      video.addEventListener("playing", handlePlaying);
       video.currentTime = 0;
       setShouldAutoplaySpecialVideo(false);
       void video.play().catch(() => {
+        video.removeEventListener("playing", handlePlaying);
         // playback may still require a second user gesture on some devices
       });
     };
@@ -1618,6 +1693,17 @@ export default function MasterPlanLayout({
                       setIsSpecialVideoCompleted(true);
                     }}
                   />
+
+                  {specialVideoFreezeFrameUrl ? (
+                    <div
+                      className={`pointer-events-none absolute inset-0 bg-cover bg-center transition-opacity duration-200 ${
+                        isSpecialVideoFreezeFrameVisible ? "opacity-100" : "opacity-0"
+                      }`}
+                      style={{
+                        backgroundImage: `url('${specialVideoFreezeFrameUrl}')`,
+                      }}
+                    />
+                  ) : null}
 
                   <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.1)_0%,rgba(0,0,0,0.02)_48%,rgba(0,0,0,0.26)_100%)]" />
                 </div>
@@ -2080,12 +2166,23 @@ export default function MasterPlanLayout({
               />
             </div>
 
+            {specialVideoFreezeFrameUrl ? (
+              <div
+                className={`pointer-events-none absolute inset-0 bg-cover bg-center transition-opacity duration-200 ${
+                  isSpecialVideoFreezeFrameVisible ? "opacity-100" : "opacity-0"
+                }`}
+                style={{
+                  backgroundImage: `url('${specialVideoFreezeFrameUrl}')`,
+                }}
+              />
+            ) : null}
+
             <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
               <button
                 type="button"
                 onClick={handleSpecialVideoBack}
                 className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/78 px-4 py-2.5 text-sm font-medium text-zinc-900 shadow-[0_18px_44px_rgba(15,23,42,0.18)] backdrop-blur-xl transition hover:bg-white"
-                aria-label="Go back from unit 3601 preview"
+                aria-label={`Go back from unit ${activeSpecialVideoFlatToken ?? "special"} preview`}
               >
                 <ArrowLeft className="h-4 w-4" />
                 Back
