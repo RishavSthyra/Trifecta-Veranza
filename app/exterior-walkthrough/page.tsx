@@ -57,14 +57,15 @@ function ExteriorWalkthroughHead() {
 
 export default function ExteriorTourPage() {
   return (
-    <main className="app-screen bg-[#040608]">
+    <main className="relative h-[100svh] min-h-[100svh] w-full overflow-hidden bg-[#040608]">
       <ExteriorWalkthroughHead />
-      <div className="h-full w-full">
+
+      <div className="absolute inset-0">
         <ExteriorPanoWalkthrough
           nodes={exteriorTourNodes}
           cdnBaseUrl={EXTERIOR_PANO_BASE}
           initialNodeId={preferredInitialNodeId}
-          className="h-full w-full"
+          className="h-full w-full rounded-none"
           title="Trifecta Exterior Walkthrough"
           subtitle="Fast panoramic browsing with directional node navigation tuned for a lighter exterior experience."
         />

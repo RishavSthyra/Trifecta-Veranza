@@ -1141,6 +1141,15 @@ export default function ExteriorPanoWalkthrough({
       const initialZoom = initialAmenity?.startingPano.viewZoom ?? DEFAULT_ZOOM;
       const initialTileOnlyPanorama = withoutBasePreview(initialResolved.panorama);
 
+      if (process.env.NODE_ENV !== "production") {
+        console.log("Exterior pano viewer size", {
+          w: viewerHostRef.current.clientWidth,
+          h: viewerHostRef.current.clientHeight,
+          appleTouch: preferTileOnlyPanoramaRef.current,
+          fallbackMode: isAppleTouchFallbackMode,
+        });
+      }
+
       localViewer = new Viewer({
         container: viewerHostRef.current,
         ...(initialResolved.mode === "tiles"
@@ -2353,7 +2362,7 @@ export default function ExteriorPanoWalkthrough({
   return (
     <section
       aria-label={title}
-      className={`relative isolate h-full w-full overflow-hidden rounded-[2.25rem] border border-white/10 bg-[linear-gradient(180deg,#040608_0%,#05070a_50%,#040608_100%)] text-white shadow-[0_30px_80px_rgba(0,0,0,0.35)] ${className ?? ""}`}
+      className={`relative isolate h-full min-h-[100svh] w-full overflow-hidden rounded-none border border-white/10 bg-[linear-gradient(180deg,#040608_0%,#05070a_50%,#040608_100%)] text-white shadow-[0_30px_80px_rgba(0,0,0,0.35)] md:min-h-0 md:rounded-[2.25rem] ${className ?? ""}`}
     >
       {!hasCompletedInitialPano ? (
         <TrifectaPreloader progress={exteriorPreloaderProgress} />
@@ -2361,7 +2370,7 @@ export default function ExteriorPanoWalkthrough({
       <div className="sr-only">{subtitle}</div>
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_8%,rgba(255,255,255,0.08),transparent_24%),radial-gradient(circle_at_80%_12%,rgba(207,193,167,0.08),transparent_20%)]" />
 
-      <div className="absolute inset-0 overflow-hidden rounded-[2.25rem]">
+      <div className="absolute inset-0 overflow-hidden rounded-none md:rounded-[2.25rem]">
         {fallbackPreviewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -2376,7 +2385,7 @@ export default function ExteriorPanoWalkthrough({
         ) : null}
         <div
           ref={viewerHostRef}
-          className={`h-full w-full select-none [touch-action:none] [-webkit-user-drag:none] [-webkit-user-select:none] ${
+          className={`h-full min-h-[100svh] w-full select-none [touch-action:none] [-webkit-user-drag:none] [-webkit-user-select:none] md:min-h-0 ${
             isAppleTouchFallbackMode ? "opacity-0" : "opacity-100"
           }`}
         />
