@@ -445,7 +445,8 @@ const INTERIOR_DIMENSION_MARKER_OVERRIDES: Record<
   ],
   LS_BP_panoPath_Interior3_F0010: [
     { yaw: 4.1, pitch: 0, roomNumber: "01", rotation:{roll: 0, yaw :-55, pitch : 0}, roomName: "Living and Dining", size:0.7, dimensions: `27'1" × 11'10"` },
-    { yaw: 3.67, pitch: -0.24, rotation:{roll: -15, yaw :-10, pitch : 89}, roomNumber: "02",  size: 0.8, roomName: "C.Toilet", dimensions: `5'0"x8'0"` },
+    { yaw: 2.2, pitch: 0, roomNumber: "01", rotation:{roll: 0, yaw :-30, pitch : 0}, roomName: "Balcony View", size:0.9, dimensions: `Click to go to Balcony View` },
+    { yaw: 3.67, pitch: -0.24, rotation:{roll: -15, yaw :-10, pitch : 89}, roomNumber: "02",  size: 0.8, roomName: "C.Toilet", dimensions: `5'0" × 8'0"` },
   ],
   LS_BP_panoPath_Interior3_F0011: [
     { yaw: 3.1, pitch: 0, roomNumber: "01", rotation:{roll: 0, yaw :5, pitch : 0}, roomName: "M.Bedroom", size:0.9, dimensions: `16'2"x11'0"` },
@@ -695,7 +696,7 @@ function getInteriorDimensionMarkers(
   isDimensionsVisible: boolean,
   anchorYaw: number,
 ): MarkerConfig[] {
-  if (!node || isBareShellMode || !isDimensionsVisible) {
+  if (!node || isBareShellMode) {
     return [];
   }
 
@@ -710,9 +711,14 @@ function getInteriorDimensionMarkers(
     markerOverrides,
   );
 
-  return markers.map((marker, index) => {
+  return markers.flatMap((marker, index) => {
       const rotation = normalizeMarkerRotation(markerOverrides?.[index]?.rotation);
       const targetNodeId = getInteriorDimensionMarkerTargetNodeId(marker);
+      const shouldRender = isDimensionsVisible || Boolean(targetNodeId);
+
+      if (!shouldRender) {
+        return [];
+      }
 
       return {
       id: marker.markerId,
