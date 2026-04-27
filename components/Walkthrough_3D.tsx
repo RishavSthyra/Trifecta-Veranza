@@ -1,6 +1,5 @@
 "use client";
 
-import { Manrope } from "next/font/google";
 import NextImage from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,10 +38,7 @@ import {
 } from "@babylonjs/core";
 import "@babylonjs/loaders/glTF";
 
-const uiFont = Manrope({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
+const uiFont = { className: "font-sans" };
 
 const BARE_SHELL_PANO_IMAGE_BASE_URL =
   "https://cdn.sthyra.com/interior-panos-trifecta/bare-shell-pano/";

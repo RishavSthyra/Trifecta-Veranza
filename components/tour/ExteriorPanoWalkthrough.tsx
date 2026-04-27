@@ -4,7 +4,6 @@ import { Cache, Viewer } from "@photo-sphere-viewer/core";
 import { AutorotatePlugin } from "@photo-sphere-viewer/autorotate-plugin";
 import { EquirectangularTilesAdapter } from "@photo-sphere-viewer/equirectangular-tiles-adapter";
 import "@photo-sphere-viewer/core/index.css";
-import { Cormorant_Garamond, Manrope } from "next/font/google";
 import Image from "next/image";
 import TrifectaPreloader from "@/components/ui/Preloader";
 import {
@@ -78,15 +77,8 @@ import type {
   PanoTileDescriptor,
 } from "@/lib/exterior-tour/types";
 
-const editorialFont = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
-
-const uiFont = Manrope({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-});
+const editorialFont = { className: "font-serif" };
+const uiFont = { className: "font-sans" };
 
 const DEFAULT_ZOOM = 0;
 const MIN_PITCH = -Math.PI / 2 + 0.08;

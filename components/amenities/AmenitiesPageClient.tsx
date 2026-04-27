@@ -39,6 +39,20 @@ type AmenitiesPageClientProps = {
   data: AmenitiesPageData;
 };
 
+type OrientationLockValue =
+  | "any"
+  | "natural"
+  | "landscape"
+  | "portrait"
+  | "portrait-primary"
+  | "portrait-secondary"
+  | "landscape-primary"
+  | "landscape-secondary";
+
+type ScreenOrientationWithLock = ScreenOrientation & {
+  lock?: (orientation: OrientationLockValue) => Promise<void>;
+};
+
 function hasMediaSource(value?: string) {
   return Boolean(value && value.trim().length > 0);
 }
@@ -172,8 +186,9 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
       if (elem.requestFullscreen) {
         elem.requestFullscreen().catch(() => {});
       }
-      if (screen.orientation && "lock" in screen.orientation) {
-        (screen.orientation as ScreenOrientation).lock("landscape").catch(() => {});
+      const orientation = screen.orientation as ScreenOrientationWithLock | undefined;
+      if (orientation?.lock) {
+        orientation.lock("landscape").catch(() => {});
       }
       setIsLandscape(true);
     }
@@ -347,7 +362,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
       <button
         type="button"
         onClick={() => router.back()}
-        className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/58 text-white shadow-[0_14px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:bg-black/72 sm:left-4 sm:top-4 md:h-11 md:w-11 lg:hidden"
+        className="fixed left-3 top-3 z-50 flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/58 text-white shadow-[0_14px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:bg-black/72 sm:left-4 sm:top-4 md:h-11 md:w-11 xl:hidden"
         aria-label="Go back"
       >
         <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
@@ -356,7 +371,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
       <button
         type="button"
         onClick={toggleLandscape}
-        className="fixed right-[4.75rem] top-[13px] z-50 flex h-10.5 w-10.5 items-center justify-center rounded-full border border-white/12 bg-black/58 text-white shadow-[0_14px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:bg-black/72 sm:right-[5.25rem] sm:top-4 sm:h-11 sm:w-11 md:right-[5.5rem] lg:hidden"
+        className="fixed right-3 top-[3.95rem] z-50 flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/58 text-white shadow-[0_14px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:bg-black/72 sm:right-4 sm:top-[4.5rem] md:h-11 md:w-11 md:top-[4.75rem] xl:hidden"
         aria-label={isLandscape ? "Exit landscape mode" : "Enter landscape mode"}
       >
         <RotateCcw className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -366,13 +381,13 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         <button
           type="button"
           onClick={() => setIsPanelCollapsed(false)}
-          className="fixed right-5 top-5 z-40 hidden h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/68 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-[18px] transition hover:bg-black/80 lg:flex"
+          className="fixed right-5 top-5 z-40 hidden h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/68 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-[18px] transition hover:bg-black/80 xl:flex"
           aria-label="Open amenities sidebar"
         >
           <Menu className="h-5 w-5" />
         </button>
       ) : (
-        <aside className="fixed right-5 top-1/2 z-30 hidden max-h-[min(76vh,46rem)] w-[21rem] -translate-y-1/2 lg:block">
+        <aside className="fixed right-5 top-1/2 z-30 hidden max-h-[min(76vh,46rem)] w-[21rem] -translate-y-1/2 xl:block">
           <div className="relative flex max-h-[min(76vh,46rem)] flex-col overflow-hidden rounded-[1.55rem] border border-white/14 bg-[linear-gradient(180deg,rgba(20,26,34,0.42),rgba(8,12,18,0.2))] text-white shadow-[0_30px_90px_rgba(0,0,0,0.36)] backdrop-blur-[30px]">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.2),transparent_30%),radial-gradient(circle_at_bottom_right,rgba(142,197,255,0.14),transparent_24%)]" />
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02)_28%,rgba(255,255,255,0.01)_100%)]" />
@@ -456,13 +471,13 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
       )}
 
       <div
-        className={`fixed inset-0 z-40 bg-black/42 backdrop-blur-sm transition lg:hidden ${
+        className={`fixed inset-0 z-40 bg-black/42 backdrop-blur-sm transition xl:hidden ${
           isPanelOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         onClick={() => setIsPanelOpen(false)}
       />
       {isPanelOpen ? (
-        <aside className="fixed right-2 top-1/2 z-50 w-[min(16.75rem,calc(100vw-1rem))] max-h-[min(58dvh,31rem)] -translate-y-1/2 overflow-hidden rounded-[1.15rem] border border-white/14 bg-black/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 sm:right-3 sm:w-[min(18.25rem,calc(100vw-1.75rem))] sm:max-h-[min(60dvh,33rem)] sm:rounded-[1.25rem] md:right-4 md:w-[min(19.5rem,calc(100vw-3rem))] md:max-h-[min(63dvh,35rem)] md:rounded-[1.3rem] lg:hidden">
+        <aside className="fixed right-2 top-1/2 z-50 w-[min(16.75rem,calc(100vw-1rem))] max-h-[min(58dvh,31rem)] -translate-y-1/2 overflow-hidden rounded-[1.15rem] border border-white/14 bg-black/84 text-white shadow-[0_26px_90px_rgba(0,0,0,0.38)] backdrop-blur-2xl transition duration-300 sm:right-3 sm:w-[min(18.25rem,calc(100vw-1.75rem))] sm:max-h-[min(60dvh,33rem)] sm:rounded-[1.25rem] md:right-4 md:w-[min(19.5rem,calc(100vw-3rem))] md:max-h-[min(63dvh,35rem)] md:rounded-[1.3rem] xl:hidden">
           <div className="flex h-full flex-col">
             <div className="flex items-center justify-between border-b border-white/10 px-3.5 py-3 sm:px-4 sm:py-3.5">
               <div>
@@ -533,7 +548,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         <button
           type="button"
           onClick={() => setIsPanelOpen(true)}
-          className="fixed right-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/68 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-[18px] transition hover:bg-black/80 lg:hidden"
+          className="fixed right-3 top-3 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-white/14 bg-black/68 text-white shadow-[0_16px_34px_rgba(0,0,0,0.28)] backdrop-blur-[18px] transition hover:bg-black/80 sm:right-4 sm:top-4 xl:hidden"
           aria-label="Open amenities sidebar"
         >
           <Menu className="h-5 w-5" />
