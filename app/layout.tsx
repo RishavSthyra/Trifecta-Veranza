@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import RouteChrome from "@/components/RouteChrome";
 import { DEFAULT_DESCRIPTION, SITE_NAME } from "@/lib/metadata";
+
+const geist = Geist({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -35,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("h-full", "font-sans")}>
+    <html lang="en" className={cn("h-full", "font-sans", geist.variable)}>
       <body className="custom-scrollbar app-shell w-full bg-zinc-50 text-zinc-900 antialiased dark:bg-black dark:text-white">
         <div className="relative app-shell w-full overflow-x-hidden">
           <RouteChrome />

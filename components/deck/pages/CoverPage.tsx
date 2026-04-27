@@ -2,14 +2,22 @@
 
 import { forwardRef } from "react";
 import { motion } from "framer-motion";
+import { Cormorant_Garamond, Manrope } from "next/font/google";
 import Image from "next/image";
 
 type Props = {
   number?: number;
 };
 
-const titleFont = { className: "font-serif" };
-const bodyFont = { className: "font-sans" };
+const titleFont = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
+const bodyFont = Manrope({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
 
 const containerVariants = {
   hidden: {},

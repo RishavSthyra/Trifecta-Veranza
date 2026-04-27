@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { scheduleAmenityVideoWarmup } from "@/lib/amenity-video-warmup";
 import { useSnapListViewport } from "@/lib/useSnapListViewport";
+import PhoneRotatePortraitIcon from "../ui/PhoneRotateIcon";
 
 export type AmenityPageItem = {
   id: string;
@@ -132,6 +133,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [isLandscape, setIsLandscape] = useState(false);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const transitionTokenRef = useRef(0);
   const {
     setFirstItemNode: setDesktopAmenitiesFirstItemNode,
@@ -175,20 +177,23 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
     setActiveId(data.items[nextIndex].id);
   };
 
-  const toggleLandscape = () => {
+  const shouldForceLandscape =
+    isLandscape && viewportSize.height > viewportSize.width;
+
+  const toggleLandscape = async () => {
     if (isLandscape) {
       if (document.fullscreenElement) {
-        document.exitFullscreen().catch(() => {});
+        await document.exitFullscreen().catch(() => {});
       }
       setIsLandscape(false);
     } else {
       const elem = document.documentElement;
       if (elem.requestFullscreen) {
-        elem.requestFullscreen().catch(() => {});
+        await elem.requestFullscreen().catch(() => {});
       }
       const orientation = screen.orientation as ScreenOrientationWithLock | undefined;
       if (orientation?.lock) {
-        orientation.lock("landscape").catch(() => {});
+        await orientation.lock("landscape").catch(() => {});
       }
       setIsLandscape(true);
     }
@@ -218,6 +223,28 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
       document.documentElement.style.overflow = previousHtmlOverflow;
       document.body.style.overflow = previousBodyOverflow;
       document.body.style.height = previousBodyHeight;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const updateViewportSize = () => {
+      setViewportSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    updateViewportSize();
+    window.addEventListener("resize", updateViewportSize);
+    window.addEventListener("orientationchange", updateViewportSize);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportSize);
+      window.removeEventListener("orientationchange", updateViewportSize);
     };
   }, []);
 
@@ -294,6 +321,22 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
 
   return (
     <main className="relative h-[100dvh] max-h-[100dvh] min-h-[100dvh] overflow-hidden overscroll-none bg-black text-white">
+      <div
+        className="relative h-full w-full overflow-hidden bg-black"
+        style={
+          shouldForceLandscape
+            ? {
+                position: "absolute",
+                top: 0,
+                left: "100dvw",
+                width: "100dvh",
+                height: "100dvw",
+                transform: "rotate(90deg)",
+                transformOrigin: "top left",
+              }
+            : undefined
+        }
+      >
       {hasMediaSource(displayedAmenity.videoSrc) ? (
         <video
           key={displayedAmenity.videoSrc}
@@ -374,7 +417,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         className="fixed right-3 top-[3.95rem] z-50 flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-black/58 text-white shadow-[0_14px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:bg-black/72 sm:right-4 sm:top-[4.5rem] md:h-11 md:w-11 md:top-[4.75rem] xl:hidden"
         aria-label={isLandscape ? "Exit landscape mode" : "Enter landscape mode"}
       >
-        <RotateCcw className="h-4 w-4 sm:h-5 sm:w-5" />
+        <PhoneRotatePortraitIcon size={17} />
       </button>
 
       {isPanelCollapsed ? (
@@ -554,6 +597,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
           <Menu className="h-5 w-5" />
         </button>
       )}
+      </div>
     </main>
   );
 }

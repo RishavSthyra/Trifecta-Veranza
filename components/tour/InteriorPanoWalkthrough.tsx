@@ -16,6 +16,7 @@ import {
   type VirtualTourNode,
 } from "@photo-sphere-viewer/virtual-tour-plugin";
 import "@photo-sphere-viewer/virtual-tour-plugin/index.css";
+import { Cormorant_Garamond, DM_Sans, Manrope } from "next/font/google";
 import NextImage, { type StaticImageData } from "next/image";
 import {
   usePathname,
@@ -63,9 +64,20 @@ import {
 } from "@/lib/walkthrough";
 import { useSnapListViewport } from "@/lib/useSnapListViewport";
 
-const editorialFont = { className: "font-serif" };
-const uiFont = { className: "font-sans" };
-const wallLabelFont = { className: "font-sans" };
+const editorialFont = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
+const uiFont = Manrope({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+});
+
+const wallLabelFont = DM_Sans({
+  subsets: ["latin"],
+  weight: ["500", "700"],
+});
 
 const FURNISHED_PANO_BASE_URL =
   "https://cdn.sthyra.com/interior-panos-trifecta-2/";

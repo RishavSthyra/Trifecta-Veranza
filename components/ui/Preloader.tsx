@@ -2,10 +2,13 @@
 
 import React from "react"
 import { motion, useReducedMotion } from "framer-motion"
+import { Cormorant_Garamond } from "next/font/google"
 
-const luxeItalic = {
-  className: "font-serif italic",
-}
+const luxeItalic = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  style: ["italic"],
+})
 
 type TrifectaPreloaderProps = {
   progress?: number
