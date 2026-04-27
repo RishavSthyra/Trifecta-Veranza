@@ -203,7 +203,7 @@ export default function MobileDeckLanding() {
                     <motion.span
                       key={`${line}-${index}`}
                       variants={titleLetter}
-                      className="inline-block"
+                      className="inline-block pb-2"
                     >
                       {char === " " ? "\u00A0" : char}
                     </motion.span>

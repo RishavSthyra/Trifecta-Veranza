@@ -2755,9 +2755,9 @@ function MasterPlanResultsCard({
                       animate="visible"
                       exit="exit"
                       onClick={() => {
-                        if (!isViewableAtHotspot) {
-                          return;
-                        }
+                        // if (!isViewableAtHotspot) {
+                        //   return;
+                        // }
 
                         onApartmentSelect(apartment);
                       }}
@@ -2775,13 +2775,10 @@ function MasterPlanResultsCard({
                           : compact
                             ? "border-zinc-200/60 bg-linear-to-br from-white to-zinc-50"
                             : "border-zinc-200/50 bg-linear-to-br from-white to-zinc-50"
-                      } ${
-                        isViewableAtHotspot
-                          ? "cursor-pointer"
-                          : "cursor-not-allowed opacity-60 saturate-75"
-                      }`}
+                      }
+                          `}
                     >
-                      <div className="min-w-0 w-full">
+                      <div className="min-w-0 w-full cursor-pointer">
                         <div className={`flex flex-wrap items-center ${compact ? "gap-1.5" : "gap-2"}`}>
                           <p
                             className={`font-semibold text-zinc-900 dark:text-white ${
@@ -2803,7 +2800,7 @@ function MasterPlanResultsCard({
                           >
                             {apartment.status}
                           </span>
-                          {!isViewableAtHotspot ? (
+                          {/* {!isViewableAtHotspot ? (
                             <span
                               className={`rounded-full bg-zinc-200 font-semibold text-zinc-600 dark:bg-white/8 dark:text-zinc-300 ${
                                 compact ? "px-1.5 py-0.5 text-[9px]" : "px-2 py-0.5 text-[10px]"
@@ -2811,7 +2808,7 @@ function MasterPlanResultsCard({
                             >
                               Not viewable here
                             </span>
-                          ) : null}
+                          ) : null} */}
                         </div>
 
                         <div

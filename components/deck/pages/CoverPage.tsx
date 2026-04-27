@@ -159,7 +159,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
             variants={titleContainer}
             initial="hidden"
             animate="show"
-            className={`${titleFont.className} max-w-[500px] font-semibold leading-[0.88] tracking-[-0.04em] text-[#1f1b16] text-[2rem] sm:max-w-[500px] sm:text-[3.3rem] lg:max-w-full lg:text-[2.4rem] xl:text-[2.52rem] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[2.18rem] min-[1700px]:xl:text-[3.45rem] 2xl:text-[4.2rem]`}
+            className={`${titleFont.className} max-w-[500px] font-semibold leading-[0.88] pb-3  tracking-[-0.04em] text-[#1f1b16] text-[2rem] sm:max-w-[500px] sm:text-[3.3rem] lg:max-w-full lg:text-[2.4rem] xl:text-[2.52rem] [@media(min-width:1280px)_and_(max-width:1899px)]:text-[2.18rem] min-[1700px]:xl:text-[3.45rem] 2xl:text-[4.2rem]`}
           >
             {titleLines.map((line) => (
               <div key={line} className="flex overflow-hidden whitespace-nowrap">
@@ -167,7 +167,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
                   <motion.span
                     key={`${line}-${index}`}
                     variants={titleLetter}
-                    className="inline-block"
+                    className="inline-block  pb-2.5"
                   >
                     {char === " " ? "\u00A0" : char}
                   </motion.span>
@@ -178,7 +178,7 @@ const CoverPage = forwardRef<HTMLDivElement, Props>(({ number: _number }, ref) =
 
           <motion.div
             variants={lineReveal}
-            className="mt-4 h-px w-[120px] bg-[linear-gradient(90deg,rgba(170,137,90,0.95),rgba(170,137,90,0.35),transparent)] sm:mt-5 sm:w-[170px]"
+            className="h-px w-[120px] bg-[linear-gradient(90deg,rgba(170,137,90,0.95),rgba(170,137,90,0.35),transparent)] sm:w-[170px]"
           />
 
           <motion.p
