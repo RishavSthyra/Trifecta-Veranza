@@ -453,6 +453,7 @@ export default function UpperLayoutCTA({
           >
             {buttons.map((button) => {
               const isHovered = shouldShowLabels && hovered === button.name;
+              const shouldExpandDesktopButton = isDesktopTopRail && isHovered;
 
               return (
                 <motion.div
@@ -469,11 +470,11 @@ export default function UpperLayoutCTA({
                         transition={spring}
                         className={`inline-flex shrink-0 items-center justify-center overflow-hidden border font-medium transition ${
                           isDesktopTopRail
-                            ? `h-8 w-8 min-w-8 rounded-[0.9rem] ${
+                            ? `h-8 min-w-8 rounded-[0.9rem] ${
                                 button.isHighlight
                                   ? "border-white bg-white text-black shadow-[0_8px_18px_rgba(255,255,255,0.12)]"
                                   : "border-white/14 bg-white/[0.04] hover:border-white/28 hover:bg-white/[0.08]"
-                              }`
+                              } ${shouldExpandDesktopButton ? "w-auto px-3" : "w-8 px-0"}`
                             : `rounded-[1rem] text-[9px] shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] xl:text-[10px] 2xl:rounded-[1.05rem] 2xl:text-xs ${
                                 button.isHighlight
                                   ? "border-white/50 bg-white/90 text-zinc-900 shadow-[0_10px_24px_rgba(0,0,0,0.16)]"
@@ -482,14 +483,18 @@ export default function UpperLayoutCTA({
                         }`}
                         animate={{
                           paddingLeft: isDesktopTopRail
-                            ? 0
+                            ? shouldExpandDesktopButton
+                              ? 12
+                              : 0
                             : isHovered
                               ? 14
                               : mergeRouteLinks
                                 ? 8
                                 : 9,
                           paddingRight: isDesktopTopRail
-                            ? 0
+                            ? shouldExpandDesktopButton
+                              ? 12
+                              : 0
                             : isHovered
                               ? 14
                               : mergeRouteLinks
@@ -516,7 +521,7 @@ export default function UpperLayoutCTA({
                               animate={{ width: "auto", opacity: 1, x: 0 }}
                               exit={{ width: 0, opacity: 0, x: -8 }}
                               transition={{ duration: 0.22, ease: "easeOut" }}
-                              className="overflow-hidden whitespace-nowrap pl-2"
+                              className="overflow-hidden text-white text-xs whitespace-nowrap pl-2"
                             >
                               {button.name}
                             </motion.span>
@@ -534,11 +539,11 @@ export default function UpperLayoutCTA({
                       onClick={onQuoteClick}
                       className={`inline-flex shrink-0 items-center justify-center overflow-hidden border font-medium transition ${
                         isDesktopTopRail
-                          ? `h-8 w-8 min-w-8 rounded-[0.9rem] ${
+                          ? `h-8 min-w-8 rounded-[0.9rem] ${
                               button.isHighlight
                                 ? "border-white bg-white text-black shadow-[0_8px_18px_rgba(255,255,255,0.12)]"
                                 : "border-white/14 bg-white/[0.04] hover:border-white/28 hover:bg-white/[0.08]"
-                            }`
+                            } ${shouldExpandDesktopButton ? "w-auto px-3" : "w-8 px-0"}`
                           : `rounded-[1rem] text-[9px] shadow-[inset_0_1px_0_rgba(255,255,255,0.14)] xl:text-[10px] 2xl:rounded-[1.05rem] 2xl:text-xs ${
                               button.isHighlight
                                 ? "border-white/50 bg-white/90 text-zinc-900 shadow-[0_10px_24px_rgba(0,0,0,0.16)]"
@@ -547,14 +552,18 @@ export default function UpperLayoutCTA({
                       }`}
                       animate={{
                         paddingLeft: isDesktopTopRail
-                          ? 0
+                          ? shouldExpandDesktopButton
+                            ? 12
+                            : 0
                           : isHovered
                             ? 14
                             : mergeRouteLinks
                               ? 8
                               : 9,
                         paddingRight: isDesktopTopRail
-                          ? 0
+                          ? shouldExpandDesktopButton
+                            ? 12
+                            : 0
                           : isHovered
                             ? 14
                             : mergeRouteLinks
@@ -581,7 +590,7 @@ export default function UpperLayoutCTA({
                             animate={{ width: "auto", opacity: 1, x: 0 }}
                             exit={{ width: 0, opacity: 0, x: -8 }}
                             transition={{ duration: 0.22, ease: "easeOut" }}
-                            className="overflow-hidden whitespace-nowrap pl-2"
+                            className="overflow-hidden text-white text-xs whitespace-nowrap pl-2"
                           >
                             {button.name}
                           </motion.span>
