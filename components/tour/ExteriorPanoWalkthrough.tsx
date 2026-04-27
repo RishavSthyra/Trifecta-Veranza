@@ -108,6 +108,7 @@ const VIEW_DIRECTION_ALIGNMENT_FLOOR = 0.08;
 // future tuning without running debug state updates during walkthrough use.
 const EXTERIOR_PANO_DEV_TOOL_ENABLED = false;
 const TRACKPAD_PANO_YAW_RADIANS_PER_PIXEL = 0.0032;
+
 const DESKTOP_WARMUP_PROFILE = {
   activeFocusLimit: 220,
   activeFocusConcurrency: 24,
@@ -364,9 +365,9 @@ function getViewForwardVector(node: ExteriorTourNode, yaw: number): Vec3 {
 function getViewDirectionAxis(direction: NavigationDirection, viewForward: Vec3) {
   switch (direction) {
     case "left":
-      return negativeVec3(perpendicularRight(viewForward));
-    case "right":
       return perpendicularRight(viewForward);
+    case "right":
+      return negativeVec3(perpendicularRight(viewForward));
     case "backward":
       return negativeVec3(viewForward);
     case "forward":
@@ -667,7 +668,6 @@ export default function ExteriorPanoWalkthrough({
   const [hasCompletedInitialPano, setHasCompletedInitialPano] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isMobileAmenitiesOpen, setIsMobileAmenitiesOpen] = useState(false);
-  const [isMinimapExpanded, setIsMinimapExpanded] = useState(false);
   const [isTrailPlaying, setIsTrailPlaying] = useState(false);
   const [transitionPulseKey, setTransitionPulseKey] = useState(0);
   const [sceneTone, setSceneTone] = useState<SceneTone>("morning");
@@ -676,6 +676,7 @@ export default function ExteriorPanoWalkthrough({
   const [trailSecondsRemaining, setTrailSecondsRemaining] = useState(
     Math.ceil(TRAIL_ADVANCE_MS / 1000),
   );
+  const [isMinimapExpanded, setIsMinimapExpanded] = useState(false);
   const [minimapZoom, setMinimapZoom] = useState(1);
   const [minimapOffset, setMinimapOffset] = useState({ x: 0, y: 0 });
   const [isMinimapDragging, setIsMinimapDragging] = useState(false);
@@ -2808,7 +2809,7 @@ export default function ExteriorPanoWalkthrough({
         />
       </div>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex justify-end px-3 pl-[clamp(4.5rem,20vw,6.25rem)] sm:bottom-4 sm:pl-[6rem] sm:pr-4 md:justify-center md:px-3">
+      <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 hidden justify-end px-3 pl-[clamp(4.5rem,20vw,6.25rem)] xl:flex sm:bottom-4 sm:pl-[6rem] sm:pr-4 md:justify-center md:px-3">
         <div
           className={`${uiFont.className} pointer-events-auto flex w-[min(34rem,calc(100vw-clamp(5rem,22vw,6.75rem)))] items-center gap-2.5 rounded-full border border-white/16 bg-[rgba(18,18,17,0.34)] px-3 py-2 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_18px_52px_rgba(0,0,0,0.32)] backdrop-blur-[26px] sm:w-[min(34rem,calc(100vw-6rem))] sm:gap-3 sm:px-4 sm:py-2.5 md:w-[min(34rem,calc(100vw-1.5rem))]`}
         >
@@ -2900,6 +2901,154 @@ export default function ExteriorPanoWalkthrough({
               isMinimapExpanded
                 ? "h-[230px] w-[405px] max-w-[34vw] 2xl:h-[260px] 2xl:w-[465px]"
                 : "h-[118px] w-[205px] max-w-[18vw] 2xl:h-[132px] 2xl:w-[230px]"
+            } ${
+              minimapZoom > 1
+                ? isMinimapDragging
+                  ? "cursor-grabbing"
+                  : "cursor-grab"
+                : "cursor-default"
+            }`}
+            onWheelCapture={handleMinimapWheel}
+            onPointerDown={handleMinimapPointerDown}
+            onPointerMove={handleMinimapPointerMove}
+            onPointerUp={handleMinimapPointerUp}
+            onPointerCancel={handleMinimapPointerUp}
+            style={{ touchAction: "none" }}
+          >
+            <div
+              className="absolute inset-0 transition-transform duration-150 ease-out"
+              style={{
+                transform: `translate(${minimapOffset.x}px, ${minimapOffset.y}px) scale(${minimapZoom})`,
+                transformOrigin: "center center",
+              }}
+            >
+              <div
+                className="absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2"
+                style={{
+                  aspectRatio: `${EXTERIOR_MINIMAP_IMAGE_LAYOUT.width} / ${EXTERIOR_MINIMAP_IMAGE_LAYOUT.height}`,
+                }}
+              >
+                <img
+                  src={EXTERIOR_MINIMAP_IMAGE_URL}
+                  alt="Trifecta amenity minimap"
+                  className="h-full w-full brightness-[0.68] contrast-[1.08] saturate-[0.82]"
+                  draggable={false}
+                />
+
+                {minimapTrailPoints.length > 1 ? (
+                  <svg
+                    className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    aria-hidden
+                  >
+                    <polyline
+                      points={minimapTrailPolyline}
+                      fill="none"
+                      stroke="rgba(2,8,23,0.56)"
+                      strokeWidth={isMinimapExpanded ? 1.25 : 1.45}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeDasharray="0.2 1.35"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    <polyline
+                      points={minimapTrailPolyline}
+                      fill="none"
+                      stroke="rgba(56,189,248,0.68)"
+                      strokeWidth={isMinimapExpanded ? 3.2 : 2.8}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeDasharray="0.2 1.35"
+                      vectorEffect="non-scaling-stroke"
+                      style={{ filter: "blur(2.2px)" }}
+                    />
+                    <polyline
+                      points={minimapTrailPolyline}
+                      fill="none"
+                      stroke="rgba(56,189,248,0.96)"
+                      strokeWidth={isMinimapExpanded ? 1.05 : 1.1}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeDasharray="0.2 1.35"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  </svg>
+                ) : null}
+
+                {minimapTrailPoints.length > 0 ? (
+                  <span
+                    className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/35 bg-[#dff6ff] shadow-[0_0_0_4px_rgba(56,189,248,0.22),0_0_14px_rgba(56,189,248,0.72)]"
+                    style={{
+                      left: `${minimapTrailPoints[minimapTrailPoints.length - 1].leftPercent * 100}%`,
+                      top: `${minimapTrailPoints[minimapTrailPoints.length - 1].topPercent * 100}%`,
+                    }}
+                  />
+                ) : null}
+
+                {minimapDots.map((amenity) => (
+                  <button
+                    key={amenity.id}
+                    type="button"
+                    aria-label={`Go to ${amenity.name}`}
+                    title={amenity.name}
+                    onClick={() => void jumpToAmenity(amenity)}
+                    className={`group absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-black/35 cursor-pointer transition hover:scale-110 ${
+                      isMinimapExpanded ? "h-2 w-2" : "h-1.5 w-1.5"
+                    } ${
+                      activeAmenityId === amenity.id
+                        ? "bg-[#7dd3fc] shadow-[0_0_0_3px_rgba(56,189,248,0.22),0_0_12px_rgba(56,189,248,0.72)]"
+                        : "bg-[#0ea5e9] shadow-[0_0_8px_rgba(14,165,233,0.58)]"
+                    }`}
+                    style={{
+                      left: `${amenity.leftPercent * 100}%`,
+                      top: `${amenity.topPercent * 100}%`,
+                    }}
+                  >
+                    <span
+                      aria-hidden
+                      className={`pointer-events-none absolute inset-0 rounded-full ${
+                        activeAmenityId === amenity.id
+                          ? "bg-[#b9ecff]/58"
+                          : "bg-[#7dd3fc]/44"
+                      }`}
+                      style={{ animation: "walkthroughMinimapPulse 1.8s ease-in-out infinite" }}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="pointer-events-auto absolute bottom-3 right-3 z-30 block xl:hidden">
+        <div className="overflow-hidden rounded-[1.15rem] border border-white/12 bg-black/32 shadow-[0_20px_60px_rgba(0,0,0,0.34)] backdrop-blur-2xl">
+          <div className={`${uiFont.className} flex h-9 items-center justify-between gap-3 border-b border-white/10 px-3 text-white`}>
+            <div className="min-w-0">
+              <div className="truncate text-[10px] font-bold uppercase tracking-[0.22em] text-white/52">
+                Amenity map
+              </div>
+            </div>
+            <button
+              type="button"
+              aria-label={isMinimapExpanded ? "Collapse minimap" : "Expand minimap"}
+              onClick={() => setIsMinimapExpanded((current) => !current)}
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-white/76 transition hover:bg-white/18 hover:text-white"
+            >
+              {isMinimapExpanded ? (
+                <Minimize2 className="h-3.5 w-3.5" />
+              ) : (
+                <Maximize2 className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
+
+          <div
+            className={`relative overflow-hidden transition-[width,height] duration-300 ${
+              isMinimapExpanded
+                ? "h-[230px] w-[405px] max-w-[80vw] md:h-[260px] md:w-[460px]"
+                : "h-[150px] w-[260px] max-w-[60vw] md:h-[170px] md:w-[300px]"
             } ${
               minimapZoom > 1
                 ? isMinimapDragging

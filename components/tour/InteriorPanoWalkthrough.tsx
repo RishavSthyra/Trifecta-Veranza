@@ -4,7 +4,11 @@ import { Viewer, events as viewerEvents, type Position } from "@photo-sphere-vie
 import "@photo-sphere-viewer/core/index.css";
 import { EquirectangularTilesAdapter } from "@photo-sphere-viewer/equirectangular-tiles-adapter";
 import { GyroscopePlugin } from '@photo-sphere-viewer/gyroscope-plugin';
-import { MarkersPlugin, type MarkerConfig } from "@photo-sphere-viewer/markers-plugin";
+import {
+  MarkersPlugin,
+  events as markerEvents,
+  type MarkerConfig,
+} from "@photo-sphere-viewer/markers-plugin";
 import "@photo-sphere-viewer/markers-plugin/index.css";
 import {
   VirtualTourPlugin,
@@ -163,6 +167,8 @@ function formatDebugNumber(value: number) {
     : value.toFixed(4).replace(/\.?0+$/, "");
 }
 
+const INTERIOR_PANO_DEV_TOOL_ENABLED = process.env.NODE_ENV === "development";
+
 const FURNISHED_PANO_FOLDER_OVERRIDES: Record<string, string> = {
   LS_BP_panoPath_Interior_F0005: "LS_BP_panoPath_Interior_F0005",
   LS_BP_panoPath_Interior2_F0007: "LS_BP_panoPath_Interior2_F0007",
@@ -262,7 +268,6 @@ type FloorPlanMinimapAdjustment = {
 
 type ViewerBindings = {
   viewer: Viewer;
-  virtualTour: VirtualTourPlugin;
 };
 
 function isBalconyNode(nodeId: string) {
@@ -462,9 +467,11 @@ const INTERIOR_DIMENSION_MARKER_OVERRIDES: Record<
   LS_BP_panoPath_Interior2_F0007 :[
       { yaw: 2.95, pitch: 5.55, rotation:{roll: 4, yaw :0, pitch : 94}, roomNumber: "03",  size: 1.4, roomName: "AToilet", dimensions: `5'0"x8'0"` },
     { yaw: -4.9, pitch: 0.1, roomNumber: "01", rotation:{roll: 0, yaw :0, pitch : 0}, roomName: "Bedroom 03", size:1.1, dimensions: `11'0" × 11'4"` },
+    { yaw: 6.4, pitch: 0, roomNumber: "01", rotation:{roll: 0, yaw :-10, pitch : 0}, roomName: "Balcony View", size:1.1, dimensions: `Click to go to Balcony View` },
   ],
   LS_BP_panoPath_Interior2_F0008 : [
     { yaw: -5, pitch: 0.1, roomNumber: "01", rotation:{roll: 0, yaw : 10, pitch : 0}, roomName: "Bedroom 03", size:1.1, dimensions: `11'0" × 11'4"` },
+    { yaw: 4.3, pitch: -0.6, roomNumber: "01", rotation:{roll: 10, yaw :12, pitch : 90}, roomName: "Balcony View", size:1.1, dimensions: `Click to go to Balcony View` },
   ],
   LS_BP_panoPath_Interior_F0004 :[
             { yaw: 3.65, pitch: 0.07, roomNumber: "01", rotation:{roll: 0, yaw :60, pitch : 0}, roomName: "Kitchen", dimensions: `11'3" x 9'0"`, size : 0.9 },   
@@ -492,6 +499,9 @@ const INTERIOR_DIMENSION_MARKER_OVERRIDES: Record<
   ],
   LS_BP_panoPath_Interior6_F0018 :[
          { yaw: 3.55, pitch: 0.4, roomNumber: "02", rotation:{roll: 0, yaw :-20, pitch : 0}, roomName: "Kitchen", dimensions: `11'3" x 9'0"`, size : 1.3 },
+  ],
+  LS_BP_panoPath_Interior3_F0009 :[ 
+              { yaw: 4, pitch: 0.1, roomNumber: "", rotation:{roll: 0, yaw :-50, pitch : 0}, roomName: "Balcony View", size:1.3, dimensions: `Click to go to Balcony View` },
   ]
 };
 
@@ -617,15 +627,23 @@ function getInteriorDimensionMarkerDefinitions(
   });
 }
 
+function getInteriorDimensionMarkerTargetNodeId(marker: InteriorDimensionMarkerDefinition) {
+  return marker.roomName === "Balcony View" ? BALCONY_PANO_NODE_ID : undefined;
+}
+
 function buildInteriorDimensionMarkerElement(
   marker: InteriorDimensionMarkerDefinition,
   variant: "primary" | "secondary",
   offsetY = 0,
   size = 1,
+  isClickable = false,
 ) {
   const root = document.createElement("div");
   root.className = `interior-dimension-marker interior-dimension-marker--${variant} relative block [transform-style:preserve-3d]`;
   root.style.transform = `translate3d(0, ${offsetY}px, 0)`;
+  if (isClickable) {
+    root.style.cursor = "pointer";
+  }
 
   const label = document.createElement("div");
   label.className = `${wallLabelFont.className} interior-dimension-marker__wall-text inline-flex min-w-[320px] w-max flex-col items-start gap-3 whitespace-nowrap`;
@@ -643,6 +661,11 @@ function buildInteriorDimensionMarkerElement(
   const dimension = document.createElement("span");
   dimension.className = "interior-dimension-marker__size block pt-1 text-[30px] font-medium leading-[1.08] tracking-[0.03em] text-white/60";
   dimension.textContent = marker.dimensions;
+  if (isClickable) {
+    dimension.style.cursor = "pointer";
+    dimension.style.textDecoration = "underline";
+    dimension.style.textUnderlineOffset = "0.18em";
+  }
 
   label.appendChild(eyebrow);
   label.appendChild(title);
@@ -689,6 +712,7 @@ function getInteriorDimensionMarkers(
 
   return markers.map((marker, index) => {
       const rotation = normalizeMarkerRotation(markerOverrides?.[index]?.rotation);
+      const targetNodeId = getInteriorDimensionMarkerTargetNodeId(marker);
 
       return {
       id: marker.markerId,
@@ -706,6 +730,7 @@ function getInteriorDimensionMarkers(
         "primary",
         markerOverrides?.[index]?.offsetY ?? 0,
         markerOverrides?.[index]?.size ?? 1,
+        Boolean(targetNodeId),
       ),
       className: "overflow-visible",
       rotation: {
@@ -720,6 +745,7 @@ function getInteriorDimensionMarkers(
         height: index % 2 === 0 ? 240 : 220,
       },
       data: {
+        targetNodeId,
         roomName: marker.roomName,
         type: "room-dimension",
       },
@@ -1183,6 +1209,7 @@ export default function InteriorPanoWalkthrough({
   const cacheRef = useRef(new Map<string, ResolvedPano>());
   const pendingNodeViewRef = useRef<Position | null>(null);
   const warmupRunRef = useRef(0);
+  const goToNodeRef = useRef<(targetId: string) => Promise<void>>(async () => {});
 
   const allNodes = useMemo(
     () =>
@@ -1216,6 +1243,24 @@ export default function InteriorPanoWalkthrough({
     : undefined;
   const currentNodeId = explicitNodeId || preferredNodeId || fallbackNodeId;
   const activeNode = graph.byId[currentNodeId];
+  const activePanoDebugInfo = useMemo(() => {
+    if (!INTERIOR_PANO_DEV_TOOL_ENABLED || !activeNode) {
+      return null;
+    }
+
+    const { panoId } = getInteriorPanoSource(
+      activeNode.id,
+      activeNode.imageFilename,
+      availablePanoFolders,
+      isBareShellMode,
+    );
+
+    return {
+      imageFilename: activeNode.imageFilename,
+      nodeId: activeNode.id,
+      panoId,
+    };
+  }, [activeNode, availablePanoFolders, isBareShellMode]);
   const navigationTargets = useMemo(
     () => getViewRelativeNavigationTargets(graph, activeNode, viewYaw),
     [activeNode, graph, viewYaw],
@@ -1460,8 +1505,9 @@ export default function InteriorPanoWalkthrough({
   const goToNode = useCallback(async (targetId: string) => {
     const bindings = bindingsRef.current;
     const targetNode = graph.byId[targetId];
+    const virtualTour = bindings?.viewer.getPlugin<VirtualTourPlugin>(VirtualTourPlugin);
 
-    if (!bindings || !targetNode || isTransitioning || targetId === activeNodeIdRef.current) {
+    if (!bindings || !virtualTour || !targetNode || isTransitioning || targetId === activeNodeIdRef.current) {
       return;
     }
 
@@ -1473,9 +1519,9 @@ export default function InteriorPanoWalkthrough({
 
     try {
       const refreshedNode = await buildTourNode(targetNode);
-      bindings.virtualTour.updateNode(refreshedNode);
+      virtualTour.updateNode(refreshedNode);
 
-      const completed = await bindings.virtualTour.setCurrentNode(targetId, {
+      const completed = await virtualTour.setCurrentNode(targetId, {
         effect: "fade",
         showLoader: false,
         speed: interiorNodeTransitionSpeed,
@@ -1493,6 +1539,10 @@ export default function InteriorPanoWalkthrough({
       setIsTransitioning(false);
     }
   }, [buildTourNode, graph.byId, interiorNodeTransitionSpeed, isTransitioning]);
+
+  useEffect(() => {
+    goToNodeRef.current = goToNode;
+  }, [goToNode]);
 
   const navigateToDirection = useCallback(
     async (direction: NavigationDirection) => {
@@ -1813,6 +1863,7 @@ export default function InteriorPanoWalkthrough({
 
     let disposed = false;
     let initTimer: ReturnType<typeof globalThis.setTimeout> | null = null;
+    let detachMarkerSelectListener: (() => void) | null = null;
 
     const initializeViewer = async () => {
       const startNodeId = currentNodeIdRef.current;
@@ -1925,12 +1976,32 @@ export default function InteriorPanoWalkthrough({
           setViewPitch(nextPosition.pitch);
         }
       };
+      const handleMarkerSelect = (event: Event) => {
+        const targetNodeId = (
+          event as Event & { marker?: { data?: { targetNodeId?: string } } }
+        ).marker?.data?.targetNodeId;
+
+        if (targetNodeId) {
+          void goToNodeRef.current(targetNodeId);
+        }
+      };
 
       virtualTour.addEventListener(virtualTourEvents.NodeChangedEvent.type, handleNodeChanged);
       viewer.addEventListener(viewerEvents.PanoramaErrorEvent.type, handlePanoramaError);
       viewer.addEventListener(viewerEvents.PositionUpdatedEvent.type, handlePositionUpdated);
+      const markersPlugin = viewer.getPlugin<MarkersPlugin>(MarkersPlugin);
+      markersPlugin?.addEventListener(
+        markerEvents.SelectMarkerEvent.type,
+        handleMarkerSelect,
+      );
+      detachMarkerSelectListener = () => {
+        markersPlugin?.removeEventListener(
+          markerEvents.SelectMarkerEvent.type,
+          handleMarkerSelect,
+        );
+      };
 
-      bindingsRef.current = { viewer, virtualTour };
+      bindingsRef.current = { viewer };
       syncNodeMarkers(viewer, startNodeId);
       setActiveNodeId(startNodeId);
       setViewYaw(viewer.getPosition().yaw);
@@ -1942,6 +2013,7 @@ export default function InteriorPanoWalkthrough({
         virtualTour.removeEventListener(virtualTourEvents.NodeChangedEvent.type, handleNodeChanged);
         viewer.removeEventListener(viewerEvents.PanoramaErrorEvent.type, handlePanoramaError);
         viewer.removeEventListener(viewerEvents.PositionUpdatedEvent.type, handlePositionUpdated);
+        detachMarkerSelectListener?.();
         viewer.destroy();
         if (bindingsRef.current?.viewer === viewer) {
           bindingsRef.current = null;
@@ -1966,6 +2038,7 @@ export default function InteriorPanoWalkthrough({
 
       const bindings = bindingsRef.current;
       if (bindings) {
+        detachMarkerSelectListener?.();
         bindings.viewer.destroy();
         bindingsRef.current = null;
       }
@@ -2044,7 +2117,7 @@ export default function InteriorPanoWalkthrough({
         ) : null}
       </div>
 
-      <div className="pointer-events-none absolute left-0 top-0 z-30 p-3 sm:p-6">
+      <div className="pointer-events-none absolute left-0 top-0 z-30 flex flex-col gap-2 p-3 sm:p-6">
         <button
           type="button"
           aria-label="Open room index"
@@ -2053,6 +2126,33 @@ export default function InteriorPanoWalkthrough({
         >
           <Menu className="h-5 w-5" />
         </button>
+        {INTERIOR_PANO_DEV_TOOL_ENABLED && activePanoDebugInfo ? (
+          <div
+            className={`${uiFont.className} pointer-events-auto max-w-[min(24rem,calc(100vw-1.5rem))] select-text rounded-[1rem] border border-emerald-200/18 bg-[rgba(6,14,15,0.74)] px-3 py-2 text-[11px] text-emerald-50/88 shadow-[0_16px_34px_rgba(0,0,0,0.24)] backdrop-blur-2xl`}
+          >
+            <div className="text-[9px] font-semibold uppercase tracking-[0.22em] text-emerald-200/60">
+              Interior pano debug
+            </div>
+            <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-white/42">
+              File
+            </div>
+            <div className="break-all font-semibold text-white/90">
+              {activePanoDebugInfo.imageFilename}
+            </div>
+            <div className="mt-2 text-[10px] uppercase tracking-[0.18em] text-white/42">
+              Pano Id
+            </div>
+            <div className="break-all text-white/74">
+              {activePanoDebugInfo.panoId}
+            </div>
+            <div className="mt-2 text-[10px] uppercase tracking-[0.18em] text-white/42">
+              Node
+            </div>
+            <div className="break-all text-white/74">
+              {activePanoDebugInfo.nodeId}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="pointer-events-none absolute right-4 top-[1.5rem] z-30 hidden w-[220px] xl:block 2xl:right-6 2xl:top-[2rem] 2xl:w-[300px]">

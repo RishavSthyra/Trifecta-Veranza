@@ -166,8 +166,8 @@
       "category": "Family",
       "shortDescription": "A soft, visible, and welcoming zone for younger residents to play freely.",
       "details": "Planned for easy supervision, active movement, and everyday neighborhood energy.",
-      "videoSrc": "/videos/amenities/Kids-Playarea_website_4k.mp4",
-      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/Kids-Playarea__website_4k_first_frame.avif",
+      "videoSrc": "https://cdn.sthyra.com/videos/amenities/Kids%20Play%20Area_30RF.mp4",
+      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/kids_play_area_first_frame.avif",
       "tags": ["Kids", "Active", "Safe"],
       "statLabel": "Use",
       "statValue": "Daily"
@@ -280,6 +280,45 @@
       "tags": ["Butterfly", "Nature", "Flowers"],
       "statLabel": "Tone",
       "statValue": "Delicate"
+    },
+    {
+      "id": "pickle-ball",
+      "title": "Pickle Ball Court",
+      "category": "Sport",
+      "shortDescription": "A fast-growing sport zone designed for fun, competitive, and social gameplay.",
+      "details": "A dedicated pickleball court offering an active and engaging experience for all age groups.",
+      "videoSrc": "https://cdn.sthyra.com/videos/amenities/Pickle%20Ball(1).mp4",
+      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/pickle_ball_first_frame.avif",
+      "tags": ["Sport", "Court", "Active"],
+      "statLabel": "Mode",
+      "statValue": "Play",
+      "fileSize": "5 MB"
+    },
+    {
+      "id": "picnic-area",
+      "title": "Picnic Area",
+      "category": "Leisure",
+      "shortDescription": "A relaxed outdoor setting for family time, casual meals, and weekend gatherings.",
+      "details": "A landscaped open zone designed for slow moments, informal seating, and community relaxation.",
+      "videoSrc": "https://cdn.sthyra.com/videos/amenities/Picnic_6000kbps.mp4",
+      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/PICNIC_first_frame.avif",
+      "tags": ["Picnic", "Outdoor", "Leisure"],
+      "statLabel": "Mood",
+      "statValue": "Relaxed",
+      "fileSize": "4 MB"
+    },
+    {
+      "id": "solar-pad",
+      "title": "Solar Pad",
+      "category": "Sustainability",
+      "shortDescription": "A smart energy zone designed to support eco-friendly and sustainable living.",
+      "details": "An integrated solar utility space contributing to energy efficiency and modern infrastructure.",
+      "videoSrc": "https://cdn.sthyra.com/videos/amenities/Solar%20Pad.mp4",
+      "thumbnailSrc": "https://cdn.sthyra.com/images/Edited_website_amenities_1080p_avif/solar_pad_first_frame.avif",
+      "tags": ["Solar", "Eco", "Sustainable"],
+      "statLabel": "Impact",
+      "statValue": "Green",
+      "fileSize": "5 MB"
     }
   ]
 }

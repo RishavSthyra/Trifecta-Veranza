@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ImageIcon,
   Menu,
+  RotateCcw,
   Sparkles,
 } from "lucide-react";
 import { scheduleAmenityVideoWarmup } from "@/lib/amenity-video-warmup";
@@ -116,6 +117,7 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
   );
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [isLandscape, setIsLandscape] = useState(false);
   const transitionTokenRef = useRef(0);
   const {
     setFirstItemNode: setDesktopAmenitiesFirstItemNode,
@@ -157,6 +159,24 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
     const nextIndex =
       (activeIndex + offset + data.items.length) % data.items.length;
     setActiveId(data.items[nextIndex].id);
+  };
+
+  const toggleLandscape = () => {
+    if (isLandscape) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+      setIsLandscape(false);
+    } else {
+      const elem = document.documentElement;
+      if (elem.requestFullscreen) {
+        elem.requestFullscreen().catch(() => {});
+      }
+      if (screen.orientation && "lock" in screen.orientation) {
+        (screen.orientation as ScreenOrientation).lock("landscape").catch(() => {});
+      }
+      setIsLandscape(true);
+    }
   };
 
   useEffect(() => {
@@ -331,6 +351,15 @@ export default function AmenitiesPageClient({ data }: AmenitiesPageClientProps) 
         aria-label="Go back"
       >
         <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
+      </button>
+
+      <button
+        type="button"
+        onClick={toggleLandscape}
+        className="fixed right-[4.75rem] top-[13px] z-50 flex h-10.5 w-10.5 items-center justify-center rounded-full border border-white/12 bg-black/58 text-white shadow-[0_14px_34px_rgba(0,0,0,0.26)] backdrop-blur-xl transition hover:bg-black/72 sm:right-[5.25rem] sm:top-4 sm:h-11 sm:w-11 md:right-[5.5rem] lg:hidden"
+        aria-label={isLandscape ? "Exit landscape mode" : "Enter landscape mode"}
+      >
+        <RotateCcw className="h-4 w-4 sm:h-5 sm:w-5" />
       </button>
 
       {isPanelCollapsed ? (
