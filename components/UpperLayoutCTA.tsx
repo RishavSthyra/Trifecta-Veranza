@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { gsap } from "gsap";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence, type Transition } from "framer-motion";
@@ -87,7 +88,16 @@ export default function UpperLayoutCTA({
   const [shouldHideCompactDesktopRail, setShouldHideCompactDesktopRail] =
     useState(() => shouldHideMasterPlanCompactDesktopRail(pathname));
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileMenuRendered, setIsMobileMenuRendered] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const menuOverlayRef = useRef<HTMLDivElement | null>(null);
+  const menuPanelRef = useRef<HTMLDivElement | null>(null);
+  const menuHandleRef = useRef<HTMLDivElement | null>(null);
+  const menuCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const menuItemRefs = useRef<(HTMLElement | null)[]>([]);
+  const menuLetterRefs = useRef<(HTMLSpanElement | null)[]>([]);
+  const menuUtilityRefs = useRef<(HTMLElement | null)[]>([]);
+  const menuAnimationRef = useRef<gsap.core.Timeline | null>(null);
   const scrollerDragRef = useRef<{
     dragging: boolean;
     lastX: number;
@@ -276,83 +286,437 @@ export default function UpperLayoutCTA({
   }, [isMasterPlanRoute, mergeRouteLinks, pathname]);
 
   const buttons = [...primaryButtons, ...routeButtons];
+  const compactMenuButtons =
+    routeButtons.length > 0 ? routeButtons : primaryButtons;
+  const compactUtilityButtons =
+    routeButtons.length > 0 ? primaryButtons : [];
   const shouldShowLabels = !mergeRouteLinks && !shouldDockAtBottom;
   const shouldEnableRailDrag = shouldDockAtBottom;
   const isDesktopTopRail = !shouldDockAtBottom;
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    if (!shouldDockAtBottom || !isMobileMenuRendered) {
+      document.body.style.overflow = "";
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isMobileMenuRendered, shouldDockAtBottom]);
+
+  useEffect(() => {
+    if (!shouldDockAtBottom || !isMobileMenuRendered) {
+      menuAnimationRef.current?.kill();
+      return;
+    }
+
+    const overlay = menuOverlayRef.current;
+    const panel = menuPanelRef.current;
+    const handle = menuHandleRef.current;
+    const closeButton = menuCloseButtonRef.current;
+    const items = menuItemRefs.current.filter(
+      (item): item is HTMLElement => item !== null,
+    );
+    const letters = menuLetterRefs.current.filter(
+      (item): item is HTMLSpanElement => item !== null,
+    );
+    const utilities = menuUtilityRefs.current.filter(
+      (item): item is HTMLElement => item !== null,
+    );
+
+    if (!overlay || !panel) {
+      return;
+    }
+
+    menuAnimationRef.current?.kill();
+
+    if (isMobileMenuOpen) {
+      gsap.set(overlay, { autoAlpha: 0 });
+      gsap.set(panel, { yPercent: 100, scaleY: 0.985, transformOrigin: "bottom center" });
+      gsap.set(handle, { opacity: 0, scaleX: 0.6, y: 10 });
+      gsap.set(closeButton, { opacity: 0, scale: 0.86, rotate: -10 });
+      gsap.set(items, { opacity: 0, y: 22 });
+      gsap.set(letters, { opacity: 0, yPercent: 120 });
+      gsap.set(utilities, { opacity: 0, y: 18, scale: 0.92 });
+
+      const openTimeline = gsap.timeline();
+      openTimeline
+        .to(overlay, {
+          autoAlpha: 1,
+          duration: 0.3,
+          ease: "expo.out",
+        })
+        .to(
+          panel,
+          {
+            yPercent: 0,
+            scaleY: 1,
+            duration: 0.82,
+            ease: "expo.out",
+          },
+          0,
+        )
+        .to(
+          handle,
+          {
+            opacity: 1,
+            scaleX: 1,
+            y: 0,
+            duration: 0.48,
+            ease: "expo.out",
+          },
+          0.18,
+        )
+        .to(
+          closeButton,
+          {
+            opacity: 1,
+            scale: 1,
+            rotate: 0,
+            duration: 0.42,
+            ease: "expo.out",
+          },
+          0.2,
+        )
+        .to(
+          items,
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.52,
+            ease: "expo.out",
+            stagger: 0.04,
+          },
+          0.24,
+        )
+        .to(
+          letters,
+          {
+            opacity: 1,
+            yPercent: 0,
+            duration: 0.56,
+            ease: "expo.out",
+            stagger: 0.006,
+          },
+          0.26,
+        )
+        .to(
+          utilities,
+          {
+            opacity: 1,
+            y: 0,
+            scale: 1,
+            duration: 0.42,
+            ease: "expo.out",
+            stagger: 0.035,
+          },
+          0.4,
+        );
+
+      menuAnimationRef.current = openTimeline;
+      return () => {
+        openTimeline.kill();
+      };
+    }
+
+    const closeTimeline = gsap.timeline({
+      onComplete: () => {
+        setIsMobileMenuRendered(false);
+      },
+    });
+
+    closeTimeline
+      .to(utilities, {
+        opacity: 0,
+        y: 10,
+        scale: 0.92,
+        duration: 0.18,
+        ease: "expo.in",
+        stagger: {
+          each: 0.02,
+          from: "end",
+        },
+      })
+      .to(
+        items,
+        {
+          opacity: 0,
+          y: 16,
+          duration: 0.24,
+          ease: "expo.in",
+          stagger: {
+            each: 0.018,
+            from: "end",
+          },
+        },
+        0.02,
+      )
+      .to(
+        closeButton,
+        {
+          opacity: 0,
+          scale: 0.88,
+          rotate: -8,
+          duration: 0.18,
+          ease: "expo.in",
+        },
+        0.04,
+      )
+      .to(
+        handle,
+        {
+          opacity: 0,
+          scaleX: 0.72,
+          y: 8,
+          duration: 0.18,
+          ease: "expo.in",
+        },
+        0.04,
+      )
+      .to(
+        panel,
+        {
+          yPercent: 100,
+          scaleY: 0.985,
+          duration: 0.48,
+          ease: "expo.in",
+        },
+        0.08,
+      )
+      .to(
+        overlay,
+        {
+          autoAlpha: 0,
+          duration: 0.22,
+          ease: "expo.in",
+        },
+        0.16,
+      );
+
+    menuAnimationRef.current = closeTimeline;
+
+    return () => {
+      closeTimeline.kill();
+    };
+  }, [isMobileMenuOpen, isMobileMenuRendered, shouldDockAtBottom]);
 
   if (shouldHideCompactDesktopRail) {
     return null;
   }
 
   if (shouldDockAtBottom) {
-    return (
-      <div className="pointer-events-none fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),1.25rem)] z-50 px-2 pb-0 sm:bottom-[max(env(safe-area-inset-bottom),1.5rem)]">
-        <div className="flex items-end justify-start">
-          <button
-            type="button"
-            onClick={() => setIsMobileMenuOpen((value) => !value)}
-            className="pointer-events-auto inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/18 bg-black/92 text-white shadow-[0_18px_48px_rgba(0,0,0,0.58)] backdrop-blur-xl transition active:scale-[0.98] sm:h-12 sm:w-12"
-            aria-label={isMobileMenuOpen ? "Close quick actions" : "Open quick actions"}
-          >
-            {isMobileMenuOpen ? <X className="h-4 w-4 sm:h-5 sm:w-5" /> : <Menu className="h-4 w-4 sm:h-5 sm:w-5" />}
-          </button>
+    let mobileLetterIndex = 0;
 
-          <AnimatePresence initial={false}>
-            {isMobileMenuOpen ? (
+    return (
+      <>
+        {isMobileMenuRendered ? (
+          <div
+            ref={menuOverlayRef}
+            className="pointer-events-auto fixed inset-0 z-50 bg-black/48 backdrop-blur-[6px]"
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                setIsMobileMenuOpen(false);
+              }
+            }}
+          >
+            <div
+              ref={menuPanelRef}
+              className="absolute inset-x-0 bottom-0 max-h-[calc(100svh-1rem)] overflow-hidden rounded-t-[2rem] border-t border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_32%),linear-gradient(180deg,rgba(19,19,21,0.94),rgba(5,5,6,0.985))] shadow-[0_-20px_60px_rgba(0,0,0,0.5)] backdrop-blur-3xl"
+              role="dialog"
+              aria-modal="true"
+            >
               <motion.div
-                initial={{ opacity: 0, x: -12, scale: 0.96 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                exit={{ opacity: 0, x: -12, scale: 0.96 }}
-                transition={{ duration: 0.22, ease: "easeOut" }}
-                className="pointer-events-auto ml-2.5 flex max-w-[calc(100vw-5.75rem)] items-center gap-2 overflow-x-auto rounded-full border border-white/14 bg-black/92 px-2.5 py-2 shadow-[0_18px_48px_rgba(0,0,0,0.58)] backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              >
-                {buttons.map((button) =>
-                  button.action === "link" && button.link ? (
-                    <Link
-                      key={button.name}
-                      href={button.link}
-                      title={button.name}
-                      aria-label={button.name}
-                      onClick={() => setIsMobileMenuOpen(false)}
-                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-medium sm:gap-2 sm:px-3.5 sm:py-2 sm:text-[11px] ${
+                aria-hidden="true"
+                className="pointer-events-none absolute -left-16 top-14 h-44 w-44 rounded-full bg-white/[0.045] blur-3xl"
+                animate={{
+                  x: [0, 18, -6, 0],
+                  y: [0, -10, 8, 0],
+                  opacity: [0.3, 0.5, 0.34, 0.3],
+                }}
+                transition={{
+                  duration: 8,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+              <motion.div
+                aria-hidden="true"
+                className="pointer-events-none absolute bottom-16 right-[-2.5rem] h-40 w-40 rounded-full bg-white/[0.03] blur-3xl"
+                animate={{
+                  x: [0, -16, 6, 0],
+                  y: [0, 10, -8, 0],
+                  opacity: [0.22, 0.34, 0.26, 0.22],
+                }}
+                transition={{
+                  duration: 9,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+              />
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_20%,transparent_82%,rgba(255,255,255,0.015))]" />
+              <div className="relative flex min-h-[70svh] flex-col px-5 pb-[calc(env(safe-area-inset-bottom)+1.15rem)] pt-5 sm:px-6 sm:pt-6">
+                <div className="mb-3 flex items-center justify-between">
+                  <div
+                    ref={menuHandleRef}
+                    className="h-1 w-14 rounded-full bg-white/10 shadow-[0_0_18px_rgba(255,255,255,0.08)]"
+                  />
+                  <button
+                    ref={menuCloseButtonRef}
+                    type="button"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-stone-100/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl transition active:scale-[0.98]"
+                    aria-label="Close navigation menu"
+                  >
+                    <X className="h-[1.05rem] w-[1.05rem]" />
+                  </button>
+                </div>
+
+                <div className="flex flex-1 flex-col justify-start pt-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pt-3">
+                  <div className="space-y-0">
+                    {compactMenuButtons.map((button, index) => {
+                      const labelChars = Array.from(button.name.toUpperCase());
+
+                      const itemContent = (
+                        <>
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-stone-300/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition duration-300 group-hover:border-white/16 group-hover:bg-white/[0.06] group-hover:text-stone-100/90">
+                              {button.icon}
+                            </span>
+                            <span className="flex min-w-0 flex-wrap overflow-hidden text-[1.72rem] font-medium uppercase leading-[0.92] tracking-[-0.05em] text-stone-100 sm:text-[2.05rem]">
+                              {labelChars.map((char) => {
+                                const letterIndex = mobileLetterIndex++;
+
+                                return (
+                                  <span
+                                    key={`${button.name}-${letterIndex}-${char}`}
+                                    ref={(node) => {
+                                      menuLetterRefs.current[letterIndex] = node;
+                                    }}
+                                    className="inline-block"
+                                  >
+                                    {char === " " ? "\u00A0" : char}
+                                  </span>
+                                );
+                              })}
+                            </span>
+                          </div>
+                        </>
+                      );
+
+                      const itemClassName = `group relative flex w-full items-center gap-3 border-b border-white/8 py-4 text-left transition duration-300 last:border-b-0 sm:py-[1.15rem] ${
                         button.isHighlight
-                          ? "border-white/60 bg-white text-zinc-900"
-                          : "border-white/10 bg-white/10 text-white"
-                      }`}
-                    >
-                      <span className="flex h-3.5 w-3.5 items-center justify-center sm:h-4 sm:w-4">
-                        {button.icon}
-                      </span>
-                      <span className="whitespace-nowrap">{button.name}</span>
-                    </Link>
-                  ) : (
-                    <button
-                      key={button.name}
-                      type="button"
-                      title={button.name}
-                      aria-label={button.name}
-                      onClick={() => {
-                        setIsMobileMenuOpen(false);
-                        onQuoteClick();
-                      }}
-                      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-[10px] font-medium sm:gap-2 sm:px-3.5 sm:py-2 sm:text-[11px] ${
-                        button.isHighlight
-                          ? "border-white/60 bg-white text-zinc-900"
-                          : "border-white/10 bg-white/10 text-white"
-                      }`}
-                    >
-                      <span className="flex h-3.5 w-3.5 items-center justify-center sm:h-4 sm:w-4">
-                        {button.icon}
-                      </span>
-                      <span className="whitespace-nowrap">{button.name}</span>
-                    </button>
-                  ),
-                )}
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-        </div>
-      </div>
+                          ? "text-stone-50"
+                          : "text-stone-200/94 hover:text-stone-50"
+                      }`;
+
+                      return button.action === "link" && button.link ? (
+                        <Link
+                          key={button.name}
+                          href={button.link}
+                          title={button.name}
+                          aria-label={button.name}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          ref={(node) => {
+                            menuItemRefs.current[index] = node;
+                          }}
+                          className={itemClassName}
+                        >
+                          {itemContent}
+                        </Link>
+                      ) : (
+                        <button
+                          key={button.name}
+                          type="button"
+                          title={button.name}
+                          aria-label={button.name}
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            onQuoteClick();
+                          }}
+                          ref={(node) => {
+                            menuItemRefs.current[index] = node;
+                          }}
+                          className={itemClassName}
+                        >
+                          {itemContent}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {compactUtilityButtons.length > 0 ? (
+                  <div className="mt-5 flex flex-wrap gap-3 border-t border-white/8 pt-5">
+                    {compactUtilityButtons.map((button, index) =>
+                      button.action === "link" && button.link ? (
+                        <Link
+                          key={button.name}
+                          href={button.link}
+                          title={button.name}
+                          aria-label={button.name}
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          ref={(node) => {
+                            menuUtilityRefs.current[index] = node;
+                          }}
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.035] text-stone-200/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition duration-300 hover:border-white/18 hover:bg-white/[0.06] hover:text-stone-100"
+                        >
+                          <span className="flex h-4 w-4 items-center justify-center text-stone-300/82">
+                            {button.icon}
+                          </span>
+                        </Link>
+                      ) : (
+                        <button
+                          key={button.name}
+                          type="button"
+                          title={button.name}
+                          aria-label={button.name}
+                          onClick={() => {
+                            setIsMobileMenuOpen(false);
+                            onQuoteClick();
+                          }}
+                          ref={(node) => {
+                            menuUtilityRefs.current[index] = node;
+                          }}
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.035] text-stone-200/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition duration-300 hover:border-white/18 hover:bg-white/[0.06] hover:text-stone-100"
+                        >
+                          <span className="flex h-4 w-4 items-center justify-center text-stone-300/82">
+                            {button.icon}
+                          </span>
+                        </button>
+                      ),
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {!isMobileMenuOpen ? (
+          <div className="pointer-events-none fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),1rem)] z-[60] flex justify-start px-4 sm:px-5">
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileMenuRendered(true);
+                setIsMobileMenuOpen(true);
+              }}
+              className="pointer-events-auto inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/12 bg-[linear-gradient(180deg,rgba(26,26,28,0.92),rgba(7,7,8,0.96))] text-stone-100 shadow-[0_16px_40px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-2xl transition active:scale-[0.98] sm:h-11 sm:w-11"
+              aria-label="Open navigation menu"
+              aria-expanded={false}
+            >
+              <Menu className="h-[1.05rem] w-[1.05rem]" />
+            </button>
+          </div>
+        ) : null}
+      </>
     );
   }
 
