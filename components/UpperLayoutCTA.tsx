@@ -529,68 +529,40 @@ export default function UpperLayoutCTA({
           >
             <div
               ref={menuPanelRef}
-              className="absolute inset-x-0 bottom-0 max-h-[calc(100svh-1rem)] overflow-hidden rounded-t-[2rem] border-t border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.06),transparent_32%),linear-gradient(180deg,rgba(19,19,21,0.94),rgba(5,5,6,0.985))] shadow-[0_-20px_60px_rgba(0,0,0,0.5)] backdrop-blur-3xl"
+              className="absolute inset-x-0 bottom-0 max-h-[calc(100svh-1rem)] overflow-hidden rounded-t-[2.25rem] border-t border-black/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.96),rgba(248,248,246,0.98))] text-zinc-950 shadow-[0_-24px_70px_rgba(0,0,0,0.18)] backdrop-blur-3xl"
               role="dialog"
               aria-modal="true"
             >
-              <motion.div
-                aria-hidden="true"
-                className="pointer-events-none absolute -left-16 top-14 h-44 w-44 rounded-full bg-white/[0.045] blur-3xl"
-                animate={{
-                  x: [0, 18, -6, 0],
-                  y: [0, -10, 8, 0],
-                  opacity: [0.3, 0.5, 0.34, 0.3],
-                }}
-                transition={{
-                  duration: 8,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-              <motion.div
-                aria-hidden="true"
-                className="pointer-events-none absolute bottom-16 right-[-2.5rem] h-40 w-40 rounded-full bg-white/[0.03] blur-3xl"
-                animate={{
-                  x: [0, -16, 6, 0],
-                  y: [0, 10, -8, 0],
-                  opacity: [0.22, 0.34, 0.26, 0.22],
-                }}
-                transition={{
-                  duration: 9,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),transparent_20%,transparent_82%,rgba(255,255,255,0.015))]" />
-              <div className="relative flex min-h-[70svh] flex-col px-5 pb-[calc(env(safe-area-inset-bottom)+1.15rem)] pt-5 sm:px-6 sm:pt-6">
-                <div className="mb-3 flex items-center justify-between">
+              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.65),rgba(255,255,255,0.14)_18%,transparent_45%,rgba(0,0,0,0.02))]" />
+              <div className="relative flex flex-col px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-4 sm:px-6 sm:pt-5">
+                <div className="mb-4 flex items-center justify-between">
                   <div
                     ref={menuHandleRef}
-                    className="h-1 w-14 rounded-full bg-white/10 shadow-[0_0_18px_rgba(255,255,255,0.08)]"
+                    className="h-1 w-14 rounded-full bg-zinc-300"
                   />
                   <button
                     ref={menuCloseButtonRef}
                     type="button"
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.045] text-stone-100/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl transition active:scale-[0.98]"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-black/8 bg-white/70 text-zinc-900 shadow-[0_8px_24px_rgba(0,0,0,0.08)] backdrop-blur-xl transition active:scale-[0.98]"
                     aria-label="Close navigation menu"
                   >
-                    <X className="h-[1.05rem] w-[1.05rem]" />
+                    <X className="h-4 w-4" />
                   </button>
                 </div>
 
-                <div className="flex flex-1 flex-col justify-start pt-2 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:pt-3">
+                <div className="mx-auto w-full max-w-[34rem] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                   <div className="space-y-0">
                     {compactMenuButtons.map((button, index) => {
                       const labelChars = Array.from(button.name.toUpperCase());
 
                       const itemContent = (
                         <>
-                          <div className="flex min-w-0 items-center gap-3">
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.03] text-stone-300/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition duration-300 group-hover:border-white/16 group-hover:bg-white/[0.06] group-hover:text-stone-100/90">
+                          <div className="flex min-w-0 items-center gap-3.5">
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-black/8 bg-zinc-100 text-zinc-600 transition duration-300 group-hover:border-black/12 group-hover:bg-zinc-950 group-hover:text-white">
                               {button.icon}
                             </span>
-                            <span className="flex min-w-0 flex-wrap overflow-hidden text-[1.72rem] font-medium uppercase leading-[0.92] tracking-[-0.05em] text-stone-100 sm:text-[2.05rem]">
+                            <span className="flex min-w-0 flex-wrap overflow-hidden text-[1.58rem] font-medium uppercase leading-[0.92] tracking-[-0.05em] text-zinc-950 sm:text-[1.9rem]">
                               {labelChars.map((char) => {
                                 const letterIndex = mobileLetterIndex++;
 
@@ -608,13 +580,16 @@ export default function UpperLayoutCTA({
                               })}
                             </span>
                           </div>
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center text-zinc-400 transition duration-300 group-hover:translate-x-1 group-hover:text-zinc-950">
+                            <span className="text-lg leading-none">+</span>
+                          </span>
                         </>
                       );
 
-                      const itemClassName = `group relative flex w-full items-center gap-3 border-b border-white/8 py-4 text-left transition duration-300 last:border-b-0 sm:py-[1.15rem] ${
+                      const itemClassName = `group relative flex w-full items-center justify-between gap-3 border-b border-zinc-200 py-4 text-left transition duration-300 last:border-b-0 sm:py-[1.15rem] ${
                         button.isHighlight
-                          ? "text-stone-50"
-                          : "text-stone-200/94 hover:text-stone-50"
+                          ? "text-zinc-950"
+                          : "text-zinc-800 hover:text-zinc-950"
                       }`;
 
                       return button.action === "link" && button.link ? (
@@ -654,45 +629,47 @@ export default function UpperLayoutCTA({
                 </div>
 
                 {compactUtilityButtons.length > 0 ? (
-                  <div className="mt-5 flex flex-wrap gap-3 border-t border-white/8 pt-5">
-                    {compactUtilityButtons.map((button, index) =>
-                      button.action === "link" && button.link ? (
-                        <Link
-                          key={button.name}
-                          href={button.link}
-                          title={button.name}
-                          aria-label={button.name}
-                          onClick={() => setIsMobileMenuOpen(false)}
-                          ref={(node) => {
-                            menuUtilityRefs.current[index] = node;
-                          }}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.035] text-stone-200/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition duration-300 hover:border-white/18 hover:bg-white/[0.06] hover:text-stone-100"
-                        >
-                          <span className="flex h-4 w-4 items-center justify-center text-stone-300/82">
-                            {button.icon}
-                          </span>
-                        </Link>
-                      ) : (
-                        <button
-                          key={button.name}
-                          type="button"
-                          title={button.name}
-                          aria-label={button.name}
-                          onClick={() => {
-                            setIsMobileMenuOpen(false);
-                            onQuoteClick();
-                          }}
-                          ref={(node) => {
-                            menuUtilityRefs.current[index] = node;
-                          }}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.035] text-stone-200/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition duration-300 hover:border-white/18 hover:bg-white/[0.06] hover:text-stone-100"
-                        >
-                          <span className="flex h-4 w-4 items-center justify-center text-stone-300/82">
-                            {button.icon}
-                          </span>
-                        </button>
-                      ),
-                    )}
+                  <div className="mt-4 flex justify-center">
+                    <div className="inline-flex flex-wrap items-center gap-3 px-1 py-1">
+                      {compactUtilityButtons.map((button, index) =>
+                        button.action === "link" && button.link ? (
+                          <Link
+                            key={button.name}
+                            href={button.link}
+                            title={button.name}
+                            aria-label={button.name}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            ref={(node) => {
+                              menuUtilityRefs.current[index] = node;
+                            }}
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/8 bg-white text-zinc-700 shadow-[0_8px_18px_rgba(0,0,0,0.06)] transition duration-300 hover:-translate-y-0.5 hover:border-black/12 hover:bg-zinc-950 hover:text-white"
+                          >
+                            <span className="flex h-4 w-4 items-center justify-center">
+                              {button.icon}
+                            </span>
+                          </Link>
+                        ) : (
+                          <button
+                            key={button.name}
+                            type="button"
+                            title={button.name}
+                            aria-label={button.name}
+                            onClick={() => {
+                              setIsMobileMenuOpen(false);
+                              onQuoteClick();
+                            }}
+                            ref={(node) => {
+                              menuUtilityRefs.current[index] = node;
+                            }}
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-black/8 bg-white text-zinc-700 shadow-[0_8px_18px_rgba(0,0,0,0.06)] transition duration-300 hover:-translate-y-0.5 hover:border-black/12 hover:bg-zinc-950 hover:text-white"
+                          >
+                            <span className="flex h-4 w-4 items-center justify-center">
+                              {button.icon}
+                            </span>
+                          </button>
+                        ),
+                      )}
+                    </div>
                   </div>
                 ) : null}
               </div>
