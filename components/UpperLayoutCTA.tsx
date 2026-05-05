@@ -76,6 +76,15 @@ function isQuickRouteActive(pathname: string, href?: string) {
   return pathname === href;
 }
 
+function getRemoteControlProps(button: CtaButtonType) {
+  return {
+    "data-trifecta-control-label": button.name,
+    ...(button.action === "quote-modal"
+      ? { "data-trifecta-quote-trigger": "true" }
+      : {}),
+  };
+}
+
 export default function UpperLayoutCTA({
   onQuoteClick,
   mergeRouteLinks = false,
@@ -222,12 +231,12 @@ export default function UpperLayoutCTA({
     });
   }
 
-  const routeButtons = useMemo(() => {
+  const routeButtons = useMemo<CtaButtonType[]>(() => {
     if (!mergeRouteLinks) {
       return [];
     }
 
-    return [
+    const buttons: CtaButtonType[] = [
       {
         name: "Home",
         link: "/",
@@ -282,7 +291,11 @@ export default function UpperLayoutCTA({
           <Footprints className="h-[0.82rem] w-[0.82rem] xl:h-[0.9rem] xl:w-[0.9rem] 2xl:h-[0.98rem] 2xl:w-[0.98rem]" />
         ),
       },
-    ].filter((button) => !(isMasterPlanRoute && button.name === "Home"));
+    ];
+
+    return buttons.filter(
+      (button) => !(isMasterPlanRoute && button.name === "Home"),
+    );
   }, [isMasterPlanRoute, mergeRouteLinks, pathname]);
 
   const buttons = [...primaryButtons, ...routeButtons];
@@ -598,6 +611,7 @@ export default function UpperLayoutCTA({
                           href={button.link}
                           title={button.name}
                           aria-label={button.name}
+                          {...getRemoteControlProps(button)}
                           onClick={() => setIsMobileMenuOpen(false)}
                           ref={(node) => {
                             menuItemRefs.current[index] = node;
@@ -612,6 +626,7 @@ export default function UpperLayoutCTA({
                           type="button"
                           title={button.name}
                           aria-label={button.name}
+                          {...getRemoteControlProps(button)}
                           onClick={() => {
                             setIsMobileMenuOpen(false);
                             onQuoteClick();
@@ -654,6 +669,7 @@ export default function UpperLayoutCTA({
                             type="button"
                             title={button.name}
                             aria-label={button.name}
+                            {...getRemoteControlProps(button)}
                             onClick={() => {
                               setIsMobileMenuOpen(false);
                               onQuoteClick();
@@ -805,7 +821,12 @@ export default function UpperLayoutCTA({
                   transition={spring}
                 >
                   {button.action === "link" && button.link ? (
-                    <Link href={button.link} title={button.name} aria-label={button.name}>
+                    <Link
+                      href={button.link}
+                      title={button.name}
+                      aria-label={button.name}
+                      {...getRemoteControlProps(button)}
+                    >
                       <motion.div
                         layout
                         transition={spring}
@@ -875,6 +896,7 @@ export default function UpperLayoutCTA({
                       type="button"
                       title={button.name}
                       aria-label={button.name}
+                      {...getRemoteControlProps(button)}
                       layout
                       transition={spring}
                       onClick={onQuoteClick}

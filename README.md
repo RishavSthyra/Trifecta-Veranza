@@ -20,6 +20,26 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
+## Remote Control
+
+The presentation shell includes an optional browser-side remote-control bridge for controller apps that send JSON commands over WebSocket.
+
+Add these values to your local env file:
+
+```bash
+NEXT_PUBLIC_TRIFECTA_REMOTE_CONTROL_ENABLED=true
+NEXT_PUBLIC_TRIFECTA_REMOTE_CONTROL_RELAY_URL=ws://127.0.0.1:8787/session
+NEXT_PUBLIC_TRIFECTA_REMOTE_CONTROL_SESSION_CODE=demo-session
+```
+
+Notes:
+
+- Set `NEXT_PUBLIC_TRIFECTA_REMOTE_CONTROL_ENABLED=false` to disable the feature completely.
+- `NEXT_PUBLIC_TRIFECTA_REMOTE_CONTROL_RELAY_URL` defaults to `ws://127.0.0.1:8787/session` in development when the flag is enabled.
+- `NEXT_PUBLIC_TRIFECTA_REMOTE_CONTROL_SESSION_CODE` is required before the site will join a relay session.
+- Every received command is re-broadcast in the browser as `window.dispatchEvent(new CustomEvent("trifecta:control", { detail: command }))`.
+- You can also inject commands manually with `window.TrifectaPresenter.receiveNativeCommand(command)`.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

@@ -247,9 +247,10 @@ export default function RouteChrome() {
         />
       ) : null}
 
-      {!isAmenitiesRoute ? (
-        <QuoteRequestController mergeRouteLinks={shouldMergeLinksForRoute} />
-      ) : null}
+      <QuoteRequestController
+        mergeRouteLinks={shouldMergeLinksForRoute}
+        showCta={!isAmenitiesRoute}
+      />
     </>
   );
 }
